@@ -101,15 +101,9 @@ _DEFAULT_FUNC_TMPLT(destroy,,{ __call_dtor(a1); })
 
 _DEFAULT_FUNC_TMPLT(max_size,return,{ return ~_Ret(0); })
 
-_DEFAULT_FUNC_TMPLT(address,return,{ return addressof(a1); });
-
 _DEFAULT_FUNC_TMPLT(select_on_container_copy_construction,return,{
         return v;
     })
-
-_DEFAULT_FUNC_TMPLT(on_container_copy_assignment,return,{ return false; })
-_DEFAULT_FUNC_TMPLT(on_container_move_assignment,return,{ return false; })
-_DEFAULT_FUNC_TMPLT(on_container_swap,return,{ return false; })
 
 } // end namespace __details
 
@@ -180,12 +174,7 @@ struct allocator_traits
     }
 
     static size_type max_size(const Alloc& a)
-        { _DEFAULT_FUNC(max_size,size_type)(a, 0); }
-
-    static pointer address(const Alloc& a, value_type& r)
-        { _DEFAULT_FUNC(address,pointer)(a, r); }
-    static const_pointer address(const Alloc& a, const value_type& r)
-        { _DEFAULT_FUNC(address,const_pointer)(a, r); }
+        { return _DEFAULT_FUNC(max_size,size_type)(a, 0); }
 
     // Allocator propagation on construction
     static Alloc select_on_container_copy_construction(const Alloc& rhs) {
@@ -198,23 +187,6 @@ struct allocator_traits
     typedef _DEFAULT_TYPE(Alloc,propagate_on_container_move_assignment,std::false_type) propagate_on_container_move_assignment;
     typedef _DEFAULT_TYPE(Alloc,propagate_on_container_swap,std::false_type) propagate_on_container_swap;
 
-
-    static bool on_container_copy_assignment(Alloc& lhs, const Alloc& rhs) {
-        if (propagate_on_container_copy_assignment::value)
-            lhs = rhs;
-        return propagate_on_container_copy_assignment::value;
-    }
-    static bool on_container_move_assignment(Alloc& lhs, Alloc&& rhs) {
-        if (propagate_on_container_move_assignment::value)
-            lhs = std::move(rhs);
-        return propagate_on_container_move_assignment::value;
-    }
-    static bool on_container_swap(Alloc& lhs, Alloc& rhs) {
-        using namespace std;
-        if (propagate_on_container_swap::value)
-            swap(lhs, rhs);
-        return propagate_on_container_swap::value;
-    }
 };
 
 END_NAMESPACE_XSTD

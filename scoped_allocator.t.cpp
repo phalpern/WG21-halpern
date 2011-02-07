@@ -98,8 +98,8 @@ class AllocResource
     int bytes_deallocated_;
 
     union Header {
-        void* align_;
-        int   size_;
+        void*       align_;
+        std::size_t size_;
     };
 
   public:
@@ -248,7 +248,7 @@ class FancyAllocator
     AllocResource *resource_;
 
   public:
-    typedef Tp                       value_type;
+    typedef Tp              value_type;
 
     typedef FancyPointer<Tp>         pointer;
     typedef FancyPointer<const Tp>   const_pointer;
@@ -271,19 +271,6 @@ class FancyAllocator
     template <typename T>
     FancyAllocator(const FancyAllocator<T>& other)
         : resource_(other.resource()) { }
-
-    // FancyAllocator propagation on construction
-    FancyAllocator select_on_container_copy_construction()
-        { return *this; }
-
-    // FancyAllocator propagation functions.  Return true if *this was
-    // modified.
-    bool on_container_copy_assignment(const FancyAllocator& rhs)
-        { return false; }
-    bool on_container_move_assignment(FancyAllocator&& rhs)
-        { return false; }
-    bool on_container_swap(FancyAllocator& other)
-        { return false; }
 
     pointer allocate(size_type n) {
 	pointer ret;
@@ -317,6 +304,16 @@ class FancyAllocator
 	ret.value_ = XSTD::addressof(r);
 	return ret;
     }
+
+    // FancyAllocator propagation on construction
+    FancyAllocator select_on_container_copy_construction() const
+        { return *this; }
+
+    // FancyAllocator propagation functions.  Return true if *this was
+    // modified.
+    typedef std::false_type propagate_on_container_copy_assignment;
+    typedef std::false_type propagate_on_container_move_assignment;
+    typedef std::false_type propagate_on_container_swap;
 
     AllocResource* resource() const { return resource_; }
 };
@@ -372,7 +369,8 @@ public:
         if (this == &other)
             return *this;
         clear();
-        AllocTraits::on_container_copy_assignment(alloc_, other.alloc_);
+        if (AllocTraits::propagate_on_container_copy_assignment::value)
+            alloc_ = other.alloc_;
         assign(other.data_);
         return *this;
     }
@@ -380,9 +378,12 @@ public:
     SimpleString& operator=(SimpleString&& other) {
         if (this == &other)
             return *this;
-        clear();
-        if (AllocTraits::on_container_move_assignment(alloc_, other.alloc_) ||
-            alloc_ == other.alloc_) {
+        else if (alloc_ == other.alloc_)
+            std::swap(data_, other.data_);
+        else if (AllocTraits::propagate_on_container_move_assignment::value)
+        {
+            clear();
+            alloc_ = std::move(other.alloc_);
             data_ = other.data_;
             other.data_ = nullptr;
         }
@@ -445,9 +446,9 @@ bool operator!=(const poly_allocator<T>& a, const poly_allocator<U>& b)
 int main(int argc, char *argv[])
 {
     int test = argc > 1 ? atoi(argv[1]) : 0;
-    int verbose = argc > 2;
-    int veryVerbose = argc > 3;
-    int veryVeryVerbose = argc > 4;
+//     int verbose = argc > 2;
+//     int veryVerbose = argc > 3;
+//     int veryVeryVerbose = argc > 4;
 
     std::cout << "TEST " << __FILE__ << " CASE " << test << std::endl;;
 

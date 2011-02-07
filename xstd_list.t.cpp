@@ -97,8 +97,8 @@ class AllocResource
     int bytes_deallocated_;
 
     union Header {
-        void* align_;
-        int   size_;
+        void*       align_;
+        std::size_t size_;
     };
 
   public:

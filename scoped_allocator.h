@@ -25,6 +25,8 @@ scoped_allocator_adaptor<OuterAlloc, InnerAllocs...> make_scoped();
 template <typename OuterAlloc, typename... InnerAllocs>
 class scoped_allocator_adaptor_base : public OuterAlloc
 {
+    typedef allocator_traits<OuterAlloc> OuterTraits;
+
 public:
     // Workaround for inability of gcc-4.4.1 to expand InnerAllocs...
 //    typedef scoped_allocator_adaptor<InnerAllocs...> inner_allocator_type;
@@ -46,12 +48,24 @@ public:
         { return _M_inner_allocs; }
 
     // Allocator propagation functions.
-    static scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>
-    select_on_container_copy_construction(const scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>& rhs);
+    scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>
+    select_on_container_copy_construction() const;
 
-    bool on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>& rhs);
-    bool on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>&& rhs);
-    bool on_container_swap(scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>& other);
+    typedef std::integral_constant<
+        bool,
+        OuterTraits::propagate_on_container_copy_assignment::value ||
+        inner_allocator_type::propagate_on_container_copy_assignment::value
+        > propagate_on_container_copy_assignment;
+    typedef std::integral_constant<
+        bool,
+        OuterTraits::propagate_on_container_move_assignment::value ||
+        inner_allocator_type::propagate_on_container_move_assignment::value
+        > propagate_on_container_move_assignment;
+    typedef std::integral_constant<
+        bool,
+        OuterTraits::propagate_on_container_swap::value ||
+        inner_allocator_type::propagate_on_container_swap::value
+        > propagate_on_container_swap;
 
 private:
     inner_allocator_type _M_inner_allocs;
@@ -61,6 +75,7 @@ private:
 template <typename OuterAlloc>
 class scoped_allocator_adaptor_base<OuterAlloc> : public OuterAlloc
 {
+    typedef allocator_traits<OuterAlloc> OuterTraits;
 public:
     typedef scoped_allocator_adaptor<OuterAlloc> inner_allocator_type;
 
@@ -81,12 +96,12 @@ public:
         { return static_cast<const inner_allocator_type&>(*this); }
 
     // Allocator propagation functions.
-    static scoped_allocator_adaptor<OuterAlloc>
-    select_on_container_copy_construction(const scoped_allocator_adaptor<OuterAlloc>& rhs);
+    scoped_allocator_adaptor<OuterAlloc>
+      select_on_container_copy_construction() const;
 
-    bool on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc>& rhs);
-    bool on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc>& rhs);
-    bool on_container_swap(scoped_allocator_adaptor<OuterAlloc>& other);
+    typedef typename OuterTraits::propagate_on_container_copy_assignment propagate_on_container_copy_assignment;
+    typedef typename OuterTraits::propagate_on_container_move_assignment propagate_on_container_move_assignment;
+    typedef typename OuterTraits::propagate_on_container_swap propagate_on_container_swap;
 };
 
 template <typename OuterAlloc, typename... InnerAllocs>
@@ -136,9 +151,6 @@ public:
         { return *this; }
     outer_allocator_type const& outer_allocator() const
         { return *this; }
-
-    pointer       address(value_type& x)       const;
-    const_pointer address(const value_type& x) const;
 
     pointer allocate(size_type n);
     pointer allocate(size_type n, const_void_pointer hint);
@@ -217,65 +229,13 @@ template <typename OuterAlloc, typename... InnerAllocs>
 inline
 scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>
 scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::
-  select_on_container_copy_construction(const scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>& rhs)
+  select_on_container_copy_construction() const
 {
     return scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>(
         allocator_traits<OuterAlloc>::select_on_container_copy_construction(
-            rhs.outer_allocator()),
+            this->outer_allocator()),
         allocator_traits<inner_allocator_type>::select_on_container_copy_construction(
-            rhs.inner_allocator()));
-}
-
-// Returns true if 'this' is modified.
-template <typename OuterAlloc, typename... InnerAllocs>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::
-    on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>& rhs)
-{
-    typedef allocator_traits<OuterAlloc>           _OuterTraits;
-
-    bool outercopy = _OuterTraits::on_container_copy_assignment(
-        this->outer_allocator(),
-        rhs.outer_allocator());
-
-    bool innercopy = inner_allocator().on_container_copy_assignment(
-        std::move(rhs.inner_allocator()));
-
-    return outercopy || innercopy;
-}
-
-template <typename OuterAlloc, typename... InnerAllocs>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::
-    on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>&& rhs)
-{
-    typedef allocator_traits<OuterAlloc>           _OuterTraits;
-
-    bool outermove = _OuterTraits::on_container_move_assignment(
-        std::move(this->outer_allocator()),
-        std::move(rhs.outer_allocator()));
-
-    bool innermove = inner_allocator().on_container_move_assignment(
-        std::move(rhs.inner_allocator()));
-
-    return outermove || innermove;
-}
-
-template <typename OuterAlloc, typename... InnerAllocs>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::on_container_swap(
-    scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>& other)
-{
-    typedef allocator_traits<OuterAlloc>           _OuterTraits;
-
-    bool outerswap = _OuterTraits::on_container_swap(
-        this->outer_allocator(),
-        other.outer_allocator());
-
-    bool innerswap = inner_allocator().on_container_swap(
-        std::move(other.inner_allocator()));
-
-    return outerswap || innerswap;
+            this->inner_allocator()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -335,43 +295,11 @@ template <typename OuterAlloc>
 inline
 scoped_allocator_adaptor<OuterAlloc>
 scoped_allocator_adaptor_base<OuterAlloc>::
-  select_on_container_copy_construction(
-      const scoped_allocator_adaptor<OuterAlloc>& rhs)
+select_on_container_copy_construction() const
 {
     return
         allocator_traits<OuterAlloc>::select_on_container_copy_construction(
-            rhs.outer_allocator());
-}
-
-template <typename OuterAlloc>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc>::
-    on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc>& rhs)
-{
-    return
-        allocator_traits<OuterAlloc>::on_container_copy_assignment(
-            this->outer_allocator(), rhs.outer_allocator());
-}
-
-template <typename OuterAlloc>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc>::on_container_move_assignment(
-    scoped_allocator_adaptor<OuterAlloc>& rhs)
-{
-    return
-        allocator_traits<OuterAlloc>::on_container_move_assignment(
-            static_cast<OuterAlloc&>(*this),
-            static_cast<OuterAlloc&>(rhs));
-}
-
-template <typename OuterAlloc>
-inline
-bool scoped_allocator_adaptor_base<OuterAlloc>::on_container_swap(
-    scoped_allocator_adaptor<OuterAlloc>& other) 
-{
-    return
-        allocator_traits<OuterAlloc>::on_container_swap(
-            this->outer_allocator(), other.outer_allocator());
+            this->outer_allocator());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -567,22 +495,6 @@ template <typename OuterAlloc, typename... InnerAllocs>
 scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>::
     ~scoped_allocator_adaptor()
 {
-}
-
-template <typename OuterAlloc, typename... InnerAllocs>
-inline typename allocator_traits<OuterAlloc>::pointer
-scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>::
-    address(value_type& x) const
-{
-    return allocator_traits<OuterAlloc>::address(outer_allocator(), x);
-}
-
-template <typename OuterAlloc, typename... InnerAllocs>
-inline typename allocator_traits<OuterAlloc>::const_pointer
-scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>::
-    address(const value_type& x) const
-{
-    return allocator_traits<OuterAlloc>::address(outer_allocator(), x);
 }
 
 template <typename OuterAlloc, typename... InnerAllocs>

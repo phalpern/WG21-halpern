@@ -180,8 +180,11 @@ class list
     const typename _AllocTraits::size_type& __size() const
 	{ return _M_alloc_and_size.data(); }
 
+    _NodePtr __allocate_node();
+    void __free_node(_NodePtr np);
+
     // Creates _M_tail node if empty.
-    void __create_tail() const;
+    void __create_tail();
 
 public:
     // types:
@@ -325,11 +328,24 @@ template <typename _Tp, class _Alloc>
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename _Tp, typename _Alloc>
-inline void list<_Tp,_Alloc>::__create_tail() const
+inline typename list<_Tp,_Alloc>::_NodePtr list<_Tp,_Alloc>::__allocate_node()
 {
-    list *const self = const_cast<list*>(this);
-    self->_M_tail = _AllocTraits::allocate(self->__allocator(), 1);
-    self->_M_tail->init();
+    _NodePtr ret = _AllocTraits::allocate(__allocator(), 1);
+    ret->init();
+    return ret;
+}
+
+template <typename _Tp, typename _Alloc>
+inline void list<_Tp,_Alloc>::__free_node(_NodePtr np)
+{
+    np->deinit();
+    _AllocTraits::deallocate(__allocator(), np, 1);
+}
+
+template <typename _Tp, typename _Alloc>
+inline void list<_Tp,_Alloc>::__create_tail()
+{
+    _M_tail = __allocate_node();
     __link_nodes(_M_tail, _M_tail);  // circular
 }
 
@@ -411,8 +427,7 @@ template <typename _Tp, typename _Alloc>
 list<_Tp,_Alloc>::~list()
 {
     clear();
-    _M_tail->deinit();
-    _AllocTraits::deallocate(__allocator(), _M_tail, 1);
+    __free_node(_M_tail);
 }
 
 template <typename _Tp, typename _Alloc>
@@ -425,10 +440,9 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(const list& x)
         __allocator() != x.__allocator()) {
         // Completely destroy and rebuild list using new allocator.
         clear();
-        _M_tail->deinit();
-        _AllocTraits::deallocate(__allocator(), _M_tail, 1);
-        _AllocTraits::on_container_copy_assignment(__allocator(),
-                                                   x.__allocator());
+        __free_node(_M_tail);
+
+        __allocator() = x.__allocator();
         __create_tail();
     }
         
@@ -448,20 +462,18 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(list&& x)
 	swap(this->_M_tail, x._M_tail);
 	swap(this->__size(), x.__size());
     }
-    else if (_AllocTraits::propagate_on_container_copy_assignment::value)
+    else if (_AllocTraits::propagate_on_container_move_assignment::value)
     {
         // Completely destroy left-hand list.
         clear();
-        _M_tail->deinit();
-        _AllocTraits::deallocate(__allocator(), _M_tail, 1);
+        __free_node(_M_tail);
 
         // Move x members to this.
-        _AllocTraits::on_container_move_assignment(__allocator(),
-                                                   x.__allocator());
-        _M_tail = x._M_tail;
+        __allocator() = std::move(x.__allocator());
+        _M_tail = std::move(x._M_tail);
         __size() = x.__size();
 
-        x.__size() == 0;
+        x.__size() = 0;
         x.__create_tail();
     }
     else
@@ -479,16 +491,31 @@ template <typename _Tp, typename _Alloc>
   template <typename InputIter>
     void list<_Tp,_Alloc>::assign(InputIter first, InputIter last)
 {
-    clear();
+    iterator i = this->begin();
+    iterator e = this->end();
+
+    for (; first != last && i != e; ++first, ++i)
+        *i = *first;
+
+    erase(i, e);
+
     for (; first != last; ++first)
-	push_back(*first);
+        emplace(e, *first);
 }
 
 template <typename _Tp, typename _Alloc>
 void list<_Tp,_Alloc>::assign(size_type n, const _Tp& t)
 {
-    for (int i = 0; i < n; ++i)
-	push_back(t);
+    iterator i = this->begin();
+    iterator e = this->end();
+
+    for (; n > 0 && i != e; --n, ++i)
+        *i = t;
+
+    erase(i, e);
+
+    for (; n > 0; --n)
+        insert(e, t);
 }
 
 //  void assign(initializer_list<_Tp>);
@@ -701,15 +728,13 @@ template <typename _Tp, typename _Alloc>
     typename list<_Tp,_Alloc>::iterator
     list<_Tp,_Alloc>::emplace(const_iterator position, Args&&... args)
 {
-    _NodePtr p = _AllocTraits::allocate(__allocator(), 1, _M_tail);
-    p->init();
+    _NodePtr p = __allocate_node();
     try {
         _AllocTraits::construct(__allocator(), addressof(p->_M_value),
                                 std::forward<Args>(args)...);
     }
     catch (...) {
-        p->deinit();
-        _AllocTraits::deallocate(__allocator(), p, 1);
+        __free_node(p);
         throw;
     }
 
@@ -759,12 +784,13 @@ typename list<_Tp,_Alloc>::iterator
 list<_Tp,_Alloc>::erase(const_iterator position)
 {
     typename _AllocTraits::pointer p = position._M_nodeptr;
+    iterator ret(p->_M_next);
 
     __link_nodes(p->_M_prev, p->_M_next);
     _AllocTraits::destroy(__allocator(), addressof(p->_M_value));
-    p->deinit();
-    _AllocTraits::deallocate(__allocator(), p, 1);
+    __free_node(p);
     --__size();
+    return ret;
 }
 
 template <typename _Tp, typename _Alloc>
@@ -776,16 +802,21 @@ list<_Tp,_Alloc>::erase(const_iterator position, const_iterator last)
         ++position;
         erase(curr);
     }
+
+    return position;
 }
 
 template <typename _Tp, typename _Alloc>
 void list<_Tp,_Alloc>::swap(list&& x)
 {
-    if (! _AllocTraits::on_container_swap(__allocator(), x.__allocator())) {
+    using std::swap;
+
+    if (_AllocTraits::propagate_on_container_swap::value)
+        swap(__allocator(), x.__allocator());
+    else {
         // assert(__allocator() == x.__allocator());
     }
 
-    using std::swap;
     swap(_M_tail, x._M_tail);
     swap(__size(), x.__size());
 }
