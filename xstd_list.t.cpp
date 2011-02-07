@@ -194,14 +194,18 @@ typedef void (UniqDummyType::*UniqPointerType)(UniqDummyType);
 typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
+template <typename _Tp> struct unvoid { typedef _Tp type; };
+template <> struct unvoid<void> { struct type { }; };
+template <> struct unvoid<const void> { struct type { }; };
+
 template <typename Tp>
 class FancyPointer
 {
     template <typename T> friend class FancyAllocator;
-
+    
     Tp* value_;
 public:
-    typedef Tp value_type;
+    typedef Tp element_type;
 
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
@@ -216,6 +220,10 @@ public:
       operator*() const { return *value_; }
     Tp* operator->() const { return value_; }
     Tp* ptr() const { return value_; }
+
+    static
+    FancyPointer pointer_to(typename unvoid<Tp>::type& r)
+        { FancyPointer ret; ret.value_= XSTD::addressof(r); }
 
     operator ConvertibleToBoolType() const
         { return value_ ? ConvertibleToTrue : nullptr; }
@@ -302,12 +310,9 @@ class FancyAllocator
 
     // FancyAllocator propagation functions.  Return true if *this was
     // modified.
-    bool on_container_copy_assignment(const FancyAllocator& rhs)
-        { return false; }
-    bool on_container_move_assignment(FancyAllocator&& rhs)
-        { return false; }
-    bool on_container_swap(FancyAllocator& other)
-        { return false; }
+    typedef std::false_type propagate_on_container_copy_assignment;
+    typedef std::false_type propagate_on_container_move_assignment;
+    typedef std::false_type propagate_on_container_swap;
 
     AllocResource* resource() const { return resource_; }
 };
@@ -348,6 +353,21 @@ class WeirdAllocator
     WeirdAllocator(const WeirdAllocator<T>& other)
         : resource_(other.resource()) { }
 
+    // Move constructor
+//     template <typename T>
+//     WeirdAllocator(WeirdAllocator<T>&& other)
+//         : resource_(other.resource())
+//         { other.resource_ = &defaultResource; }
+
+    template <typename T>
+    WeirdAllocator operator=(WeirdAllocator<T>&& rhs) {
+        if (*this != rhs) {
+            resource_ = rhs.resource_;
+            rhs.resource_ = &defaultResource;
+        }
+        return *this;
+    }
+
     Tp* allocate(std::size_t n)
         { return static_cast<Tp*>(resource_->allocate(n*sizeof(Tp))); }
 
@@ -360,15 +380,9 @@ class WeirdAllocator
 
     // WeirdAllocator propagation functions.  Return true if *this was
     // modified.
-    bool on_container_copy_assignment(const WeirdAllocator& rhs)
-        { resource_ = rhs.resource_; return true; }
-    bool on_container_move_assignment(WeirdAllocator&& rhs) {
-        resource_ = rhs.resource_;
-        rhs.resource_ = &defaultResource;
-        return true;
-    }
-    bool on_container_swap(WeirdAllocator& other)
-        { std::swap(resource_, other.resource_); return true; }
+    typedef std::true_type propagate_on_container_copy_assignment;
+    typedef std::true_type propagate_on_container_move_assignment;
+    typedef std::true_type propagate_on_container_swap;
 
     AllocResource* resource() const { return resource_; }
 };

@@ -195,14 +195,18 @@ typedef void (UniqDummyType::*UniqPointerType)(UniqDummyType);
 typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
+template <typename _Tp> struct unvoid { typedef _Tp type; };
+template <> struct unvoid<void> { struct type { }; };
+template <> struct unvoid<const void> { struct type { }; };
+
 template <typename Tp>
 class FancyPointer
 {
     template <typename T> friend class FancyAllocator;
-
+    
     Tp* value_;
 public:
-    typedef Tp value_type;
+    typedef Tp element_type;
 
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
@@ -217,6 +221,10 @@ public:
       operator*() const { return *value_; }
     Tp* operator->() const { return value_; }
     Tp* ptr() const { return value_; }
+
+    static
+    FancyPointer pointer_to(typename unvoid<Tp>::type& r)
+        { FancyPointer ret; ret.value_= XSTD::addressof(r); }
 
     operator ConvertibleToBoolType() const
         { return value_ ? ConvertibleToTrue : nullptr; }

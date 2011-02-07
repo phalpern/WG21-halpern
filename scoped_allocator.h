@@ -382,10 +382,13 @@ namespace __details {
 
     // Overload resolution for __has_ctor resolves to this function
     // when _Tp is constructible with _Args.  Returns true_type().
+    
+    static void* __void_p; // Declared but not defined
+
     template <typename _Tp, typename... _Args>
     inline
     auto __has_ctor(int, _Args&&... __args) ->
-        decltype((_Tp(__args...), std::true_type()))
+        decltype((new (__void_p) _Tp(__args...), std::true_type()))
         { return std::true_type(); }
 
     // Overload resolution for __has_ctor resolves to this function

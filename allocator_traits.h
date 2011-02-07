@@ -10,36 +10,14 @@
 #define INCLUDED_ALLOCATOR_TRAITS_DOT_H
 
 #include <xstd.h>
+#include <memory_util.h>
+#include <pointer_traits.h>
 #include <type_traits>
-#include <rebind.h>
 
 BEGIN_NAMESPACE_XSTD
 
-template <typename _Tp>
-inline _Tp* addressof(_Tp& __obj) {
-    return static_cast<_Tp*>(
-	static_cast<void*>(
-	    const_cast<char*>(&reinterpret_cast<const char&>(__obj))));
-}
-
-template <typename _Tp>
-inline _Tp* addressof(_Tp&& __obj) {
-    return static_cast<_Tp*>(
-	static_cast<void*>(
-	    const_cast<char*>(&reinterpret_cast<const char&>(__obj))));
-}
-
-static struct allocator_arg_t { } const allocator_arg = { };
-
 namespace __details
 {
-
-template <typename _Tp>
-struct _LowPriorityConversion
-{
-    // Convertible from _Tp with user-defined-conversion rank.
-    _LowPriorityConversion(const _Tp&) { }
-};
 
 template<typename _Tp, typename _Alloc>
 struct __uses_allocator_imp
@@ -65,27 +43,6 @@ struct __uses_allocator_imp
     enum { value = sizeof(__test<_Tp>(0, __alloc)) == 1 };
 };
 
-#define _DEFAULT_TYPE_TMPLT(tname)                                            \
-    template <typename _Tp, typename _Default>                                \
-    struct __default_type_ ## tname {                                         \
-                                                                              \
-        template <typename _X>                                                \
-        static char test(int, typename _X::tname*);                           \
-                                                                              \
-        template <typename _X>                                                \
-        static int test(_LowPriorityConversion<int>, void*);                  \
-                                                                              \
-        struct _DefaultWrap { typedef _Default tname; };                      \
-                                                                              \
-        static const bool value = (1 == sizeof(test<_Tp>(0, 0)));             \
-                                                                              \
-        typedef typename                                                      \
-            std::conditional<value,_Tp,_DefaultWrap>::type::tname type;       \
-    }
-
-#define _DEFAULT_TYPE(T,tname,...)                              \
-    typename __details::__default_type_ ## tname<T,__VA_ARGS__>::type
-
 template <typename _Alloc, typename _Tp>
 struct __alloc_has_rebind {
 
@@ -98,69 +55,36 @@ struct __alloc_has_rebind {
     static const bool value = (1 == sizeof(test<_Alloc>(0, 0)));
 };
 
-template <typename _Alloc, typename _Tp,
-          bool _HasRebind = __alloc_has_rebind<_Alloc,_Tp>::value >
+// Implementation of allocator_traits<_Alloc>::rebind if _Alloc has
+// its own rebind template.
+template <typename _Alloc, typename _U,
+          bool _HasRebind = __alloc_has_rebind<_Alloc,_U>::value >
 struct __alloc_rebinder
 {
-    typedef typename _Alloc::template rebind<_Tp>::other type;
+    typedef typename _Alloc::template rebind<_U>::other other;
 };
 
-template <typename _Alloc, typename _Tp>
-struct __alloc_rebinder<_Alloc,_Tp,false>
+// Specialization of allocator_traits<_Alloc>::rebind if _Alloc does not
+// have its own rebind template but has a the form _Alloc<class T, OtherArgs>,
+// where OtherArgs comprises zero or more type parameters.  Most allocators
+// fit this form, hence most allocators will get a reasonable default for
+// rebind.
+template <template <class, class...> class _Alloc, typename _Tp, class... _Tn,
+          class _U>
+struct __alloc_rebinder<_Alloc<_Tp, _Tn...>,_U,false>
 {
-    typedef typename rebinder<_Alloc,_Tp>::type type;
+    typedef _Alloc<_U, _Tn...> other;
 };
 
 _DEFAULT_TYPE_TMPLT(pointer);
 _DEFAULT_TYPE_TMPLT(const_pointer);
 _DEFAULT_TYPE_TMPLT(void_pointer);
 _DEFAULT_TYPE_TMPLT(const_void_pointer);
-_DEFAULT_TYPE_TMPLT(difference_type);
+//_DEFAULT_TYPE_TMPLT(difference_type); // Defined in pointer_traits
 _DEFAULT_TYPE_TMPLT(size_type);
-
-struct __void_type { };
-inline __void_type __first_arg() { return __void_type(); }
-template <typename A1, typename... Args>
-inline A1 __first_arg(A1&& a1, Args&&... args) { return std::forward<A1>(a1); }
-
-#define _DEFAULT_FUNC_TMPLT(fname,doret,default_imp)                          \
-    template <typename _Tp, typename... A>                                    \
-    auto __default_func_has_ ## fname(int, _Tp& v, A&&... args) ->            \
-        decltype((v.fname(std::forward<A>(args)...), std::true_type()));      \
-                                                                              \
-    template <typename _Tp, typename... A>                                    \
-    auto __default_func_has_ ## fname(_LowPriorityConversion<int>,            \
-                                      _Tp& v, A&&... args) ->                 \
-        std::false_type;                                                      \
-                                                                              \
-    template <typename _Ret, typename _Tp, typename... Args>                  \
-    static _Ret __default_func_dispatch_ ## fname(std::true_type,             \
-                                                  _Tp& v, Args&&... args) {   \
-        doret v.fname(std::forward<Args>(args)...);                           \
-    }                                                                         \
-                                                                              \
-    template <typename _Ret, typename _Tp, typename A1, typename... Args>     \
-    static _Ret __default_func_dispatch_ ## fname(std::false_type,            \
-                                                  _Tp& v, A1&& a1,            \
-                                                  Args&&... args) {           \
-        default_imp                                                           \
-    }                                                                         \
-                                                                              \
-    template <typename _Ret, typename _Tp>                                    \
-    static _Ret __default_func_dispatch_ ## fname(std::false_type, _Tp& v){   \
-        doret __default_func_dispatch_ ## fname<_Ret>(std::false_type(), v,   \
-                                                      __void_type());         \
-    }                                                                         \
-                                                                              \
-    template <typename _Ret, typename _Tp, typename... Args>                  \
-    static _Ret __default_func_call_ ## fname(_Tp& v, Args&&... args) {       \
-        decltype(__default_func_has_ ## fname(                                \
-                     0, v, std::forward<Args>(args)...)) __flag;              \
-        doret __default_func_dispatch_ ## fname<_Ret>(__flag, v,              \
-                                                 std::forward<Args>(args)...);\
-    }
-
-#define _DEFAULT_FUNC(fname,R) __details::__default_func_call_ ## fname<R>
+_DEFAULT_TYPE_TMPLT(propagate_on_container_copy_assignment);
+_DEFAULT_TYPE_TMPLT(propagate_on_container_move_assignment);
+_DEFAULT_TYPE_TMPLT(propagate_on_container_swap);
 
 _DEFAULT_FUNC_TMPLT(allocate,return,{
         return v.allocate(a1);
@@ -208,9 +132,9 @@ struct allocator_traits
     typedef typename Alloc::value_type         value_type;
 
     typedef _DEFAULT_TYPE(Alloc,pointer,value_type*)             pointer;
-    typedef _DEFAULT_TYPE(Alloc,const_pointer, typename rebinder<pointer,const value_type>::type) const_pointer;
-    typedef _DEFAULT_TYPE(Alloc,void_pointer,typename rebinder<pointer,void>::type)              void_pointer;
-    typedef _DEFAULT_TYPE(Alloc,const_void_pointer,typename rebinder<pointer,const void>::type)  const_void_pointer;
+    typedef _DEFAULT_TYPE(Alloc,const_pointer, typename pointer_traits<pointer>::template rebind<const value_type>::other) const_pointer;
+    typedef _DEFAULT_TYPE(Alloc,void_pointer,typename pointer_traits<pointer>::template rebind<void>::other)              void_pointer;
+    typedef _DEFAULT_TYPE(Alloc,const_void_pointer,typename pointer_traits<pointer>::template rebind<const void>::other)  const_void_pointer;
 
     typedef _DEFAULT_TYPE(Alloc,difference_type,std::ptrdiff_t) difference_type;
     typedef _DEFAULT_TYPE(Alloc,size_type,std::size_t)          size_type;
@@ -232,7 +156,7 @@ struct allocator_traits
 
     template <typename T>
     struct rebind_traits :
-        allocator_traits<typename __details::__alloc_rebinder<Alloc,T>::type>
+        allocator_traits<typename __details::__alloc_rebinder<Alloc,T>::other>
     {
     };
 #endif // !TEMPLATE_ALIASES
@@ -270,12 +194,27 @@ struct allocator_traits
 
     // Allocator propagation on assignment and swap.
     // Return true if lhs is modified.
-    static bool on_container_copy_assignment(Alloc& lhs, const Alloc& rhs)
-        { return _DEFAULT_FUNC(on_container_copy_assignment,bool)(lhs,rhs); }
-    static bool on_container_move_assignment(Alloc& lhs, Alloc&& rhs)
-        { return _DEFAULT_FUNC(on_container_move_assignment,bool)(lhs,std::move(rhs)); }
-    static bool on_container_swap(Alloc& lhs, Alloc& rhs)
-        { return _DEFAULT_FUNC(on_container_swap,bool)(lhs,rhs); }
+    typedef _DEFAULT_TYPE(Alloc,propagate_on_container_copy_assignment,std::false_type) propagate_on_container_copy_assignment;
+    typedef _DEFAULT_TYPE(Alloc,propagate_on_container_move_assignment,std::false_type) propagate_on_container_move_assignment;
+    typedef _DEFAULT_TYPE(Alloc,propagate_on_container_swap,std::false_type) propagate_on_container_swap;
+
+
+    static bool on_container_copy_assignment(Alloc& lhs, const Alloc& rhs) {
+        if (propagate_on_container_copy_assignment::value)
+            lhs = rhs;
+        return propagate_on_container_copy_assignment::value;
+    }
+    static bool on_container_move_assignment(Alloc& lhs, Alloc&& rhs) {
+        if (propagate_on_container_move_assignment::value)
+            lhs = std::move(rhs);
+        return propagate_on_container_move_assignment::value;
+    }
+    static bool on_container_swap(Alloc& lhs, Alloc& rhs) {
+        using namespace std;
+        if (propagate_on_container_swap::value)
+            swap(lhs, rhs);
+        return propagate_on_container_swap::value;
+    }
 };
 
 END_NAMESPACE_XSTD
