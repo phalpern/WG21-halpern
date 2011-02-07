@@ -21,13 +21,6 @@ template <typename _Tp, typename _Alloc> class list;
 
 namespace __details
 {
-    template <typename _VoidPtr>
-      struct _List_node_base
-    {
-        _VoidPtr _M_prev;
-        _VoidPtr _M_next;
-    };
-
     template <typename _NodePtr>
     inline void __link_nodes(_NodePtr __prev, _NodePtr __next)
     {
@@ -45,9 +38,17 @@ namespace __details
     }
 
     template <typename _Tp, typename _VoidPtr>
-      struct _List_node : _List_node_base<_VoidPtr>
+      struct _List_node
     {
-        _Tp _M_value;
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+        typedef typename pointer_traits<_VoidPtr>::template rebind<_List_node> _NodePtr;
+#else
+        typedef typename pointer_traits<_VoidPtr>::template rebind<_List_node>::other _NodePtr;
+#endif
+
+        _NodePtr _M_prev;
+        _NodePtr _M_next;
+        _Tp      _M_value;
         _List_node();                              // Declared but not defined
         _List_node(const _List_node&);             // Declared but not defined
         _List_node& operator=(const _List_node&);  // Declared but not defined
@@ -101,13 +102,11 @@ namespace __details
         _Tp* operator->() const
 	    { return addressof(this->_M_nodeptr->_M_value); }
         __list_iterator& operator++() {
-            this->_M_nodeptr =
-		pointer_rebind<_Node>(this->_M_nodeptr->_M_next);
+            this->_M_nodeptr = this->_M_nodeptr->_M_next;
             return *this;
         }
         __list_iterator& operator--() {
-            this->_M_nodeptr =
-		pointer_rebind<_Node>(this->_M_nodeptr->_M_prev);
+            this->_M_nodeptr = this->_M_nodeptr->_M_prev;
             return *this;
         }
         __list_iterator operator++(int) {
@@ -154,7 +153,7 @@ class list
     const _NodeAlloc& __allocator() const
 	{ return _M_alloc_and_size.allocator(); }
 
-    _NodePtr __head() const { return pointer_rebind<_Node>(_M_tail->_M_next); }
+    _NodePtr __head() const { return _M_tail->_M_next; }
 
     typename _AllocTraits::size_type& __size()
 	{ return _M_alloc_and_size.data(); }
@@ -280,17 +279,17 @@ public:
     void reverse();
 };
 
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator==(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator< (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator!=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator> (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator>=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
+template <typename _Tp, class _Alloc> inline
   bool operator<=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
 
 // specialized algorithms:
@@ -356,6 +355,7 @@ template <typename _Tp, typename _Alloc>
 list<_Tp,_Alloc>::list(list&& x)
     : _M_alloc_and_size(std::move(x.__allocator()), x.__size())
 {
+    _M_tail = x._M_tail;
     x.__create_tail();
     x.__size() = 0;
 }
@@ -400,8 +400,13 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(const list& x)
         return *this;
 
     clear();
-    _AllocTraits::on_container_copy_assignment(__allocator(),
-                                               x.__allocator());
+    typename _AllocTraits::allocator_type oldAlloc = __allocator();
+    if (_AllocTraits::on_container_copy_assignment(__allocator(),
+                                                   x.__allocator())) {
+        // Allocator changed
+        _AllocTraits::deallocate(oldAlloc, _M_tail, 1);
+        __create_tail();
+    }
     assign(x.begin(), x.end());
     return *this;
 }
@@ -411,17 +416,26 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(list&& x)
 {
     if (this == &x)
 	return *this;
-    
-    if (_AllocTraits::on_container_move_assignment(__allocator(),
-                                                   std::move(x.__allocator())) ||
-	__allocator() == x.__allocator())
+
+    clear();
+    typename _AllocTraits::allocator_type oldAlloc = __allocator();
+    if (__allocator() == x.__allocator())
     {
-	// Allocator was moved or compare equal.  Swap *this with x
-	// then clear x.
+        // Equal allocators, just swap contents
 	using std::swap;
 	swap(this->_M_tail, x._M_tail);
 	swap(this->__size(), x.__size());
-	x.clear();
+    }
+    else if (_AllocTraits::on_container_move_assignment(__allocator(),
+                                                   std::move(x.__allocator())))
+    {
+	// Allocator was moved.  Move x members to this.
+        _AllocTraits::deallocate(oldAlloc, _M_tail, 1);
+        _M_tail = x._M_tail;
+        __size() = x.__size();
+
+        x.__size() == 0;
+        x.__create_tail();
     }
     else
     {
@@ -593,14 +607,14 @@ const _Tp& list<_Tp,_Alloc>::front() const
 template <typename _Tp, typename _Alloc>
 _Tp& list<_Tp,_Alloc>::back()
 {
-    _NodePtr __last = pointer_rebind<_Node>(_M_tail->_M_prev);
+    _NodePtr __last = _M_tail->_M_prev;
     return __last->_M_value;
 }
 
 template <typename _Tp, typename _Alloc>
 const _Tp& list<_Tp,_Alloc>::back() const
 {
-    _NodePtr __last = pointer_rebind<_Node>(_M_tail->_M_prev);
+    _NodePtr __last = _M_tail->_M_prev;
     return __last->_M_value;
 }
 
@@ -670,8 +684,7 @@ template <typename _Tp, typename _Alloc>
         throw;
     }
 
-    typename _AllocTraits::pointer __prev =
-        pointer_rebind<_Node>(position._M_nodeptr->_M_prev);
+    typename _AllocTraits::pointer __prev = position._M_nodeptr->_M_prev;
     __insert_node(p, __prev, position._M_nodeptr);
 		  
     ++__size();
@@ -718,8 +731,7 @@ list<_Tp,_Alloc>::erase(const_iterator position)
 {
     typename _AllocTraits::pointer p = position._M_nodeptr;
 
-    __link_nodes(pointer_rebind<_Node>(p->_M_prev),
-                 pointer_rebind<_Node>(p->_M_next));
+    __link_nodes(p->_M_prev, p->_M_next);
     _AllocTraits::destroy(__allocator(), addressof(p->_M_value));
     _AllocTraits::deallocate(__allocator(), p, 1);
     --__size();
@@ -764,8 +776,7 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x)
 
     typename _AllocTraits::pointer __pos = position._M_nodeptr;
     typename _AllocTraits::pointer __first = x.__head();
-    typename _AllocTraits::pointer __last  =
-        pointer_rebind<_Node>(x._M_tail->_M_prev);
+    typename _AllocTraits::pointer __last  = x._M_tail->_M_prev;
     size_type n = x.__size();
     
     // Splice contents out of x.
@@ -773,7 +784,7 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x)
     x.__size() = 0;
 
     // Splice contents into *this.
-    __link_nodes(pointer_rebind<_Node>(__pos->_M_prev), __first);
+    __link_nodes(__pos->_M_prev, __first);
     __link_nodes(__last, __pos);
     __size() += n;
 }
@@ -785,18 +796,17 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
     // assert(__allocator() == x.__allocator());
     typename _AllocTraits::pointer __pos = position._M_nodeptr;
     typename _AllocTraits::pointer __i   = i._M_nodeptr;
-    typename _AllocTraits::pointer __inext =
-        pointer_rebind<_Node>(__i->_M_next);
+    typename _AllocTraits::pointer __inext = __i->_M_next;
 
     if (__pos == __i || __pos == __i->_M_next)
         return;  // Do nothing
 
     // Splice contents out of x.
-    __link_nodes(pointer_rebind<_Node>(__i->_M_prev), __inext);
+    __link_nodes(__i->_M_prev, __inext);
     --x.__size();
 
     // Splice contents into *this.
-    __link_nodes(pointer_rebind<_Node>(__pos->_M_prev), __i);
+    __link_nodes(__pos->_M_prev, __i);
     __link_nodes(__i, __pos);
     ++__size();
 }
@@ -814,15 +824,14 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
     typename _AllocTraits::pointer __pos   = position._M_nodeptr;
     typename _AllocTraits::pointer __first = first._M_nodeptr;
     typename _AllocTraits::pointer __next  = last._M_nodeptr;
-    typename _AllocTraits::pointer __last  =
-        pointer_rebind<_Node>(last._M_nodeptr->_M_prev);
+    typename _AllocTraits::pointer __last  = last._M_nodeptr->_M_prev;
 
     // Splice contents out of x.
-    __link_nodes(pointer_rebind<_Node>(__first->_M_prev), __next);
+    __link_nodes(__first->_M_prev, __next);
     x.__size() -= n;
         
     // Splice contents into *this.
-    __link_nodes(pointer_rebind<_Node>(__pos->_M_prev), __first);
+    __link_nodes(__pos->_M_prev, __first);
     __link_nodes(__last, __pos);
     __size() += n;
 }
@@ -848,21 +857,33 @@ template <typename _Tp, typename _Alloc>
       void list<_Tp,_Alloc>::sort(Compare comp);
 template <typename _Tp, typename _Alloc>
     void list<_Tp,_Alloc>::reverse();
-
-template <typename _Tp, class _Alloc>
-  bool operator==(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  bool operator< (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  bool operator!=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  bool operator> (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  bool operator>=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  bool operator<=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y);
-
 #endif // TBD
+
+template <typename _Tp, class _Alloc> inline
+  bool operator==(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y) {
+    return x.size() == y.size() && std::equal(x.begin(), x.end(), y.begin());
+  }
+template <typename _Tp, class _Alloc> inline
+  bool operator!=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y)
+    { return ! (x == y); }
+
+template <typename _Tp, class _Alloc> inline
+  bool operator< (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y) {
+    return std::lexicographical_compare(x.begin(), x.end(),
+                                        y.begin(), y.end());
+  }
+
+template <typename _Tp, class _Alloc> inline
+  bool operator> (const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y)
+    { return y < x; }
+
+template <typename _Tp, class _Alloc> inline
+  bool operator>=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y)
+    { return ! (x < y); }
+
+template <typename _Tp, class _Alloc> inline
+  bool operator<=(const list<_Tp,_Alloc>& x, const list<_Tp,_Alloc>& y)
+    { return ! (y < x); }
 
 // specialized algorithms:
 template <typename _Tp, class _Alloc>

@@ -202,44 +202,24 @@ typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
 template <typename Tp>
-class FancyPointer
-{
-    template <typename T> friend class FancyAllocator;
-    friend class GenericFancyPointer;
-    friend class ConstGenericFancyPointer;
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
-    Tp* value_;
-public:
-    FancyPointer(UniqPointerType p = nullptr)
-	: value_(0) { ASSERT(p == nullptr); }
-    template <typename T> FancyPointer(const FancyPointer<T>& p)
-	{ value_ = p.ptr(); }
-
-    Tp& operator*() const { return *value_; }
-    Tp* operator->() const { return value_; }
-    Tp* ptr() const { return value_; }
-
-    operator ConvertibleToBoolType() const
-        { return value_ ? ConvertibleToTrue : nullptr; }
-};
+class FancyPointer;
 
 template <>
 class FancyPointer<void>
 {
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
     void* value_;
+
 public:
+    typedef void value_type;
+
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+    template <typename T> using rebind<T> = FancyPointer<T>;
+#else
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+#endif
+
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
     template <typename T> FancyPointer(const FancyPointer<T>& p)
@@ -253,14 +233,19 @@ public:
 template <>
 class FancyPointer<const void>
 {
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
+    typedef const void value_type;
 
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
-    const void* value_;
 public:
+    const void* value_;
+
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+    template <typename T> using rebind<T> = FancyPointer<T>;
+#else
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+#endif
+
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
     template <typename T> FancyPointer(const FancyPointer<T>& p)
@@ -271,21 +256,39 @@ public:
         { return value_ ? ConvertibleToTrue : nullptr; }
 };
 
-template <typename T>
-inline FancyPointer<T> pointer_rebind(FancyPointer<void> p)
+template <typename Tp>
+class FancyPointer
 {
-    FancyPointer<T> ret;
-    ret.value_ = static_cast<T*>(p.ptr());
-    return ret;
-}
+    template <typename T> friend class FancyAllocator;
 
-template <typename T>
-inline FancyPointer<T> pointer_rebind(FancyPointer<const void> p)
-{
-    FancyPointer<T> ret;
-    ret.value_ = static_cast<T*>(p.ptr());
-    return ret;
-}
+    Tp* value_;
+public:
+    typedef Tp value_type;
+
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+    template <typename T> using rebind<T> = FancyPointer<T>;
+#else
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+#endif
+
+    FancyPointer(UniqPointerType p = nullptr)
+	: value_(0) { ASSERT(p == nullptr); }
+    template <typename T> FancyPointer(const FancyPointer<T>& p)
+	{ value_ = p.ptr(); }
+    explicit FancyPointer(const FancyPointer<void>& p)
+	: value_(static_cast<Tp*>(p.ptr())) { }
+    explicit FancyPointer(const FancyPointer<const void>& p)
+	: value_(static_cast<const Tp*>(p.ptr())) { }
+
+    Tp& operator*() const { return *value_; }
+    Tp* operator->() const { return value_; }
+    Tp* ptr() const { return value_; }
+
+    operator ConvertibleToBoolType() const
+        { return value_ ? ConvertibleToTrue : nullptr; }
+};
 
 template <typename Tp1, typename Tp2>
 bool operator==(FancyPointer<Tp1> a, FancyPointer<Tp2> b)
@@ -316,15 +319,11 @@ class FancyAllocator
     typedef std::ptrdiff_t  difference_type;
     typedef std::size_t     size_type;
 
-#ifdef TEMPLATE_ALIASES
-    template <typename T> using rebind_type = FancyAllocator<T>;
-#else // !TEMPLATE_ALIASES
     template <typename T>
     struct rebind
     {
 	typedef FancyAllocator<T> other;
     };
-#endif // !TEMPLATE_ALIASES
 
     FancyAllocator(AllocResource* ar = &globalResource) : resource_(ar) { }
 
@@ -334,15 +333,14 @@ class FancyAllocator
         : resource_(other.resource()) { }
 
     // FancyAllocator propagation on construction
-    static FancyAllocator
-    select_on_container_copy_construction(const FancyAllocator& rhs)
-        { return rhs; }
+    FancyAllocator select_on_container_copy_construction()
+        { return *this; }
 
     // FancyAllocator propagation functions.  Return true if *this was
     // modified.
     bool on_container_copy_assignment(const FancyAllocator& rhs)
         { return false; }
-    bool on_container_move_assignment(FancyAllocator& rhs)
+    bool on_container_move_assignment(FancyAllocator&& rhs)
         { return false; }
     bool on_container_swap(FancyAllocator& other)
         { return false; }
@@ -516,10 +514,22 @@ int main(int argc, char *argv[])
     const XSTD::scoped_allocator_adaptor<SimpleAllocator<double>, SimpleAllocator<int> > a1;
     XSTD::scoped_allocator_adaptor<SimpleAllocator<char>, SimpleAllocator<int> > a2(a1);
 
-    const int myi = 3;
-    const void *myvp = &myi;
-    const int *myip = xstd::pointer_rebind<int>(myvp);
-    ASSERT(myip == &myi);
+    {
+        const int myi = 3;
+        const void *myvp = &myi;
+        const int *myip = static_cast<const int*>(myvp);
+        ASSERT(myip == &myi);
+    }
+
+    {
+        const int myi = 3;
+        FancyPointer<const int> myip;
+        *reinterpret_cast<const int**>(&myip) = &myi;
+        FancyPointer<const void> myvp(myip);
+        const FancyPointer<const int> myip2 =
+            static_cast<FancyPointer<const int> >(myvp);
+        ASSERT(myip2 == myip);
+    }
 
     switch (test) { case 0: // Do all cases for test-case 0
       case 1:

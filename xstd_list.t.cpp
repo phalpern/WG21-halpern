@@ -146,6 +146,8 @@ class AllocResource
     }
 };
 
+AllocResource defaultResource;
+
 template <typename Tp>
 class SimpleAllocator
 {
@@ -199,44 +201,24 @@ typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
 template <typename Tp>
-class FancyPointer
-{
-    template <typename T> friend class FancyAllocator;
-    friend class GenericFancyPointer;
-    friend class ConstGenericFancyPointer;
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
-    Tp* value_;
-public:
-    FancyPointer(UniqPointerType p = nullptr)
-	: value_(0) { ASSERT(p == nullptr); }
-    template <typename T> FancyPointer(const FancyPointer<T>& p)
-	{ value_ = p.ptr(); }
-
-    Tp& operator*() const { return *value_; }
-    Tp* operator->() const { return value_; }
-    Tp* ptr() const { return value_; }
-
-    operator ConvertibleToBoolType() const
-        { return value_ ? ConvertibleToTrue : nullptr; }
-};
+class FancyPointer;
 
 template <>
 class FancyPointer<void>
 {
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
-
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
     void* value_;
+
 public:
+    typedef void value_type;
+
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+    template <typename T> using rebind<T> = FancyPointer<T>;
+#else
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+#endif
+
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
     template <typename T> FancyPointer(const FancyPointer<T>& p)
@@ -250,14 +232,19 @@ public:
 template <>
 class FancyPointer<const void>
 {
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<void> p);
+    typedef const void value_type;
 
-    template <typename T>
-    friend FancyPointer<T> pointer_rebind(FancyPointer<const void> p);
-
-    const void* value_;
 public:
+    const void* value_;
+
+#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
+    template <typename T> using rebind<T> = FancyPointer<T>;
+#else
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+#endif
+
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
     template <typename T> FancyPointer(const FancyPointer<T>& p)
@@ -268,21 +255,35 @@ public:
         { return value_ ? ConvertibleToTrue : nullptr; }
 };
 
-template <typename T>
-inline FancyPointer<T> pointer_rebind(FancyPointer<void> p)
+template <typename Tp>
+class FancyPointer
 {
-    FancyPointer<T> ret;
-    ret.value_ = static_cast<T*>(p.ptr());
-    return ret;
-}
+    template <typename T> friend class FancyAllocator;
 
-template <typename T>
-inline FancyPointer<T> pointer_rebind(FancyPointer<const void> p)
-{
-    FancyPointer<T> ret;
-    ret.value_ = static_cast<T*>(p.ptr());
-    return ret;
-}
+    Tp* value_;
+public:
+    typedef Tp value_type;
+
+    template <typename T> struct rebind {
+        typedef FancyPointer<T> other;
+    };
+
+    FancyPointer(UniqPointerType p = nullptr)
+	: value_(0) { ASSERT(p == nullptr); }
+    template <typename T> FancyPointer(const FancyPointer<T>& p)
+	{ value_ = p.ptr(); }
+    explicit FancyPointer(const FancyPointer<void>& p)
+	: value_(static_cast<Tp*>(p.ptr())) { }
+    explicit FancyPointer(const FancyPointer<const void>& p)
+	: value_(static_cast<const Tp*>(p.ptr())) { }
+
+    Tp& operator*() const { return *value_; }
+    Tp* operator->() const { return value_; }
+    Tp* ptr() const { return value_; }
+
+    operator ConvertibleToBoolType() const
+        { return value_ ? ConvertibleToTrue : nullptr; }
+};
 
 template <typename Tp1, typename Tp2>
 bool operator==(FancyPointer<Tp1> a, FancyPointer<Tp2> b)
@@ -330,20 +331,6 @@ class FancyAllocator
     FancyAllocator(const FancyAllocator<T>& other)
         : resource_(other.resource()) { }
 
-    // FancyAllocator propagation on construction
-    static FancyAllocator
-    select_on_container_copy_construction(const FancyAllocator& rhs)
-        { return rhs; }
-
-    // FancyAllocator propagation functions.  Return true if *this was
-    // modified.
-    bool on_container_copy_assignment(const FancyAllocator& rhs)
-        { return false; }
-    bool on_container_move_assignment(FancyAllocator& rhs)
-        { return false; }
-    bool on_container_swap(FancyAllocator& other)
-        { return false; }
-
     pointer allocate(size_type n) {
 	pointer ret;
 	ret.value_ = static_cast<Tp*>(resource_->allocate(n*sizeof(Tp)));
@@ -377,6 +364,19 @@ class FancyAllocator
 	return ret;
     }
 
+    // FancyAllocator propagation on construction
+    FancyAllocator select_on_container_copy_construction() const
+        { return *this; }
+
+    // FancyAllocator propagation functions.  Return true if *this was
+    // modified.
+    bool on_container_copy_assignment(const FancyAllocator& rhs)
+        { return false; }
+    bool on_container_move_assignment(FancyAllocator&& rhs)
+        { return false; }
+    bool on_container_swap(FancyAllocator& other)
+        { return false; }
+
     AllocResource* resource() const { return resource_; }
 };
 
@@ -395,6 +395,69 @@ bool operator!=(const FancyAllocator<T1>& a, const FancyAllocator<T2>& b)
 template class FancyAllocator<double>;
 template class XSTD::allocator_traits<FancyAllocator<double> >;
 template class XSTD::list<double, FancyAllocator<double> >;
+
+
+// An allocator that propagates on, move assignment, copy assignment, and
+// swap, but NOT on copy construction.  It's propagation semantics are the
+// reverse of the default and would probably not be very useful except for
+// testing.
+template <typename Tp>
+class WeirdAllocator
+{
+    AllocResource *resource_;
+
+  public:
+    typedef Tp              value_type;
+
+    template <typename T>
+    struct rebind
+    {
+	typedef WeirdAllocator<T> other;
+    };
+
+    WeirdAllocator(AllocResource* ar = &defaultResource) : resource_(ar) { }
+
+    // Required constructor
+    template <typename T>
+    WeirdAllocator(const WeirdAllocator<T>& other)
+        : resource_(other.resource()) { }
+
+    Tp* allocate(std::size_t n)
+        { return static_cast<Tp*>(resource_->allocate(n*sizeof(Tp))); }
+
+    void deallocate(Tp* p, std::size_t n)
+        { resource_->deallocate(p, n*sizeof(Tp)); }
+
+    // WeirdAllocator does not propagate on construction
+    WeirdAllocator select_on_container_copy_construction() const
+        { return WeirdAllocator(); }
+
+    // WeirdAllocator propagation functions.  Return true if *this was
+    // modified.
+    bool on_container_copy_assignment(const WeirdAllocator& rhs)
+        { resource_ = rhs.resource_; return true; }
+    bool on_container_move_assignment(WeirdAllocator&& rhs) {
+        resource_ = rhs.resource_;
+        rhs.resource_ = &defaultResource;
+        return true;
+    }
+    bool on_container_swap(WeirdAllocator& other)
+        { std::swap(resource_, other.resource_); return true; }
+
+    AllocResource* resource() const { return resource_; }
+};
+
+template <typename Tp1, typename Tp2>
+bool operator==(const WeirdAllocator<Tp1>& a, const WeirdAllocator<Tp2>& b)
+{
+    return a.resource() == b.resource();
+}
+
+template <typename Tp1, typename Tp2>
+bool operator!=(const WeirdAllocator<Tp1>& a, const WeirdAllocator<Tp2>& b)
+{
+    return ! (a == b);
+}
 
 //=============================================================================
 //                              TEST FUNCTION
@@ -417,7 +480,7 @@ int main(int argc, char *argv[])
       case 1:
       {
         // --------------------------------------------------------------------
-        // TEST using SimpleAllocator
+        // TEST list operations using SimpleAllocator
         // --------------------------------------------------------------------
 
 #undef TESTALLOC
@@ -487,7 +550,7 @@ int main(int argc, char *argv[])
       case 2:
       {
         // --------------------------------------------------------------------
-        // TEST using FancyAllocator
+        // TEST list operations using FancyAllocator
         // --------------------------------------------------------------------
 
 #undef TESTALLOC
@@ -554,7 +617,444 @@ int main(int argc, char *argv[])
 
       } if (test != 0) break;
 
-      break;
+      case 3:
+      {
+        // --------------------------------------------------------------------
+        // TEST allocator propagation using SimpleAllocator
+        // --------------------------------------------------------------------
+
+#undef TESTALLOC
+#define TESTALLOC SimpleAllocator
+
+        std::cout << "\nSimpleAllocator propagation"
+                  << "\n===========================" << std::endl;
+
+        AllocResource ar1, ar2;
+
+        // Test that allocator propagates on copy construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(x);
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(4 == ar1.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+        
+        // Test that allocator propagates on move construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(std::move(x));
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(3 == ar1.blocks_outstanding());
+            ASSERT(&y.front() == frontptr);
+        }
+        
+        // Test that allocator does not propagate on copy assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = x;
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a2);
+            ASSERT(2 == ar1.blocks_outstanding());
+            ASSERT(2 == ar2.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+
+        // Test that allocator does not propagate on move assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = std::move(x);
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a2);
+            ASSERT(2 == ar1.blocks_outstanding()); // implementation-specific
+            ASSERT(2 == ar2.blocks_outstanding()); // required behavior
+            ASSERT(&x.front() == frontptr); // implementation-specific
+            ASSERT(&y.front() != frontptr); // required behavior
+        }
+
+        // Test that swap works with equal allocators
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* xfrontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a1);
+            y.push_back(99);
+            y.push_front(98);
+            int* yfrontptr = &y.front();
+            int* ybackptr = &y.back();
+            ASSERT(2 == y.size());
+            ASSERT(98 == y.front());
+            ASSERT(99 == y.back());
+            ASSERT(y.get_allocator() == a1);
+
+            x.swap(y);
+            ASSERT(2 == x.size());
+            ASSERT(98 == x.front());
+            ASSERT(99 == x.back());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(&x.front() == yfrontptr);
+            ASSERT(&x.back() == ybackptr);
+            ASSERT(5 == ar1.blocks_outstanding());
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(&y.front() == xfrontptr);
+        }
+
+      } if (test != 0) break;
+
+      case 4:
+      {
+        // --------------------------------------------------------------------
+        // TEST allocator propagation using FancyAllocator
+        // --------------------------------------------------------------------
+
+#undef TESTALLOC
+#define TESTALLOC FancyAllocator
+
+        std::cout << "\nFancyAllocator propagation"
+                  << "\n==========================" << std::endl;
+
+        AllocResource ar1, ar2;
+
+        // Test that allocator propagates on copy construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(x);
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(4 == ar1.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+        
+        // Test that allocator propagates on move construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(std::move(x));
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(3 == ar1.blocks_outstanding());
+            ASSERT(&y.front() == frontptr);
+        }
+        
+        // Test that allocator does not propagate on copy assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = x;
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a2);
+            ASSERT(2 == ar1.blocks_outstanding());
+            ASSERT(2 == ar2.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+
+        // Test that allocator does not propagate on move assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = std::move(x);
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a2);
+            ASSERT(2 == ar1.blocks_outstanding()); // implementation-specific
+            ASSERT(2 == ar2.blocks_outstanding()); // required behavior
+            ASSERT(&x.front() == frontptr); // implementation-specific
+            ASSERT(&y.front() != frontptr); // required behavior
+        }
+
+        // Test that swap works with equal allocators
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* xfrontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a1);
+            y.push_back(99);
+            y.push_front(98);
+            int* yfrontptr = &y.front();
+            int* ybackptr = &y.back();
+            ASSERT(2 == y.size());
+            ASSERT(98 == y.front());
+            ASSERT(99 == y.back());
+            ASSERT(y.get_allocator() == a1);
+
+            x.swap(y);
+            ASSERT(2 == x.size());
+            ASSERT(98 == x.front());
+            ASSERT(99 == x.back());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(&x.front() == yfrontptr);
+            ASSERT(&x.back() == ybackptr);
+            ASSERT(5 == ar1.blocks_outstanding());
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(&y.front() == xfrontptr);
+        }
+
+      } if (test != 0) break;
+
+      case 5:
+      {
+        // --------------------------------------------------------------------
+        // TEST allocator propagation using WeirdAllocator
+        // --------------------------------------------------------------------
+
+#undef TESTALLOC
+#define TESTALLOC WeirdAllocator
+
+        std::cout << "\nWeirdAllocator propagation"
+                  << "\n==========================" << std::endl;
+
+        AllocResource ar1, ar2;
+
+        // Test that allocator doesn't propagate on copy construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(x);
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator().resource() == &defaultResource);
+            ASSERT(2 == ar1.blocks_outstanding());
+            ASSERT(2 == defaultResource.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+        
+        // Test that allocator propagates on move construction.
+        {
+            TESTALLOC<int> a1(&ar1);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(std::move(x));
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(3 == ar1.blocks_outstanding());
+            ASSERT(&y.front() == frontptr);
+        }
+        
+        // Test that allocator propagates on copy assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = x;
+            ASSERT(y == x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(4 == ar1.blocks_outstanding());
+            ASSERT(0 == ar2.blocks_outstanding());
+            ASSERT(&x.front() == frontptr);
+            ASSERT(&y.front() != frontptr);
+        }
+
+        // Test that allocator propagates on move assignment.
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* frontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y = std::move(x);
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            // implementation-specific:
+            ASSERT(2 == ar1.blocks_outstanding());
+            ASSERT(1 == defaultResource.blocks_outstanding());
+
+            // required behavior:
+            ASSERT(0 == ar2.blocks_outstanding()); 
+            ASSERT(&y.front() == frontptr);
+        }
+
+        // Test that swap works with unequal allocators
+        {
+            TESTALLOC<int> a1(&ar1);
+            TESTALLOC<int> a2(&ar2);
+
+            XSTD::list<int, TESTALLOC<int> > x(a1);
+            x.push_back(3);
+            int* xfrontptr = &x.front();
+            ASSERT(1 == x.size());
+            ASSERT(3 == x.front());
+            ASSERT(x.get_allocator() == a1);
+            ASSERT(2 == ar1.blocks_outstanding());
+
+            XSTD::list<int, TESTALLOC<int> > y(a2);
+            y.push_back(99);
+            y.push_front(98);
+            int* yfrontptr = &y.front();
+            int* ybackptr = &y.back();
+            ASSERT(2 == y.size());
+            ASSERT(98 == y.front());
+            ASSERT(99 == y.back());
+            ASSERT(y.get_allocator() == a2);
+
+            x.swap(y);
+            ASSERT(2 == x.size());
+            ASSERT(98 == x.front());
+            ASSERT(99 == x.back());
+            ASSERT(x.get_allocator() == a2);
+            ASSERT(&x.front() == yfrontptr);
+            ASSERT(&x.back() == ybackptr);
+            ASSERT(3 == ar2.blocks_outstanding());
+            ASSERT(1 == y.size());
+            ASSERT(3 == y.front());
+            ASSERT(y.get_allocator() == a1);
+            ASSERT(&y.front() == xfrontptr);
+            ASSERT(2 == ar1.blocks_outstanding());
+        }
+
+      } if (test != 0) break;
+
+      break; // Break at end of numbered tests
 
       default: {
         std::cerr << "WARNING: CASE `" << test << "' NOT FOUND." << std::endl;
