@@ -157,12 +157,6 @@ class SimpleAllocator
   public:
     typedef Tp              value_type;
 
-    template <typename T>
-    struct rebind
-    {
-	typedef SimpleAllocator<T> other;
-    };
-
     SimpleAllocator(AllocResource* ar = &globalResource) : resource_(ar) { }
 
     // Required constructor
@@ -202,61 +196,6 @@ typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
 template <typename Tp>
-class FancyPointer;
-
-template <>
-class FancyPointer<void>
-{
-    void* value_;
-
-public:
-    typedef void value_type;
-
-#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-    template <typename T> using rebind<T> = FancyPointer<T>;
-#else
-    template <typename T> struct rebind {
-        typedef FancyPointer<T> other;
-    };
-#endif
-
-    FancyPointer(UniqPointerType p = nullptr)
-	: value_(0) { ASSERT(p == nullptr); }
-    template <typename T> FancyPointer(const FancyPointer<T>& p)
-	: value_(p.ptr()) { }
-
-    void* ptr() const { return value_; }
-    operator ConvertibleToBoolType() const
-        { return value_ ? ConvertibleToTrue : nullptr; }
-};
-
-template <>
-class FancyPointer<const void>
-{
-    typedef const void value_type;
-
-public:
-    const void* value_;
-
-#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-    template <typename T> using rebind<T> = FancyPointer<T>;
-#else
-    template <typename T> struct rebind {
-        typedef FancyPointer<T> other;
-    };
-#endif
-
-    FancyPointer(UniqPointerType p = nullptr)
-	: value_(0) { ASSERT(p == nullptr); }
-    template <typename T> FancyPointer(const FancyPointer<T>& p)
-	: value_(p.ptr()) { }
-
-    const void* ptr() const { return value_; }
-    operator ConvertibleToBoolType() const
-        { return value_ ? ConvertibleToTrue : nullptr; }
-};
-
-template <typename Tp>
 class FancyPointer
 {
     template <typename T> friend class FancyAllocator;
@@ -264,14 +203,6 @@ class FancyPointer
     Tp* value_;
 public:
     typedef Tp value_type;
-
-#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-    template <typename T> using rebind<T> = FancyPointer<T>;
-#else
-    template <typename T> struct rebind {
-        typedef FancyPointer<T> other;
-    };
-#endif
 
     FancyPointer(UniqPointerType p = nullptr)
 	: value_(0) { ASSERT(p == nullptr); }
@@ -282,7 +213,8 @@ public:
     explicit FancyPointer(const FancyPointer<const void>& p)
 	: value_(static_cast<const Tp*>(p.ptr())) { }
 
-    Tp& operator*() const { return *value_; }
+    typename std::add_lvalue_reference<Tp>::type
+      operator*() const { return *value_; }
     Tp* operator->() const { return value_; }
     Tp* ptr() const { return value_; }
 

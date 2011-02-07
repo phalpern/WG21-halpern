@@ -41,9 +41,9 @@ namespace __details
       struct _List_node
     {
 #ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-        typedef typename pointer_traits<_VoidPtr>::template rebind<_List_node> _NodePtr;
+        typedef rebind<_VoidPtr,_List_node> _NodePtr;
 #else
-        typedef typename pointer_traits<_VoidPtr>::template rebind<_List_node>::other _NodePtr;
+        typedef typename rebinder<_VoidPtr,_List_node>::type _NodePtr;
 #endif
 
         _NodePtr _M_prev;

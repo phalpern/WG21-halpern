@@ -2,7 +2,7 @@
  *
  *            Copyright 2009 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
- *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *    (See accompanying file LICENSE_1_0.txt or copy at
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
@@ -11,6 +11,7 @@
 
 #include <xstd.h>
 #include <type_traits>
+#include <rebind.h>
 
 BEGIN_NAMESPACE_XSTD
 
@@ -29,36 +30,6 @@ inline _Tp* addressof(_Tp&& __obj) {
 }
 
 static struct allocator_arg_t { } const allocator_arg = { };
-
-template <class Ptr>
-struct pointer_traits
-{
-    typedef Ptr                          pointer;
-    typedef typename pointer::value_type value_type;
-#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-    template <class U> using rebind = typename pointer::template rebind<U>;
-#else
-    template <class U> struct rebind
-    {
-        typedef typename pointer::template rebind<U>::other other;
-    };
-#endif
-};
-
-template <class T>
-struct pointer_traits<T*>
-{
-    typedef T* pointer;
-    typedef T  value_type;
-#ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
-    template <class U>  using rebind = U*;
-#else
-    template <class U> struct rebind
-    {
-        typedef U* other;
-    };
-#endif
-};
 
 namespace __details
 {
@@ -112,8 +83,33 @@ struct __uses_allocator_imp
             std::conditional<value,_Tp,_DefaultWrap>::type::tname type;       \
     }
 
-#define _DEFAULT_TYPE(T,tname,def) \
-    typename __details::__default_type_ ## tname<T,def>::type
+#define _DEFAULT_TYPE(T,tname,...)                              \
+    typename __details::__default_type_ ## tname<T,__VA_ARGS__>::type
+
+template <typename _Alloc, typename _Tp>
+struct __alloc_has_rebind {
+
+    template <typename _X>
+    static char test(int, typename _X::template rebind<_Tp>::other*);
+
+    template <typename _X>
+    static int test(_LowPriorityConversion<int>, void*);
+
+    static const bool value = (1 == sizeof(test<_Alloc>(0, 0)));
+};
+
+template <typename _Alloc, typename _Tp,
+          bool _HasRebind = __alloc_has_rebind<_Alloc,_Tp>::value >
+struct __alloc_rebinder
+{
+    typedef typename _Alloc::template rebind<_Tp>::other type;
+};
+
+template <typename _Alloc, typename _Tp>
+struct __alloc_rebinder<_Alloc,_Tp,false>
+{
+    typedef typename rebinder<_Alloc,_Tp>::type type;
+};
 
 _DEFAULT_TYPE_TMPLT(pointer);
 _DEFAULT_TYPE_TMPLT(const_pointer);
@@ -212,23 +208,23 @@ struct allocator_traits
     typedef typename Alloc::value_type         value_type;
 
     typedef _DEFAULT_TYPE(Alloc,pointer,value_type*)             pointer;
-    typedef _DEFAULT_TYPE(Alloc,const_pointer, typename pointer_traits<pointer>::template rebind<const value_type>::other) const_pointer;
-    typedef _DEFAULT_TYPE(Alloc,void_pointer,typename pointer_traits<pointer>::template rebind<void>::other)              void_pointer;
-    typedef _DEFAULT_TYPE(Alloc,const_void_pointer,typename pointer_traits<pointer>::template rebind<const void>::other)  const_void_pointer;
+    typedef _DEFAULT_TYPE(Alloc,const_pointer, typename rebinder<pointer,const value_type>::type) const_pointer;
+    typedef _DEFAULT_TYPE(Alloc,void_pointer,typename rebinder<pointer,void>::type)              void_pointer;
+    typedef _DEFAULT_TYPE(Alloc,const_void_pointer,typename rebinder<pointer,const void>::type)  const_void_pointer;
 
     typedef _DEFAULT_TYPE(Alloc,difference_type,std::ptrdiff_t) difference_type;
     typedef _DEFAULT_TYPE(Alloc,size_type,std::size_t)          size_type;
 
 #ifdef TEMPLATE_ALIASES  // template aliases not supported in g++-4.4.1
     template <typename T> using rebind_alloc =
-        typename Alloc::template rebind<T>::other;
+        __details::__alloc_rebinder<Alloc,T>::type;
     template <typename T> using rebind_traits =
         allocator_traits<rebind_alloc<T> >;
 #else // !TEMPLATE_ALIASES
     template <typename T>
-    struct rebind_alloc : Alloc::template rebind<T>::other
+    struct rebind_alloc : __details::__alloc_rebinder<Alloc,T>::type
     {
-	typedef typename Alloc::template rebind<T>::other _Base;
+        typedef typename __details::__alloc_rebinder<Alloc,T>::type _Base;
 
         template <typename... Args>
 	rebind_alloc(Args&&... args) : _Base(std::forward<Args>(args)...) { }
@@ -236,7 +232,7 @@ struct allocator_traits
 
     template <typename T>
     struct rebind_traits :
-	allocator_traits<typename Alloc::template rebind<T>::other>
+        allocator_traits<typename __details::__alloc_rebinder<Alloc,T>::type>
     {
     };
 #endif // !TEMPLATE_ALIASES
