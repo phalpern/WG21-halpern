@@ -1,7 +1,16 @@
+/* allocator_traits.h                  -*-C++-*-
+ *
+ *            Copyright 2009 Pablo Halpern.
+ * Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *          http://www.boost.org/LICENSE_1_0.txt)
+ */
+
 #ifndef INCLUDED_ALLOCATOR_TRAITS_DOT_H
 #define INCLUDED_ALLOCATOR_TRAITS_DOT_H
 
 #include <xstd.h>
+#include <type_traits>
 
 BEGIN_NAMESPACE_XSTD
 
@@ -24,8 +33,9 @@ static struct allocator_arg_t { } const allocator_arg = { };
 template <typename T>
 inline T* pointer_rebind(void* p) { return static_cast<T*>(p); }
 
-template <typename T> // Ill-formed if T is not const
-inline T* pointer_rebind(const void* p) { return static_cast<T*>(p); }
+template <typename T>
+inline const T* pointer_rebind(const void* p)
+    { return static_cast<const T*>(p); }
 
 namespace __details
 {
@@ -145,7 +155,7 @@ _DEFAULT_FUNC_TMPLT(max_size,return,{ return ~_Ret(0); })
 _DEFAULT_FUNC_TMPLT(address,return,{ return addressof(a1); });
 
 _DEFAULT_FUNC_TMPLT(select_on_container_copy_construction,return,{
-        return a1;
+        return v;
     })
 
 _DEFAULT_FUNC_TMPLT(on_container_copy_assignment,return,{ return false; })
@@ -202,20 +212,6 @@ struct allocator_traits
     };
 #endif // !TEMPLATE_ALIASES
 
-    // Allocator propagation on construction
-    static Alloc select_on_container_copy_construction(const Alloc& rhs) {
-        return _DEFAULT_FUNC(select_on_container_copy_construction,Alloc)(rhs,rhs);
-    }
-
-    // Allocator propagation on assignment and swap.
-    // Return true if lhs is modified.
-    static bool on_container_copy_assignment(Alloc& lhs, const Alloc& rhs)
-        { return _DEFAULT_FUNC(on_container_copy_assignment,bool)(lhs,rhs); }
-    static bool on_container_move_assignment(Alloc& lhs, Alloc&& rhs)
-        { return _DEFAULT_FUNC(on_container_move_assignment,bool)(lhs,rhs); }
-    static bool on_container_swap(Alloc& lhs, Alloc& rhs)
-        { return _DEFAULT_FUNC(on_container_swap,bool)(lhs,rhs); }
-
     static pointer allocate(Alloc& a, size_type n)
         { return a.allocate(n); }
     static pointer allocate(Alloc& a, size_type n, const_void_pointer hint)
@@ -241,6 +237,20 @@ struct allocator_traits
         { _DEFAULT_FUNC(address,pointer)(a, r); }
     static const_pointer address(const Alloc& a, const value_type& r)
         { _DEFAULT_FUNC(address,const_pointer)(a, r); }
+
+    // Allocator propagation on construction
+    static Alloc select_on_container_copy_construction(const Alloc& rhs) {
+        return _DEFAULT_FUNC(select_on_container_copy_construction,Alloc)(rhs,rhs);
+    }
+
+    // Allocator propagation on assignment and swap.
+    // Return true if lhs is modified.
+    static bool on_container_copy_assignment(Alloc& lhs, const Alloc& rhs)
+        { return _DEFAULT_FUNC(on_container_copy_assignment,bool)(lhs,rhs); }
+    static bool on_container_move_assignment(Alloc& lhs, Alloc&& rhs)
+        { return _DEFAULT_FUNC(on_container_move_assignment,bool)(lhs,std::move(rhs)); }
+    static bool on_container_swap(Alloc& lhs, Alloc& rhs)
+        { return _DEFAULT_FUNC(on_container_swap,bool)(lhs,rhs); }
 };
 
 END_NAMESPACE_XSTD

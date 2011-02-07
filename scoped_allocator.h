@@ -1,6 +1,9 @@
 /* scoped_allocator.h                  -*-C++-*-
  *
- * Copyright (C) 2009 Halpern-Wight Software, Inc. All rights reserved.
+ *            Copyright 2009 Pablo Halpern.
+ * Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
 #ifndef INCLUDED_SCOPED_ALLOCATOR
@@ -29,8 +32,8 @@ public:
 
     scoped_allocator_adaptor_base();
 
-    template <typename OuterA2, typename... InnerA2>
-      scoped_allocator_adaptor_base(OuterA2&& outerAlloc, InnerA2&&... innerAllocs);
+    template <typename OuterA2>
+      scoped_allocator_adaptor_base(OuterA2&& outerAlloc, const InnerAllocs&... innerAllocs);
 
     template <typename OuterA2>
       scoped_allocator_adaptor_base(const scoped_allocator_adaptor<OuterA2, InnerAllocs...>& other);
@@ -82,7 +85,7 @@ public:
     select_on_container_copy_construction(const scoped_allocator_adaptor<OuterAlloc>& rhs);
 
     bool on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc>& rhs);
-    bool on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc>&& rhs);
+    bool on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc>& rhs);
     bool on_container_swap(scoped_allocator_adaptor<OuterAlloc>& other);
 };
 
@@ -116,12 +119,12 @@ public:
     scoped_allocator_adaptor(const scoped_allocator_adaptor& other);
 
     template <typename OuterA2>
-      scoped_allocator_adaptor(const scoped_allocator_adaptor<OuterA2, const InnerAllocs...>& other);
+      scoped_allocator_adaptor(const scoped_allocator_adaptor<OuterA2, InnerAllocs...>& other);
     template <typename OuterA2>
       scoped_allocator_adaptor(scoped_allocator_adaptor<OuterA2, InnerAllocs...>&& other);
     
-    template <typename OuterA2, typename... InnerA2>
-      scoped_allocator_adaptor(OuterA2&& outerAlloc, InnerA2&&... innerAllocs);
+    template <typename OuterA2>
+      scoped_allocator_adaptor(OuterA2&& outerAlloc, const InnerAllocs&... innerAllocs);
 
     ~scoped_allocator_adaptor();
 
@@ -181,12 +184,12 @@ scoped_allocator_adaptor_base<OuterAlloc, InnerAllocs...>::
 }
 
 template <typename OuterAlloc, typename... InnerAllocs>
-  template <typename OuterA2, typename... InnerA2>
+  template <typename OuterA2>
     scoped_allocator_adaptor_base<OuterAlloc, InnerAllocs...>::
-      scoped_allocator_adaptor_base(OuterA2&& outerAlloc,
-                                    InnerA2&&... innerAllocs)
+      scoped_allocator_adaptor_base(OuterA2&&        outerAlloc,
+                                    const InnerAllocs&... innerAllocs)
           : OuterAlloc(std::forward<OuterA2>(outerAlloc))
-          , _M_inner_allocs(std::forward<InnerA2>(innerAllocs)...)
+          , _M_inner_allocs(innerAllocs...)
 {
 }
 
@@ -229,11 +232,16 @@ inline
 bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::
     on_container_copy_assignment(const scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>& rhs)
 {
-    return
-        allocator_traits<OuterAlloc>::on_container_copy_assignment(
-            this->outer_allocator(), rhs.outer_allocator()) ||
-        allocator_traits<inner_allocator_type>::on_container_copy_assignment(
-            this->inner_allocator(), rhs.inner_allocator());
+    typedef allocator_traits<OuterAlloc>           _OuterTraits;
+
+    bool outercopy = _OuterTraits::on_container_copy_assignment(
+        this->outer_allocator(),
+        rhs.outer_allocator());
+
+    bool innercopy = inner_allocator().on_container_copy_assignment(
+        std::move(rhs.inner_allocator()));
+
+    return outercopy || innercopy;
 }
 
 template <typename OuterAlloc, typename... InnerAllocs>
@@ -241,67 +249,16 @@ inline
 bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::
     on_container_move_assignment(scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>&& rhs)
 {
-    // Let "positive move" be a call
-    // allocator_traits<T>::on_container_move_assignment(std::move(a),
-    // std::move(b)) returning true for allocators a and b of type T and let
-    // "neutral move" be a similar call returning false where a == b and let
-    // "negative move" be a similar call returning false where a != b.  This
-    // function begins by calling
-    // allocator_traits<OuterAlloc>::on_container_move_assignment(
-    // std::move(outer_allocator()), std::move(rhs.outer_allocator()), then
-    // recursively calls inner_allocator().on_container_move_assignment(
-    // std::move(rhs.inner_allocator()).  Recursion stops after the innermost
-    // allocator or after the first negative move, which ever comes first.
-    // Return true if there were any positive moves.  The behavior is
-    // undefined if a negative move occurs after a positive move in the
-    // recursion (i.e., a partial move yields undefined behavior).
-    //
-    // Calls
-    // allocator_traits<outer_allocator_type>::on_container_move_assignment(
-    // std::move(outer_allocator()), std::move(rhs.outer_allocator()) and
-    // recursing inward by calling
-    // inner_allocator().on_container_move_assignment(
-    // std::move(rhs.inner_allocator()).  Recursion stops after the innermost
-    // allocator or if a call returns false for allocators that compare
-    // unequal to each other.  The behavior is undefined if the recursion
-    // stops before reaching the innermost allocator after any call to
-    // on_container_move_assignment has returned true (i.e., partial moves are
-    // undefined).  Return true if any call to on_container_move_assignment
-    // returns true.  More precisely:
-    //
-    // Calls
-    // allocator_traits<outer_allocator_type>::on_container_move_assignment(
-    // std::move(outer_allocator()), std::move(rhs.outer_allocator()))
-    // then performs one of three actions:
-    //
-    // 1. If the call returns true, call
-    // inner_allocator()->on_container_move_assignment(std::move(
-    // rhs.inner_allocator())).  If the latter call returns true or if
-    // inner_allocator() == rhs.inner_allocator(), then return true, otherwise
-    // the behavior is undefined.
-    // 2. else if the call returns false and outer_allocator() ==
-    // rhs.outer_allocator(), return
-    // inner_allocator()->on_container_move_assignment(std::move(
-    // rhs.inner_allocator())).
-    // 3. else if the call returns false and outer_allocator() !=
-    // rhs.outer_allocator(), return false.
+    typedef allocator_traits<OuterAlloc>           _OuterTraits;
 
-    typedef allocator_traits<OuterAlloc> _OuterTraits;
+    bool outermove = _OuterTraits::on_container_move_assignment(
+        std::move(this->outer_allocator()),
+        std::move(rhs.outer_allocator()));
 
-    if (_OuterTraits::on_container_move_assignment(
-            std::move(this->outer_allocator()),
-            std::move(rhs.outer_allocator()))) {
-        bool r2 = inner_allocator().on_container_move_assignment(
-            std::move(rhs.inner_allocator()));
-        // assert(r2 || this->inner_allocator() == rhs.inner_allocator();
-        return true;
-    }
-    else if (this->inner_allocator() == rhs.inner_allocator()) {
-        return inner_allocator().on_container_move_assignment(
-            std::move(rhs.inner_allocator()));
-    }
-    else
-        return false;
+    bool innermove = inner_allocator().on_container_move_assignment(
+        std::move(rhs.inner_allocator()));
+
+    return outermove || innermove;
 }
 
 template <typename OuterAlloc, typename... InnerAllocs>
@@ -309,21 +266,16 @@ inline
 bool scoped_allocator_adaptor_base<OuterAlloc,InnerAllocs...>::on_container_swap(
     scoped_allocator_adaptor<OuterAlloc,InnerAllocs...>& other)
 {
-    // Same logic as on_container_move_assignment
-    typedef allocator_traits<OuterAlloc> _OuterTraits;
+    typedef allocator_traits<OuterAlloc>           _OuterTraits;
 
-    if (_OuterTraits::on_container_swap(
-            this->outer_allocator(),
-            other.outer_allocator())) {
-        bool r2 = inner_allocator().on_container_swap(other.inner_allocator());
-        // assert(r2 || this->inner_allocator() == other.inner_allocator();
-        return true;
-    }
-    else if (this->inner_allocator() == other.inner_allocator()) {
-        return inner_allocator().on_container_swap(other.inner_allocator());
-    }
-    else
-        return false;
+    bool outerswap = _OuterTraits::on_container_swap(
+        this->outer_allocator(),
+        other.outer_allocator());
+
+    bool innerswap = inner_allocator().on_container_swap(
+        std::move(other.inner_allocator()));
+
+    return outerswap || innerswap;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -404,12 +356,12 @@ bool scoped_allocator_adaptor_base<OuterAlloc>::
 template <typename OuterAlloc>
 inline
 bool scoped_allocator_adaptor_base<OuterAlloc>::on_container_move_assignment(
-    scoped_allocator_adaptor<OuterAlloc>&& rhs)
+    scoped_allocator_adaptor<OuterAlloc>& rhs)
 {
     return
         allocator_traits<OuterAlloc>::on_container_move_assignment(
             static_cast<OuterAlloc&>(*this),
-            std::move(static_cast<OuterAlloc&>(rhs)));
+            static_cast<OuterAlloc&>(rhs));
 }
 
 template <typename OuterAlloc>
@@ -587,7 +539,7 @@ template <typename OuterAlloc, typename... InnerAllocs>
   template <typename OuterA2>
     scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>::
       scoped_allocator_adaptor(const scoped_allocator_adaptor<OuterA2,
-                               const InnerAllocs...>& other)
+                               InnerAllocs...>& other)
         : _Base(other)
 {
 }
@@ -601,11 +553,10 @@ template <typename OuterAlloc, typename... InnerAllocs>
 }
     
 template <typename OuterAlloc, typename... InnerAllocs>
-  template <typename OuterA2, typename... InnerA2>
+  template <typename OuterA2>
     scoped_allocator_adaptor<OuterAlloc, InnerAllocs...>::
-      scoped_allocator_adaptor(OuterA2&& outerAlloc, InnerA2&&... innerAllocs)
-          : _Base(std::forward<OuterA2>(outerAlloc),
-                  std::forward<InnerA2>(innerAllocs)...)
+      scoped_allocator_adaptor(OuterA2&& outerAlloc, const InnerAllocs&... innerAllocs)
+          : _Base(std::forward<OuterA2>(outerAlloc), innerAllocs...)
 {
 }
 

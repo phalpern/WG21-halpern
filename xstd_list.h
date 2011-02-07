@@ -1,6 +1,9 @@
 /* xstd_list.h                  -*-C++-*-
  *
- * Copyright (C) 2009 Halpern-Wight Software, Inc. All rights reserved.
+ *            Copyright 2009 Pablo Halpern.
+ * Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
 #ifndef INCLUDED_LIST_DOT_H
@@ -410,7 +413,7 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(list&& x)
 	return *this;
     
     if (_AllocTraits::on_container_move_assignment(__allocator(),
-                                                   x.__allocator()) ||
+                                                   std::move(x.__allocator())) ||
 	__allocator() == x.__allocator())
     {
 	// Allocator was moved or compare equal.  Swap *this with x

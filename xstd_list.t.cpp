@@ -1,4 +1,10 @@
-// xstd_list.t.cpp                  -*-C++-*-
+/* xstd_list.t.cpp                  -*-C++-*-
+ *
+ *            Copyright 2009 Pablo Halpern.
+ * Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *          http://www.boost.org/LICENSE_1_0.txt)
+ */
 
 #include <xstd_list.h>
 
@@ -6,16 +12,8 @@
 #include <cstdlib>
 #include <climits>
 
-//=============================================================================
-//                             TEST PLAN
-//-----------------------------------------------------------------------------
-//
-//
-
-//-----------------------------------------------------------------------------
-
 //==========================================================================
-//                  STANDARD BDE ASSERT TEST MACRO
+//                  ASSERT TEST MACRO
 //--------------------------------------------------------------------------
 static int testStatus = 0;
 
@@ -341,7 +339,7 @@ class FancyAllocator
     // modified.
     bool on_container_copy_assignment(const FancyAllocator& rhs)
         { return false; }
-    bool on_container_move_assignment(FancyAllocator&& rhs)
+    bool on_container_move_assignment(FancyAllocator& rhs)
         { return false; }
     bool on_container_swap(FancyAllocator& other)
         { return false; }
@@ -571,12 +569,3 @@ int main(int argc, char *argv[])
 
     return testStatus;
 }
-
-// ---------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2009
-//      All Rights Reserved.
-//      Property of Bloomberg L.P. (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ---------------------------------
