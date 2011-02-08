@@ -167,6 +167,16 @@ public:
 
     operator ConvertibleToBoolType() const
         { return value_ ? ConvertibleToTrue : nullptr; }
+
+    template <typename T>
+    Pointer2<Unused,T> static_pointer_cast() const {
+        return Pointer2<Unused,T>(static_cast<T*>(value_));
+    }
+
+    template <typename T>
+    Pointer2<Unused,T> dynamic_pointer_cast() const {
+        return Pointer2<Unused,T>(dynamic_cast<T*>(value_));
+    }
 };
 
 template <typename Unused, typename Tp1, typename Tp2>
@@ -180,6 +190,15 @@ bool operator!=(Pointer2<Unused,Tp1> a, Pointer2<Unused,Tp2> b)
 {
     return ! (a == b);
 }
+
+struct Base {
+    virtual ~Base() { }
+    int i;
+};
+
+struct Derived : Base {
+    double d;
+};
 
 //=============================================================================
 //                              MAIN PROGRAM
@@ -237,6 +256,25 @@ int main(int argc, char *argv[])
 #endif
         ASSERT(tp3 == tp);
 
+        CTPtr ctp1 = tp;
+        auto tp4 = XSTD::const_pointer_cast<T>(ctp1);
+        ASSERT( IS_SAME(decltype(tp4),TPtr));
+        ASSERT(tp4 == tp);
+
+        typedef Base* BPtr;
+        typedef Derived* DPtr;
+
+        Derived d;
+        BPtr bp1 = &d;
+        const DPtr dp1 = &d;
+        auto dp2 = XSTD::static_pointer_cast<Derived>(bp1);
+        ASSERT( IS_SAME(decltype(dp2),DPtr));
+        ASSERT(dp1 == dp2);
+
+        auto dp3 = XSTD::dynamic_pointer_cast<Derived>(bp1);
+        ASSERT( IS_SAME(decltype(dp3),DPtr));
+        ASSERT(dp1 == dp3);
+
       } if (test != 0) break;
 
       case 2:
@@ -265,7 +303,23 @@ int main(int argc, char *argv[])
         ASSERT( IS_SAME(UPtr,TPtrTraits::rebind<U>::other));
 #endif
 
+        T t;
+        CTPtr ctp1(&t);
+        auto tp4 = XSTD::const_pointer_cast<T>(ctp1);
+        ASSERT( IS_SAME(decltype(tp4),TPtr));
+        ASSERT(tp4 == ctp1);
+
         // Pointer1 has no pointer_to() function.
+
+        typedef Pointer1<Base> BPtr;
+        typedef Pointer1<Derived> DPtr;
+
+        Derived d;
+        const DPtr dp1(&d);
+        Pointer1<void> vp1(dp1);
+        auto dp2 = XSTD::static_pointer_cast<Derived>(vp1);
+        ASSERT( IS_SAME(decltype(dp2),DPtr));
+        ASSERT(dp1 == dp2);
 
       } if (test != 0) break;
 
@@ -310,6 +364,27 @@ int main(int argc, char *argv[])
         ASSERT( IS_SAME(decltype(tp3), TPtrTraits::rebind<const T>::other));
 #endif
         ASSERT(tp3 == tp);
+
+        CTPtr ctp1 = tp;
+        auto tp4 = XSTD::const_pointer_cast<T>(ctp1);
+        ASSERT( IS_SAME(decltype(tp4),TPtr));
+        ASSERT(tp4 == tp);
+
+//        auto tpx = XSTD::const_pointer_cast<U>(tp);
+
+        typedef Pointer2<int,Base> BPtr;
+        typedef Pointer2<int,Derived> DPtr;
+
+        Derived d;
+        const DPtr dp1(&d);
+        BPtr bp1(dp1);
+        auto dp2 = XSTD::static_pointer_cast<Derived>(bp1);
+        ASSERT( IS_SAME(decltype(dp2),DPtr));
+        ASSERT(dp1 == dp2);
+
+        auto dp3 = XSTD::dynamic_pointer_cast<Derived>(bp1);
+        ASSERT( IS_SAME(decltype(dp3),DPtr));
+        ASSERT(dp1 == dp3);
 
       } if (test != 0) break;
 

@@ -211,10 +211,6 @@ public:
 	: value_(0) { ASSERT(p == nullptr); }
     template <typename T> FancyPointer(const FancyPointer<T>& p)
 	{ value_ = p.ptr(); }
-    explicit FancyPointer(const FancyPointer<void>& p)
-	: value_(static_cast<Tp*>(p.ptr())) { }
-    explicit FancyPointer(const FancyPointer<const void>& p)
-	: value_(static_cast<const Tp*>(p.ptr())) { }
 
     typename std::add_lvalue_reference<Tp>::type
       operator*() const { return *value_; }
@@ -224,6 +220,13 @@ public:
     static
     FancyPointer pointer_to(typename unvoid<Tp>::type& r)
         { FancyPointer ret; ret.value_= XSTD::addressof(r); }
+
+    template <typename T>
+    FancyPointer<T> static_pointer_cast() const
+        { return FancyPointer<T>(static_cast<T*>(value_)); }
+    template <typename T>
+    FancyPointer<T> const_pointer_cast() const
+        { return FancyPointer<T>(const_cast<T*>(value_)); }
 
     operator ConvertibleToBoolType() const
         { return value_ ? ConvertibleToTrue : nullptr; }

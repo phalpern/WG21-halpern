@@ -22,11 +22,7 @@ inline _Tp* addressof(_Tp& __obj) {
 }
 
 template <typename _Tp>
-inline _Tp* addressof(_Tp&& __obj) {
-    return static_cast<_Tp*>(
-	static_cast<void*>(
-	    const_cast<char*>(&reinterpret_cast<const char&>(__obj))));
-}
+typename std::add_rvalue_reference<_Tp>::type declval() noexcept;
 
 static struct allocator_arg_t { } const allocator_arg = { };
 
