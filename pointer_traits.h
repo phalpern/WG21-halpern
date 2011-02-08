@@ -84,6 +84,8 @@ namespace __details {
     template <typename _U, typename _PtrU, typename _PtrT> inline
     _PtrU const_ptr_cast_imp(_PtrT p, _LowPriorityConversion<int>) noexcept
     {
+        static_assert(sizeof(p) == sizeof(_PtrU),
+                      "Pointers must have identical representations");
         return reinterpret_cast<_PtrU&>(p);
     }
     
