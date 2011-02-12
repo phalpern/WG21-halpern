@@ -377,12 +377,12 @@ int main(int argc, char *argv[])
 
         Derived d;
         const DPtr dp1(&d);
-        BPtr bp1(dp1);
+        const BPtr bp1(dp1);
         auto dp2 = XSTD::static_pointer_cast<Derived>(bp1);
         ASSERT( IS_SAME(decltype(dp2),DPtr));
         ASSERT(dp1 == dp2);
 
-        auto dp3 = XSTD::dynamic_pointer_cast<Derived>(bp1);
+        auto dp3 = XSTD::dynamic_pointer_cast<Derived>(BPtr(dp1));
         ASSERT( IS_SAME(decltype(dp3),DPtr));
         ASSERT(dp1 == dp3);
 

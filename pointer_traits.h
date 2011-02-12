@@ -61,37 +61,40 @@ namespace __details {
     _DEFAULT_TYPE_TMPLT(difference_type);
 
     template <typename _U, typename _PtrU, typename _PtrT> inline
-    auto static_ptr_cast_imp(_PtrT p, int) noexcept ->
+    auto static_ptr_cast_imp(const _PtrT& p, int) noexcept ->
         decltype(p.template static_pointer_cast<_U>())
     {
         return p.template static_pointer_cast<_U>();
     }
 
     template <typename _U, typename _PtrU, typename _PtrT> inline
-    auto static_ptr_cast_imp(_PtrT p, _LowPriorityConversion<int>) noexcept ->
+    auto static_ptr_cast_imp(const _PtrT& p,
+                             _LowPriorityConversion<int>) noexcept ->
         decltype(static_cast<_PtrU>(p))
     {
         return static_cast<_PtrU>(p);
     }
     
     template <typename _U, typename _PtrU, typename _PtrT> inline
-    auto const_ptr_cast_imp(_PtrT p, int) noexcept ->
+    auto const_ptr_cast_imp(const _PtrT& p, int) noexcept ->
         decltype(p.template const_pointer_cast<_U>())
     {
         return p.template const_pointer_cast<_U>();
     }
 
     template <typename _U, typename _PtrU, typename _PtrT> inline
-    _PtrU const_ptr_cast_imp(_PtrT p, _LowPriorityConversion<int>) noexcept
+    _PtrU const_ptr_cast_imp(const _PtrT& p,
+                             _LowPriorityConversion<int>) noexcept
     {
         static_assert(sizeof(p) == sizeof(_PtrU),
                       "Pointers must have identical representations");
-        return reinterpret_cast<_PtrU&>(p);
+        return reinterpret_cast<const _PtrU&>(p);
     }
     
 } // end namespace __details
 
-template <typename _Ptr> struct pointer_traits
+template <typename _Ptr>
+struct pointer_traits
 {
     typedef _Ptr                                               pointer;
     typedef _DEFAULT_TYPE(_Ptr,element_type,
@@ -115,24 +118,28 @@ template <typename _Ptr> struct pointer_traits
         { return _Ptr::pointer_to(r); }
 
     template <typename _U>
-    static typename _REBIND(_U) static_pointer_cast(_Ptr p) noexcept {
+    static typename _REBIND(_U) static_pointer_cast(const _Ptr& p) noexcept {
         (void) sizeof(static_cast<_U*>(declval<element_type*>()));
         typedef typename _REBIND(_U) _PtrU;
         return __details::static_ptr_cast_imp<_U, _PtrU>(p, 0);
     }
 
     template <typename _U>
-    static typename _REBIND(_U) const_pointer_cast(_Ptr p) noexcept {
+    static typename _REBIND(_U) const_pointer_cast(const _Ptr& p) noexcept {
         (void) sizeof(const_cast<_U*>(declval<element_type*>()));
         typedef typename _REBIND(_U) _PtrU;
         return __details::const_ptr_cast_imp<_U, _PtrU>(p, 0);
     }
 
     template <typename _U>
-    static typename _REBIND(_U) dynamic_pointer_cast(_Ptr p) noexcept {
+    static typename _REBIND(_U) dynamic_pointer_cast(const _Ptr& p) noexcept {
         return p.template dynamic_pointer_cast<_U>();
     }
 };
+
+template <typename _Ptr>
+struct pointer_traits<_Ptr&> :
+    pointer_traits<typename std::remove_cv<_Ptr>::type> { };
 
 template <typename _Tp>
 struct pointer_traits<_Tp*>
@@ -164,25 +171,28 @@ struct pointer_traits<_Tp*>
         { return dynamic_cast<_U*>(p); }
 };
 
+//#define _PT(_Ptr) pointer_traits<typename std::remove_cv<typename std::remove_reference<_Ptr>::type>::type>
+#define _PT(_Ptr) pointer_traits<_Ptr>
+
 template <typename _U, typename _Ptr> inline
-auto static_pointer_cast(_Ptr p) noexcept ->
-    decltype(pointer_traits<_Ptr>::template static_pointer_cast<_U>(p))
+auto static_pointer_cast(_Ptr&& p) noexcept ->
+    typename _PT(_Ptr)::template _REBIND(_U)
 {
-    return pointer_traits<_Ptr>::template static_pointer_cast<_U>(p);
+    return _PT(_Ptr)::template static_pointer_cast<_U>(std::forward<_Ptr>(p));
 }
 
 template <typename _U, typename _Ptr> inline
-auto const_pointer_cast(_Ptr p) noexcept ->
-    decltype(pointer_traits<_Ptr>::template const_pointer_cast<_U>(p))
+auto const_pointer_cast(const _Ptr& p) noexcept ->
+    typename _PT(_Ptr)::template _REBIND(_U)
 {
-    return pointer_traits<_Ptr>::template const_pointer_cast<_U>(p);
+    return _PT(_Ptr)::template const_pointer_cast<_U>(p);
 }
 
 template <typename _U, typename _Ptr> inline
-auto dynamic_pointer_cast(_Ptr p) noexcept ->
-    decltype(pointer_traits<_Ptr>::template dynamic_pointer_cast<_U>(p))
+auto dynamic_pointer_cast(const _Ptr& p) noexcept ->
+    typename _PT(_Ptr)::template _REBIND(_U)
 {
-    return pointer_traits<_Ptr>::template dynamic_pointer_cast<_U>(p);
+    return _PT(_Ptr)::template dynamic_pointer_cast<_U>(p);
 }
 
 END_NAMESPACE_XSTD
