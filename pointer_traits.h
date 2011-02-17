@@ -138,14 +138,14 @@ struct pointer_traits
 };
 
 // Remove reference and cvq from _Ptr parameter to pointer_traits:
-template <typename _Ptr>
-struct pointer_traits<_Ptr&> : pointer_traits<_Ptr> { };
-template <typename _Ptr>
-struct pointer_traits<const _Ptr> : pointer_traits<_Ptr> { };
-template <typename _Ptr>
-struct pointer_traits<volatile _Ptr> : pointer_traits<_Ptr> { };
-template <typename _Ptr>
-struct pointer_traits<const volatile _Ptr> : pointer_traits<_Ptr> { };
+// template <typename _Ptr>
+// struct pointer_traits<_Ptr&> : pointer_traits<_Ptr> { };
+// template <typename _Ptr>
+// struct pointer_traits<const _Ptr> : pointer_traits<_Ptr> { };
+// template <typename _Ptr>
+// struct pointer_traits<volatile _Ptr> : pointer_traits<_Ptr> { };
+// template <typename _Ptr>
+// struct pointer_traits<const volatile _Ptr> : pointer_traits<_Ptr> { };
 
 template <typename _Tp>
 struct pointer_traits<_Tp*>
@@ -179,7 +179,8 @@ struct pointer_traits<_Tp*>
 
 //#define _PT(_Ptr) pointer_traits<typename std::remove_cv<typename std::remove_reference<_Ptr>::type>::type>
 //#define _PT(_Ptr) pointer_traits<typename std::remove_reference<_Ptr>::type>
-#define _PT(_Ptr) pointer_traits<_Ptr>
+//#define _PT(_Ptr) pointer_traits<_Ptr>
+#define _PT(_Ptr) pointer_traits<typename std::decay<_Ptr>::type>
 
 template <typename _U, typename _Ptr> inline
 auto static_pointer_cast(_Ptr&& p) noexcept ->
