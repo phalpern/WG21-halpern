@@ -175,23 +175,23 @@ struct pointer_traits<_Tp*>
 
 template <typename _U, typename _Ptr> inline
 auto static_pointer_cast(_Ptr&& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U)
+    typename _PT(_Ptr)::template _REBIND(_U) 
 {
     return _PT(_Ptr)::template static_pointer_cast<_U>(std::forward<_Ptr>(p));
 }
 
 template <typename _U, typename _Ptr> inline
-auto const_pointer_cast(const _Ptr& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U)
+auto const_pointer_cast(_Ptr&& p) noexcept ->
+    typename _PT(_Ptr)::template _REBIND(_U) 
 {
-    return _PT(_Ptr)::template const_pointer_cast<_U>(p);
+    return _PT(_Ptr)::template const_pointer_cast<_U>(std::forward<_Ptr>(p));
 }
 
 template <typename _U, typename _Ptr> inline
-auto dynamic_pointer_cast(const _Ptr& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U)
+auto dynamic_pointer_cast(_Ptr&& p) noexcept ->
+    typename _PT(_Ptr)::template _REBIND(_U) 
 {
-    return _PT(_Ptr)::template dynamic_pointer_cast<_U>(p);
+    return _PT(_Ptr)::template dynamic_pointer_cast<_U>(std::forward<_Ptr>(p));
 }
 
 END_NAMESPACE_XSTD
