@@ -15,6 +15,12 @@
 
 BEGIN_NAMESPACE_XSTD
 
+#ifdef TEMPLATE_ALIASES
+# define _REBIND(_U) rebind<_U>
+#else
+# define _REBIND(_U) rebind<_U>::other
+#endif
+
 namespace __details {
     template <typename _Tp> struct __first_param;
 
@@ -28,7 +34,7 @@ namespace __details {
     struct __ptr_has_rebind {
 
         template <typename _X>
-        static char test(int, typename _X::template rebind<_Tp>::other*);
+        static char test(int, typename _X::template _REBIND(_Tp)*);
 
         template <typename _X>
         static int test(_LowPriorityConversion<int>, void*);
@@ -42,7 +48,7 @@ namespace __details {
               bool _HasRebind = __ptr_has_rebind<_Ptr,_U>::value >
     struct __ptr_rebinder
     {
-        typedef typename _Ptr::template rebind<_U>::other other;
+        typedef typename _Ptr::template _REBIND(_U) other;
     };
 
     // Specialization of pointer_traits<_Ptr>::rebind if _Ptr does not
@@ -89,12 +95,10 @@ struct pointer_traits
 #ifdef TEMPLATE_ALIASES
     template <class _U> using rebind =
         typename __details::__ptr_rebinder<_Ptr,_U>::other;
-# define _REBIND(_U) rebind<_U>
 #else
     template <class _U> struct rebind {
         typedef typename __details::__ptr_rebinder<_Ptr,_U>::other other;
     };
-# define _REBIND(_U) rebind<_U>::other
 #endif
 
     static
