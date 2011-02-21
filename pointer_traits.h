@@ -75,22 +75,6 @@ namespace __details {
         return static_cast<_PtrU>(p);
     }
     
-    template <typename _U, typename _PtrU, typename _PtrT> inline
-    auto const_ptr_cast_imp(const _PtrT& p, int) noexcept ->
-        decltype(p.template const_pointer_cast<_U>())
-    {
-        return p.template const_pointer_cast<_U>();
-    }
-
-    template <typename _U, typename _PtrU, typename _PtrT> inline
-    _PtrU const_ptr_cast_imp(const _PtrT& p,
-                             _LowPriorityConversion<int>) noexcept
-    {
-        static_assert(sizeof(p) == sizeof(_PtrU),
-                      "Pointers must have identical representations");
-        return reinterpret_cast<const _PtrU&>(p);
-    }
-    
 } // end namespace __details
 
 template <typename _Ptr>
@@ -127,8 +111,9 @@ struct pointer_traits
     template <typename _U>
     static typename _REBIND(_U) const_pointer_cast(const _Ptr& p) noexcept {
         (void) sizeof(const_cast<_U*>(declval<element_type*>()));
-        typedef typename _REBIND(_U) _PtrU;
-        return __details::const_ptr_cast_imp<_U, _PtrU>(p, 0);
+        // typedef typename _REBIND(_U) _PtrU;
+        // return __details::const_ptr_cast_imp<_U, _PtrU>(p, 0);
+        return p.template const_pointer_cast<_U>();
     }
 
     template <typename _U>
@@ -137,15 +122,17 @@ struct pointer_traits
     }
 };
 
-// Remove reference and cvq from _Ptr parameter to pointer_traits:
+// Remove cv qualification from _Ptr parameter to pointer_traits:
+template <typename _Ptr>
+struct pointer_traits<const _Ptr> : pointer_traits<_Ptr> { };
+template <typename _Ptr>
+struct pointer_traits<volatile _Ptr> : pointer_traits<_Ptr> { };
+template <typename _Ptr>
+struct pointer_traits<const volatile _Ptr> : pointer_traits<_Ptr> { };
+
+// Remove reference from _Ptr parameter to pointer_traits:
 // template <typename _Ptr>
 // struct pointer_traits<_Ptr&> : pointer_traits<_Ptr> { };
-// template <typename _Ptr>
-// struct pointer_traits<const _Ptr> : pointer_traits<_Ptr> { };
-// template <typename _Ptr>
-// struct pointer_traits<volatile _Ptr> : pointer_traits<_Ptr> { };
-// template <typename _Ptr>
-// struct pointer_traits<const volatile _Ptr> : pointer_traits<_Ptr> { };
 
 template <typename _Tp>
 struct pointer_traits<_Tp*>

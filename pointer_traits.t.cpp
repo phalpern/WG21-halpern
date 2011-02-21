@@ -96,6 +96,8 @@ typedef void (UniqDummyType::*UniqPointerType)(UniqDummyType);
 typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
 const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
+// Pointer1 meets the minimum requirements for an allocator pointer.  It
+// defers as much as possible to the default implementation of pointer_traits.
 template <typename Tp>
 class Pointer1
 {
@@ -132,6 +134,8 @@ bool operator!=(Pointer1<Tp1> a, Pointer1<Tp2> b)
     return ! (a == b);
 }
 
+// Pointer2 provides a full implementation of a pointer so that all of the
+// pointer_traits pass-throughs are provided.
 template <typename Unused, typename Tp>
 class Pointer2
 {
@@ -153,10 +157,6 @@ public:
 	: value_(p) { }
     template <typename T> Pointer2(const Pointer2<Unused,T>& p)
 	{ value_ = p.ptr(); }
-//     explicit Pointer2(const Pointer2<Unused,void>& p)
-// 	: value_(static_cast<Tp*>(p.ptr())) { }
-//     explicit Pointer2(const Pointer2<Unused,const void>& p)
-// 	: value_(static_cast<const Tp*>(p.ptr())) { }
 
     typename std::add_lvalue_reference<Tp>::type
       operator*() const { return *value_; }
@@ -177,6 +177,11 @@ public:
     Pointer2<Unused,T> dynamic_pointer_cast() const {
         return Pointer2<Unused,T>(dynamic_cast<T*>(value_));
     }
+
+    template <typename U>
+    Pointer2<Unused, U> const_pointer_cast() const {
+        return Pointer2<Unused, U>(const_cast<U*>(value_));
+    }
 };
 
 template <typename Unused, typename Tp1, typename Tp2>
@@ -190,6 +195,90 @@ bool operator!=(Pointer2<Unused,Tp1> a, Pointer2<Unused,Tp2> b)
 {
     return ! (a == b);
 }
+
+// Pointer3 does not provide pass-though definitions but instead provides an
+// explicit pointer_traits specialization.
+template <typename Unused, typename Tp>
+class Pointer3
+{
+    Tp* value_;
+
+public:
+
+#ifdef TEMPLATE_ALIASES
+    template <typename U> using rebind = Pointer3<Unused,U>;
+#else
+    template <typename U> struct rebind {
+        typedef Pointer3<Unused,U> other;
+    };
+#endif
+
+    Pointer3(Tp* p = nullptr)
+	: value_(p) { }
+    template <typename T> Pointer3(const Pointer3<Unused,T>& p)
+	{ value_ = p.ptr(); }
+
+    typename std::add_lvalue_reference<Tp>::type
+      operator*() const { return *value_; }
+    Tp* operator->() const { return value_; }
+    Tp* ptr() const { return value_; }
+
+    operator ConvertibleToBoolType() const
+        { return value_ ? ConvertibleToTrue : nullptr; }
+};
+
+template <typename Unused, typename Tp1, typename Tp2>
+bool operator==(Pointer3<Unused,Tp1> a, Pointer3<Unused,Tp2> b)
+{
+    return a.ptr() == b.ptr();
+}
+
+template <typename Unused, typename Tp1, typename Tp2>
+bool operator!=(Pointer3<Unused,Tp1> a, Pointer3<Unused,Tp2> b)
+{
+    return ! (a == b);
+}
+
+BEGIN_NAMESPACE_XSTD
+
+template <typename Unused, typename Tp>
+struct pointer_traits<Pointer3<Unused,Tp> >
+{
+    typedef Pointer3<Unused,Tp> pointer;
+    typedef Tp                  element_type;
+    typedef int                 difference_type;
+
+#ifdef TEMPLATE_ALIASES
+    template <class _U> using rebind = Pointer3<Unused, _U>;
+#else
+    template <class _U> struct rebind {
+        typedef Pointer3<Unused, _U> other;
+    };
+#endif
+
+    static
+    pointer pointer_to(typename __details::__unvoid<element_type>::type& r)
+        { return pointer(xstd::addressof(r)); }
+
+    template <typename _U>
+    static Pointer3<Unused,_U> static_pointer_cast(const pointer& p) noexcept {
+        return Pointer3<Unused, _U>(static_cast<_U*>(p.ptr()));
+    }
+
+    template <typename _U>
+    static Pointer3<Unused, _U> const_pointer_cast(const pointer& p) noexcept {
+        (void) sizeof(const_cast<_U*>(declval<element_type*>()));
+        return reinterpret_cast<const Pointer3<Unused, _U>&>(p);
+    }
+
+    template <typename _U>
+    static Pointer3<Unused, _U> dynamic_pointer_cast(const pointer& p) noexcept
+    {
+        return Pointer3<Unused, _U>(dynamic_cast<_U*>(p.ptr()));
+    }
+};
+
+END_NAMESPACE_XSTD
 
 struct Base {
     virtual ~Base() { }
@@ -211,7 +300,11 @@ int main(int argc, char *argv[])
     veryVerbose = argc > 3;
     veryVeryVerbose = argc > 4;
 
-    std::cout << "TEST " << __FILE__ << " CASE " << test << std::endl;
+    std::cout << "TEST " << __FILE__;
+    if (test != 0)
+        std::cout << " CASE " << test << std::endl;
+    else
+        std::cout << " all cases" << std::endl;
 
     switch (test) { case 0:  // Zero runs all tests
       case 1:
@@ -303,12 +396,6 @@ int main(int argc, char *argv[])
         ASSERT( IS_SAME(UPtr,TPtrTraits::rebind<U>::other));
 #endif
 
-        T t;
-        CTPtr ctp1(&t);
-        auto tp4 = XSTD::const_pointer_cast<T>(ctp1);
-        ASSERT( IS_SAME(decltype(tp4),TPtr));
-        ASSERT(tp4 == ctp1);
-
         // Pointer1 has no pointer_to() function.
 
         typedef Pointer1<Base> BPtr;
@@ -374,6 +461,71 @@ int main(int argc, char *argv[])
 
         typedef Pointer2<int,Base> BPtr;
         typedef Pointer2<int,Derived> DPtr;
+
+        Derived d;
+        const DPtr dp1(&d);
+        const BPtr bp1(dp1);
+        auto dp2 = XSTD::static_pointer_cast<Derived>(bp1);
+        ASSERT( IS_SAME(decltype(dp2),DPtr));
+        ASSERT(dp1 == dp2);
+
+        auto dp3 = XSTD::dynamic_pointer_cast<Derived>(BPtr(dp1));
+        ASSERT( IS_SAME(decltype(dp3),DPtr));
+        ASSERT(dp1 == dp3);
+
+      } if (test != 0) break;
+
+      case 4:
+      {
+        // --------------------------------------------------------------------
+        // TEST Pointer3 traits
+        // --------------------------------------------------------------------
+
+        std::cout << "\nPointer3 traits"
+                  << "\n===============" << std::endl;
+
+        typedef double T;
+        typedef int    U;
+        typedef Pointer3<void,T> TPtr;
+        typedef Pointer3<void,U> UPtr;
+        typedef Pointer3<void,const T> CTPtr;
+        typedef XSTD::pointer_traits<TPtr> TPtrTraits;
+
+        ASSERT(!IS_SAME(TPtr,UPtr));
+        ASSERT( IS_SAME(TPtr,TPtrTraits::pointer));
+        ASSERT( IS_SAME(T,TPtrTraits::element_type));
+        ASSERT( IS_SAME(std::ptrdiff_t, TPtrTraits::difference_type));
+#ifdef TEMPLATE_ALIASES
+        ASSERT( IS_SAME(UPtr,TPtrTraits::rebind<U>));
+#else
+        ASSERT( IS_SAME(UPtr,TPtrTraits::rebind<U>::other));
+#endif
+
+        T t;
+        const TPtr tp(&t);
+        T& tr = *tp;
+        const T& ctr = *tp;
+        auto tp2 = TPtrTraits::pointer_to(tr);
+        auto tp3 = XSTD::pointer_traits<CTPtr>::pointer_to(ctr);
+        ASSERT( IS_SAME(decltype(tp2),TPtr));
+        ASSERT(tp2 == tp);
+        ASSERT( IS_SAME(decltype(tp3),CTPtr))
+#ifdef TEMPLATE_ALIASES
+        ASSERT( IS_SAME(decltype(tp3), TPtrTraits::rebind<const T>));
+#else
+        ASSERT( IS_SAME(decltype(tp3), TPtrTraits::rebind<const T>::other));
+#endif
+        ASSERT(tp3 == tp);
+
+        CTPtr ctp1 = tp;
+        auto tp4 = XSTD::const_pointer_cast<T>(ctp1);
+        ASSERT( IS_SAME(decltype(tp4),TPtr));
+        ASSERT(tp4 == tp);
+
+//        auto tpx = XSTD::const_pointer_cast<U>(tp);
+
+        typedef Pointer3<int,Base> BPtr;
+        typedef Pointer3<int,Derived> DPtr;
 
         Derived d;
         const DPtr dp1(&d);

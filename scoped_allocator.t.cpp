@@ -450,7 +450,11 @@ int main(int argc, char *argv[])
 //     int veryVerbose = argc > 3;
 //     int veryVeryVerbose = argc > 4;
 
-    std::cout << "TEST " << __FILE__ << " CASE " << test << std::endl;;
+    std::cout << "TEST " << __FILE__;
+    if (test != 0)
+        std::cout << " CASE " << test << std::endl;
+    else
+        std::cout << " all cases" << std::endl;
 
     const XSTD::scoped_allocator_adaptor<SimpleAllocator<double>, SimpleAllocator<int> > a1;
     XSTD::scoped_allocator_adaptor<SimpleAllocator<char>, SimpleAllocator<int> > a2(a1);

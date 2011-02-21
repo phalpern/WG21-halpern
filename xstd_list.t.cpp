@@ -417,7 +417,11 @@ int main(int argc, char *argv[])
     veryVerbose = argc > 3;
     veryVeryVerbose = argc > 4;
 
-    std::cout << "TEST " << __FILE__ << " CASE " << test << std::endl;
+    std::cout << "TEST " << __FILE__;
+    if (test != 0)
+        std::cout << " CASE " << test << std::endl;
+    else
+        std::cout << " all cases" << std::endl;
 
     switch (test) { case 0:  // Zero runs all tests
       case 1:
