@@ -442,11 +442,16 @@ list<_Tp,_Alloc>& list<_Tp,_Alloc>::operator=(const list& x)
     if (_AllocTraits::propagate_on_container_copy_assignment::value &&
         __allocator() != x.__allocator()) {
         // Completely destroy and rebuild list using new allocator.
-        clear();
-        __free_node(_M_tail);
 
+        // Create a new list with the new allocator.  This operation might
+        // throw, so we do it before destroying the old list.
+        list __temp(x.get_allocator());
+
+        // Pretend that '*this' and '__temp' have the same allocator, swap
+        // them (will not throw), then set the allocator correctly.
+        __temp.__allocator() = __allocator();
+        this->swap(__temp);
         __allocator() = x.__allocator();
-        __create_tail();
     }
         
     assign(x.begin(), x.end());
