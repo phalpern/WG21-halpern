@@ -279,12 +279,16 @@ public:
     iterator erase(const_iterator position);
     iterator erase(const_iterator position, const_iterator last);
 
-    void swap(list&&);
+    void swap(list&);
     void clear();
 
     // 23.3.4.4 list operations:
+    void splice(const_iterator position, list& x);
     void splice(const_iterator position, list&& x);
+    void splice(const_iterator position, list& x, const_iterator i);
     void splice(const_iterator position, list&& x, const_iterator i);
+    void splice(const_iterator position, list& x,
+                const_iterator first, const_iterator last);
     void splice(const_iterator position, list&& x,
                 const_iterator first, const_iterator last);
 
@@ -293,7 +297,10 @@ public:
     void unique();
     template <typename EqPredicate>
     void unique(EqPredicate binary_pred);
+    void merge(list& x);
     void merge(list&& x);
+    template <typename Compare>
+      void merge(list& x, Compare comp);
     template <typename Compare>
       void merge(list&& x, Compare comp);
     void sort();
@@ -318,10 +325,6 @@ template <typename _Tp, class _Alloc> inline
 // specialized algorithms:
 template <typename _Tp, class _Alloc>
   void swap(list<_Tp,_Alloc>& x, list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  void swap(list<_Tp,_Alloc>&& x, list<_Tp,_Alloc>& y);
-template <typename _Tp, class _Alloc>
-  void swap(list<_Tp,_Alloc>& x, list<_Tp,_Alloc>&& y);
 
 ///////////////////////////////////////////////////////////////////////////////
 // IMPLEMENTATION
@@ -807,7 +810,7 @@ list<_Tp,_Alloc>::erase(const_iterator position, const_iterator last)
 }
 
 template <typename _Tp, typename _Alloc>
-void list<_Tp,_Alloc>::swap(list&& x)
+void list<_Tp,_Alloc>::swap(list& x)
 {
     using std::swap;
 
@@ -829,7 +832,7 @@ void list<_Tp,_Alloc>::clear()
 
 // 23.3.4.4 list operations:
 template <typename _Tp, typename _Alloc>
-void list<_Tp,_Alloc>::splice(const_iterator position, list&& x)
+void list<_Tp,_Alloc>::splice(const_iterator position, list& x)
 {
     // assert(__allocator() == x.__allocator());
     if (x.empty())
@@ -851,7 +854,13 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x)
 }
 
 template <typename _Tp, typename _Alloc>
-void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
+inline void list<_Tp,_Alloc>::splice(const_iterator position, list&& x)
+{
+    this->splice(position, x);  // Defer to lvalue-reference version
+}
+
+template <typename _Tp, typename _Alloc>
+void list<_Tp,_Alloc>::splice(const_iterator position, list& x,
                               const_iterator i)
 {
     // assert(__allocator() == x.__allocator());
@@ -873,7 +882,14 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
 }
 
 template <typename _Tp, typename _Alloc>
-void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
+inline void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
+                                     const_iterator i)
+{
+    this->splice(position, x, i); // Defer to lvalue-reference version
+}
+
+template <typename _Tp, typename _Alloc>
+void list<_Tp,_Alloc>::splice(const_iterator position, list& x,
                               const_iterator first, const_iterator last)
 {
     // assert(__allocator() == x.__allocator());
@@ -897,6 +913,14 @@ void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
     __size() += n;
 }
 
+template <typename _Tp, typename _Alloc>
+inline
+void list<_Tp,_Alloc>::splice(const_iterator position, list&& x,
+                              const_iterator first, const_iterator last)
+{
+    this->splice(position, x, first, last); // Defer to lvalue-reference splice
+}
+
 #if 0 // TBD
 template <typename _Tp, typename _Alloc>
     void list<_Tp,_Alloc>::remove(const _Tp& value);
@@ -907,7 +931,12 @@ template <typename _Tp, typename _Alloc>
     template <typename EqPredicate>
     void list<_Tp,_Alloc>::unique(EqPredicate binary_pred);
 template <typename _Tp, typename _Alloc>
+    void list<_Tp,_Alloc>::merge(list& x);
+template <typename _Tp, typename _Alloc>
     void list<_Tp,_Alloc>::merge(list&& x);
+template <typename _Tp, typename _Alloc>
+    template <typename Compare>
+      void list<_Tp,_Alloc>::merge(list& x, Compare comp);
 template <typename _Tp, typename _Alloc>
     template <typename Compare>
       void list<_Tp,_Alloc>::merge(list&& x, Compare comp);
@@ -949,18 +978,6 @@ template <typename _Tp, class _Alloc> inline
 // specialized algorithms:
 template <typename _Tp, class _Alloc>
 void swap(list<_Tp,_Alloc>& x, list<_Tp,_Alloc>& y)
-{
-    x.swap(std::move(y));
-}
-
-template <typename _Tp, class _Alloc>
-void swap(list<_Tp,_Alloc>&& x, list<_Tp,_Alloc>& y)
-{
-    y.swap(x);
-}
-
-template <typename _Tp, class _Alloc>
-void swap(list<_Tp,_Alloc>& x, list<_Tp,_Alloc>&& y)
 {
     x.swap(y);
 }
