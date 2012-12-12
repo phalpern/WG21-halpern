@@ -1,0 +1,59 @@
+/* atomic                                    -*-C++-*-
+ *
+ *            Copyright 2012 Pablo Halpern.
+ * Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at
+ *          http://www.boost.org/LICENSE_1_0.txt)
+ */
+
+// Fake atomics module.  Doesn't actually implement atomic variables so is not
+// actually suited for multithreaded use.
+
+BEGIN_NAMESPACE_XSTD
+
+typedef enum enum_memory_order { 
+    memory_order_relaxed, memory_order_consume, memory_order_acquire,
+    memory_order_release, memory_order_acq_rel, memory_order_seq_cst
+} memory_order;
+
+template <class Tp>
+struct atomic
+{
+private:
+    volatile Tp m_value;
+
+public:
+    atomic() : m_value(0) { }
+    atomic(const Tp& x) : m_value(x) { }
+
+    void store(Tp v, memory_order = memory_order_seq_cst) volatile noexcept
+        { m_value = v; }
+    void store(Tp v, memory_order = memory_order_seq_cst) noexcept
+        { m_value = v; }
+
+    Tp load(memory_order = memory_order_seq_cst) const volatile noexcept
+        { return m_value; }
+    Tp load(memory_order = memory_order_seq_cst) const noexcept
+        { return m_value; }
+
+    operator Tp() const volatile noexcept
+        { return m_value; }
+    operator Tp() const noexcept
+        { return m_value; }
+
+    bool compare_exchange_strong(Tp& expected, Tp desired,
+                                 memory_order = memory_order_seq_cst) {
+        if (m_value == expected)
+        {
+            m_value = desired;
+            return true;
+        }
+        else
+        {
+            expected = m_value;
+            return false;
+        }
+    }
+};
+
+END_NAMESPACE_XSTD
