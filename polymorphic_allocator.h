@@ -35,6 +35,11 @@ class allocator_resource
     virtual ~allocator_resource();
     virtual void* allocate(size_t bytes, size_t alignment = 0) = 0;
     virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0) = 0;
+    // This function is needed because some polymorphic allocators are
+    // produced as a result of type erasure.  In that case, two different
+    // instances of a polymorphic_allocator_resource may actually represent
+    // the same underlying allocator and should compare equal, even though
+    // their addresses are different.
 
     static allocator_resource *default_resource();
     static void set_default_resource(allocator_resource *r);
@@ -383,6 +388,10 @@ bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
                            const polyalloc::polymorphic_allocator<T2>& b)
 {
     return a.resource() == b.resource();
+        // This test is needed because some polymorphic allocators are
+        // produced as a result of type erasure.  In that case, 'a' and 'b'
+        // may contain 'polymorphic_allocator_resource's with different
+        // addresses which, nevertheless, should compare equal.
 }
 
 template <class T1, class T2>
