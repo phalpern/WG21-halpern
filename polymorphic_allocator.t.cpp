@@ -152,31 +152,31 @@ AllocCounters globalCounters;
 template <typename Tp>
 class SimpleAllocator
 {
-    AllocCounters *resource_;
+    AllocCounters *counters_;
 
   public:
     typedef Tp              value_type;
 
-    SimpleAllocator(AllocCounters* ar = &globalCounters) : resource_(ar) { }
+    SimpleAllocator(AllocCounters* c = &globalCounters) : counters_(c) { }
 
     // Required constructor
     template <typename T>
     SimpleAllocator(const SimpleAllocator<T>& other)
-        : resource_(other.resource()) { }
+        : counters_(other.counters()) { }
 
     Tp* allocate(std::size_t n)
-        { return static_cast<Tp*>(resource_->allocate(n*sizeof(Tp))); }
+        { return static_cast<Tp*>(counters_->allocate(n*sizeof(Tp))); }
 
     void deallocate(Tp* p, std::size_t n)
-        { resource_->deallocate(p, n*sizeof(Tp)); }
+        { counters_->deallocate(p, n*sizeof(Tp)); }
 
-    AllocCounters* resource() const { return resource_; }
+    AllocCounters* counters() const { return counters_; }
 };
 
 template <typename Tp1, typename Tp2>
 bool operator==(const SimpleAllocator<Tp1>& a, const SimpleAllocator<Tp2>& b)
 {
-    return a.resource() == b.resource();
+    return a.counters() == b.counters();
 }
 
 template <typename Tp1, typename Tp2>

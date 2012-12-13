@@ -8,18 +8,17 @@ TESTARGS +=
 SCOPED_ALLOC_DIR = ../allocator_traits
 
 CXX=g++ -m32 -std=c++0x
-CXXFLAGS=-I. -I$(SCOPED_ALLOC_DIR) -Dnullptr=0 -Dnoexcept="throw()" -Wall
+CXXFLAGS=-I. -I$(SCOPED_ALLOC_DIR) -Wall
 
 all : polymorphic_allocator.test
 
 .SECONDARY :
 
-%.t : %.t.cpp %.cpp
-	$(CXX) $(CXXFLAGS) -o $@ -g  $^
+%.t : %.t.cpp %.cpp %.h
+	$(CXX) $(CXXFLAGS) -o $@ -g $*.cpp $*.t.cpp
 
 %.test : %.t
 	./$< $(TESTARGS)
-	rm ./$<
 
 clean :
 	rm -f *.t *.o

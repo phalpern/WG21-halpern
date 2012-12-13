@@ -35,11 +35,14 @@ class allocator_resource
     virtual ~allocator_resource();
     virtual void* allocate(size_t bytes, size_t alignment = 0) = 0;
     virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0) = 0;
-    // This function is needed because some polymorphic allocators are
+
+    // 'is_equal' is needed because polymorphic allocators are sometimes
     // produced as a result of type erasure.  In that case, two different
     // instances of a polymorphic_allocator_resource may actually represent
     // the same underlying allocator and should compare equal, even though
     // their addresses are different.
+    virtual bool
+    is_equal(const allocator_resource& other) const = 0;
 
     static allocator_resource *default_resource();
     static void set_default_resource(allocator_resource *r);
@@ -69,6 +72,9 @@ class resource_adaptor_imp : public allocator_resource
 
     virtual void *allocate(size_t bytes, size_t alignment = 0);
     virtual void deallocate(void *p, size_t bytes, size_t alignment = 0);
+
+    virtual bool
+    is_equal(const allocator_resource& other) const;
 };
 
 // This alias ensures that 'resource_adaptor<T>' and
@@ -295,13 +301,13 @@ void polyalloc::resource_adaptor_imp<Allocator>::deallocate(void   *p,
     }
 
     switch (alignment) {
-      case 1: do_deallocate<1>(p, bytes);
-      case 2: do_deallocate<2>(p, bytes);
-      case 4: do_deallocate<4>(p, bytes);
-      case 8: do_deallocate<8>(p, bytes);
-      case 16: do_deallocate<16>(p, bytes);
-      case 32: do_deallocate<32>(p, bytes);
-      case 64: do_deallocate<64>(p, bytes);
+      case 1: do_deallocate<1>(p, bytes); break;
+      case 2: do_deallocate<2>(p, bytes); break;
+      case 4: do_deallocate<4>(p, bytes); break;
+      case 8: do_deallocate<8>(p, bytes); break;
+      case 16: do_deallocate<16>(p, bytes); break;
+      case 32: do_deallocate<32>(p, bytes); break;
+      case 64: do_deallocate<64>(p, bytes); break;
       default: {
           size_t chunks = (bytes + sizeof(void*) + alignment - 1) / 64;
           size_t chunkbytes = chunks * 64;
@@ -312,6 +318,20 @@ void polyalloc::resource_adaptor_imp<Allocator>::deallocate(void   *p,
     }
 }
 
+template <class Allocator>
+bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
+    const allocator_resource& other) const
+{
+    const resource_adaptor_imp *other_p =
+        dynamic_cast<const resource_adaptor_imp*>(&other);
+
+    if (other_p)
+        return this->alloc == other_p->alloc;
+    else
+        return false;
+}
+                                                 
+                                                                
 template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator()
@@ -387,11 +407,14 @@ inline
 bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
                            const polyalloc::polymorphic_allocator<T2>& b)
 {
-    return a.resource() == b.resource();
+    if (a.resource() == b.resource())
+        return true;
+    else
         // This test is needed because some polymorphic allocators are
         // produced as a result of type erasure.  In that case, 'a' and 'b'
-        // may contain 'polymorphic_allocator_resource's with different
+        // may contain 'allocator_resource's with different
         // addresses which, nevertheless, should compare equal.
+        return a.resource()->is_equal(*b.resource());
 }
 
 template <class T1, class T2>
