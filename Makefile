@@ -10,15 +10,18 @@ SCOPED_ALLOC_DIR = ../allocator_traits
 CXX=g++ -m32 -std=c++0x
 CXXFLAGS=-I. -I$(SCOPED_ALLOC_DIR) -Wall
 
-all : polymorphic_allocator.test
+all : polymorphic_allocator.test xfunctional.test
 
 .SECONDARY :
 
-%.t : %.t.cpp %.cpp %.h
-	$(CXX) $(CXXFLAGS) -o $@ -g $*.cpp $*.t.cpp
+%.t : %.t.cpp %.h polymorphic_allocator.o
+	$(CXX) $(CXXFLAGS) -o $@ -g $*.t.cpp polymorphic_allocator.o
 
 %.test : %.t
 	./$< $(TESTARGS)
+
+%.o : %.cpp
+	$(CXX) $(CXXFLAGS) -c -g $<
 
 clean :
 	rm -f *.t *.o

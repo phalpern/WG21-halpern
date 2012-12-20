@@ -54,7 +54,7 @@ template <class Allocator>
 class resource_adaptor_imp : public allocator_resource
 {
     typename allocator_traits<Allocator>::
-        template rebind_alloc<max_align_t>::_Base alloc;
+        template rebind_alloc<max_align_t>::_Base m_alloc;
 
     template <size_t Align>
     void *do_allocate(size_t bytes);
@@ -67,14 +67,20 @@ class resource_adaptor_imp : public allocator_resource
 
     resource_adaptor_imp();
 
+    resource_adaptor_imp(const resource_adaptor_imp&) = default;
+
     template <class Allocator2>
-    resource_adaptor_imp(Allocator2&& a2);
+    resource_adaptor_imp(Allocator2&& a2, typename
+                         enable_if<is_convertible<Allocator2, Allocator>::value,
+                                   int>::type = 0);
 
     virtual void *allocate(size_t bytes, size_t alignment = 0);
     virtual void deallocate(void *p, size_t bytes, size_t alignment = 0);
 
     virtual bool
     is_equal(const allocator_resource& other) const;
+
+    allocator_type get_allocator() const { return m_alloc; }
 };
 
 // This alias ensures that 'resource_adaptor<T>' and
@@ -211,11 +217,10 @@ template <class Allocator>
     template <class Allocator2>
 inline
 polyalloc::resource_adaptor_imp<Allocator>::resource_adaptor_imp(
-    Allocator2&& a2)
-    : alloc(forward<Allocator2>(a2))
+    Allocator2&& a2, typename
+    enable_if<is_convertible<Allocator2, Allocator>::value, int>::type)
+    : m_alloc(forward<Allocator2>(a2))
 {
-    static_assert(is_convertible<Allocator2, Allocator>::value,
-                  "Argument must be conertible to Allocator type.");
 }
 
 template <class Allocator>
@@ -227,7 +232,7 @@ void *polyalloc::resource_adaptor_imp<Allocator>::do_allocate(size_t bytes)
     
     typedef  typename allocator_traits<Allocator>::
         template rebind_traits<chunk> chunk_traits;
-    typename chunk_traits::allocator_type rebound(alloc);
+    typename chunk_traits::allocator_type rebound(m_alloc);
     return chunk_traits::allocate(rebound, chunks);
 }
 
@@ -241,7 +246,7 @@ void polyalloc::resource_adaptor_imp<Allocator>::do_deallocate(void   *p,
     
     typedef  typename allocator_traits<Allocator>::
         template rebind_traits<chunk> chunk_traits;
-    typename chunk_traits::allocator_type rebound(alloc);
+    typename chunk_traits::allocator_type rebound(m_alloc);
     return chunk_traits::deallocate(rebound, static_cast<chunk*>(p), chunks);
 }
 
@@ -326,7 +331,7 @@ bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
         dynamic_cast<const resource_adaptor_imp*>(&other);
 
     if (other_p)
-        return this->alloc == other_p->alloc;
+        return this->m_alloc == other_p->m_alloc;
     else
         return false;
 }
