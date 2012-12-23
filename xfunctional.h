@@ -1582,96 +1582,52 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     static const std::size_t _M_max_size = sizeof(_Nocopy_types);
     static const std::size_t _M_max_align = __alignof__(_Nocopy_types);
 
+    // PGH Shared pointer to allocator resource
+    typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+
     // PGH Functor with allocator
-    template<typename _Functor, typename _Allocator,
-             bool __polymorphic_allocator =
-             is_convertible<_Allocator, polyalloc::allocator_resource*>::value>
+    template<typename _Functor>
       class _Functor_wrapper
       {
-        _Functor                                         _M_functor;
-        mutable typename
-        polyalloc::resource_adaptor_mf<_Allocator>::type _M_alloc_resource;
+        _Functor               _M_functor;
+        _Shared_alloc_rsrc_ptr _M_alloc_resource;
 
       public:
-        _Functor_wrapper(const _Functor& __f, const _Allocator& __a)
+        _Functor_wrapper(const _Functor& __f,
+                         const _Shared_alloc_rsrc_ptr& __a)
           : _M_functor(__f), _M_alloc_resource(__a) { }
-        _Functor_wrapper(_Functor&& __f, const _Allocator& __a)
+        _Functor_wrapper(_Functor&& __f, const _Shared_alloc_rsrc_ptr& __a)
           : _M_functor(move(__f)), _M_alloc_resource(__a) { }
 
         void _M_delete_self()
         {
-          // Create copy of allocator on stack before destroying original.
-          auto __alloc_rsrc = _M_alloc_resource;
+          // Move allocator pointer to stack before destroying original.
+          _Shared_alloc_rsrc_ptr __alloc_rsrc = std::move(_M_alloc_resource);
           this->~_Functor_wrapper();
-          // Dealloate self from copy of allocator
-          __alloc_rsrc.deallocate(this, sizeof(_Functor_wrapper));
+          // Dealloate self using allocator
+          __alloc_rsrc->deallocate(this, sizeof(_Functor_wrapper));
         }
 
         _Functor      & _M_get_functor()       { return _M_functor; }
         _Functor const& _M_get_functor() const { return _M_functor; }
-        polyalloc::allocator_resource * _M_get_alloc_resource() const
-          { return &_M_alloc_resource; }
 
-        _Allocator _M_get_alloc() const
-          { return _M_alloc_resource.get_allocator(); }
+        // Return reference to avoid bumping ref-count unnecessarily
+        const _Shared_alloc_rsrc_ptr& _M_get_alloc_resource() const
+          { return _M_alloc_resource; }
       };
 
-    // PGH Functor with allocator, specialized for _Allocator being a
-    // polymorphic allocator resource pointer.
-    template<typename _Functor, typename _Allocator>
-      class _Functor_wrapper<_Functor, _Allocator, true>
-      {
-        _Functor                       _M_functor;
-        polyalloc::allocator_resource *_M_alloc_resource_p;
-
-      public:
-        _Functor_wrapper(const _Functor& __f, _Allocator __a)
-          : _M_functor(__f), _M_alloc_resource_p(__a) { }
-        _Functor_wrapper(_Functor&& __f, _Allocator __a)
-          : _M_functor(move(__f)), _M_alloc_resource_p(__a) { }
-
-        void _M_delete_self()
-          {
-            // Create copy of allocator ptr on stack before destroying original
-            polyalloc::allocator_resource *__alloc_rsrc = _M_alloc_resource_p;
-            this->~_Functor_wrapper();
-            __alloc_rsrc->deallocate(this, sizeof(_Functor_wrapper));
-          }
-
-        _Functor      & _M_get_functor()       { return _M_functor; }
-        _Functor const& _M_get_functor() const { return _M_functor; }
-        polyalloc::allocator_resource* _M_get_alloc_resource() const
-          { return _M_alloc_resource_p; }
-
-        polyalloc::allocator_resource* _M_get_alloc() const;
-      };
-
-    template<typename _Functor, typename _Allocator>
+    template<typename _Functor, bool __uses_custom_alloc>
       class _Base_manager
       {
-        typedef _Functor_wrapper<_Functor, _Allocator> _M_functor_wrapper;
-
-        typedef typename allocator_traits<_Allocator>::
-          template rebind_traits<_M_functor_wrapper> __alloc_traits;
+        typedef _Functor_wrapper<_Functor> _M_functor_wrapper;
 
       protected:
-        // PGH: __uses_alloator will be false if _Allocator is
-        // std::allocator<T> (e.g., if no allocator was passed at
-        // construction).
-        static const bool __uses_allocator = 
-          !is_same<_Allocator,
-                   std::allocator<typename _Allocator::value_type>
-                   >::value;
-
-        // PGH: _Custom_allocator is true_type if
-	typedef integral_constant<bool, __uses_allocator> _Custom_allocator;
-
 	static const bool __stored_locally =
 	(__is_location_invariant<_Functor>::value
 	 && sizeof(_Functor) <= _M_max_size
 	 && __alignof__(_Functor) <= _M_max_align
 	 && (_M_max_align % __alignof__(_Functor) == 0)
-         && !__uses_allocator);
+         && !__uses_custom_alloc);
 
 	typedef integral_constant<bool, __stored_locally> _Local_storage;
 
@@ -1699,15 +1655,18 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	static void
 	_M_clone(_Any_data& __dest, const _Any_data& __source, false_type)
 	{
-          // Get allocator from __source
+          // Get allocator resource from __source
           const _M_functor_wrapper *__psource =
             __source._M_access<_M_functor_wrapper*>();
-          typename __alloc_traits::allocator_type __a =
-            __psource->_M_get_alloc();
+          const _Shared_alloc_rsrc_ptr& __alloc_rsrc =
+            __psource->_M_get_alloc_resource();
 
-          // Allocate clone from allocator and construct it
-          _M_functor_wrapper *__pdest = __alloc_traits::allocate(__a, 1);
-          new (__pdest) _M_functor_wrapper(__psource->_M_get_functor(), __a);
+          // Allocate clone from allocator resource and construct it
+          _M_functor_wrapper *__pdest = static_cast<_M_functor_wrapper *>(
+            __alloc_rsrc->allocate(sizeof(_M_functor_wrapper),
+                                   __alignof(_M_functor_wrapper)));
+          new (__pdest) _M_functor_wrapper(__psource->_M_get_functor(),
+                                           __alloc_rsrc);
 
           // Return result in __dest
 	  __dest._M_access<_M_functor_wrapper*>() = __pdest;
@@ -1779,6 +1738,8 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
               // Since this case was previously a no-op, for binary
               // compatibility, the caller should handle the situation where
               // __dest is unchanged
+              typedef integral_constant<bool,
+                                        __uses_custom_alloc> _Custom_allocator;
               _M_get_allocator_resource(__dest, __source, _Custom_allocator());
               break;
             }
@@ -1787,7 +1748,7 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Allocator __a)
+                        const _Shared_alloc_rsrc_ptr& __a)
         { _M_init_functor(__functor, std::move(__f), __a, _Local_storage()); }
 
 	template<typename _Signature>
@@ -1813,25 +1774,28 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       private:
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Allocator& __a, true_type)
+                        const _Shared_alloc_rsrc_ptr& __a, true_type)
 	{ new (__functor._M_access()) _Functor(std::move(__f)); }
 
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Allocator& __a, false_type)
+                        const _Shared_alloc_rsrc_ptr& __a, false_type)
 	{ 
-          // Allocate a functor from the Allocator and construct it.
-          typename __alloc_traits::allocator_type __a2(__a);
-          _M_functor_wrapper *__pfunctor = __alloc_traits::allocate(__a2, 1);
+          // Allocate a functor from the allocator resource and construct it.
+          _M_functor_wrapper *__pfunctor = static_cast<_M_functor_wrapper *>(
+            __a->allocate(sizeof(_M_functor_wrapper),
+                          __alignof__(_M_functor_wrapper)));
           new (__pfunctor) _M_functor_wrapper(std::move(__f), __a);
           __functor._M_access<_M_functor_wrapper*>() = __pfunctor;
         }
       };
 
-    template<typename _Functor, typename _Allocator>
-      class _Ref_manager : public _Base_manager<_Functor*, _Allocator>
+    template<typename _Functor, bool __uses_custom_alloc>
+      class _Ref_manager : public _Base_manager<_Functor*,
+                                                __uses_custom_alloc>
       {
-	typedef _Function_base::_Base_manager<_Functor*, _Allocator> _Base;
+	typedef _Function_base::_Base_manager<_Functor*,
+                                              __uses_custom_alloc> _Base;
 
     public:
 	static bool
@@ -1858,7 +1822,7 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
 	static void
 	_M_init_functor(_Any_data& __functor, reference_wrapper<_Functor> __f,
-                        const _Allocator& __a)
+                        const _Shared_alloc_rsrc_ptr& __a)
 	{
 	  // TBD: Use address_of function instead.
 	  _Base::_M_init_functor(__functor, &__f.get(), __a);
@@ -1883,15 +1847,16 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     _Manager_type _M_manager;
   };
 
-  template<typename _Signature, typename _Functor, typename _Allocator>
+  template<typename _Signature, typename _Functor, bool __uses_custom_alloc>
     class _Function_handler;
 
-  template<typename _Res, typename _Functor, typename _Allocator,
+  template<typename _Res, typename _Functor, bool __uses_custom_alloc,
            typename... _ArgTypes>
-    class _Function_handler<_Res(_ArgTypes...), _Functor, _Allocator>
-    : public _Function_base::_Base_manager<_Functor, _Allocator>
+    class _Function_handler<_Res(_ArgTypes...), _Functor, __uses_custom_alloc>
+    : public _Function_base::_Base_manager<_Functor, __uses_custom_alloc>
     {
-      typedef _Function_base::_Base_manager<_Functor, _Allocator> _Base;
+      typedef _Function_base::_Base_manager<_Functor,
+                                            __uses_custom_alloc> _Base;
 
     public:
       static _Res
@@ -1902,11 +1867,12 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       }
     };
 
-  template<typename _Functor,  typename _Allocator, typename... _ArgTypes>
-    class _Function_handler<void(_ArgTypes...), _Functor, _Allocator>
-    : public _Function_base::_Base_manager<_Functor, _Allocator>
+  template<typename _Functor, bool __uses_custom_alloc, typename... _ArgTypes>
+    class _Function_handler<void(_ArgTypes...), _Functor, __uses_custom_alloc>
+    : public _Function_base::_Base_manager<_Functor, __uses_custom_alloc>
     {
-      typedef _Function_base::_Base_manager<_Functor, _Allocator> _Base;
+      typedef _Function_base::_Base_manager<_Functor,
+                                            __uses_custom_alloc> _Base;
 
      public:
       static void
@@ -1917,13 +1883,13 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       }
     };
 
-  template<typename _Res, typename _Functor, typename _Allocator,
+  template<typename _Res, typename _Functor, bool __uses_custom_alloc,
            typename... _ArgTypes>
     class _Function_handler<_Res(_ArgTypes...), reference_wrapper<_Functor>,
-                            _Allocator>
-    : public _Function_base::_Ref_manager<_Functor, _Allocator>
+                            __uses_custom_alloc>
+    : public _Function_base::_Ref_manager<_Functor, __uses_custom_alloc>
     {
-      typedef _Function_base::_Ref_manager<_Functor, _Allocator> _Base;
+      typedef _Function_base::_Ref_manager<_Functor,__uses_custom_alloc> _Base;
 
      public:
       static _Res
@@ -1934,12 +1900,12 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       }
     };
 
-  template<typename _Functor, typename _Allocator, typename... _ArgTypes>
+  template<typename _Functor, bool __uses_custom_alloc, typename... _ArgTypes>
     class _Function_handler<void(_ArgTypes...), reference_wrapper<_Functor>,
-                          _Allocator>
-    : public _Function_base::_Ref_manager<_Functor, _Allocator>
+                            __uses_custom_alloc>
+    : public _Function_base::_Ref_manager<_Functor, __uses_custom_alloc>
     {
-      typedef _Function_base::_Ref_manager<_Functor, _Allocator> _Base;
+      typedef _Function_base::_Ref_manager<_Functor,__uses_custom_alloc> _Base;
 
      public:
       static void
@@ -1950,14 +1916,15 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       }
     };
 
-  template<typename _Class, typename _Member, typename _Allocator,
+  template<typename _Class, typename _Member, bool __uses_custom_alloc,
            typename _Res, typename... _ArgTypes>
-    class _Function_handler<_Res(_ArgTypes...), _Member _Class::*, _Allocator>
+    class _Function_handler<_Res(_ArgTypes...), _Member _Class::*,
+                            __uses_custom_alloc>
     : public _Function_handler<void(_ArgTypes...), _Member _Class::*,
-                               _Allocator>
+                               __uses_custom_alloc>
     {
       typedef _Function_handler<void(_ArgTypes...), _Member _Class::*,
-                                _Allocator> _Base;
+                                __uses_custom_alloc> _Base;
 
      public:
       static _Res
@@ -1968,15 +1935,18 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       }
     };
 
-template<typename _Class, typename _Member, typename _Allocator,
+template<typename _Class, typename _Member, bool __uses_custom_alloc,
          typename... _ArgTypes>
-  class _Function_handler<void(_ArgTypes...), _Member _Class::*, _Allocator>
+  class _Function_handler<void(_ArgTypes...), _Member _Class::*,
+                          __uses_custom_alloc>
     : public _Function_base::_Base_manager<
-                   _Simple_type_wrapper< _Member _Class::* >, _Allocator>
+                   _Simple_type_wrapper< _Member _Class::* >,
+                   __uses_custom_alloc>
     {
       typedef _Member _Class::* _Functor;
       typedef _Simple_type_wrapper<_Functor> _Wrapper;
-      typedef _Function_base::_Base_manager<_Wrapper, _Allocator> _Base;
+      typedef _Function_base::_Base_manager<_Wrapper,
+                                            __uses_custom_alloc> _Base;
 
      public:
       static bool
@@ -2022,7 +1992,20 @@ template<typename _Class, typename _Member, typename _Allocator,
     {
       typedef _Res _Signature_type(_ArgTypes...);
 
+      // PGH Shared pointer to allocator resource
+      typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+      struct _Noop_alloc_rsrc_deleter {
+        void operator()(polyalloc::allocator_resource*) { }
+      };
+
       struct _Useless { };
+
+      static _Shared_alloc_rsrc_ptr _M_default_alloc_rsrc()
+      {
+        return _Shared_alloc_rsrc_ptr(
+          polyalloc::allocator_resource::default_resource(),
+          _Noop_alloc_rsrc_deleter());
+      }
 
     public:
       typedef _Res result_type;
@@ -2297,8 +2280,7 @@ template<typename _Class, typename _Member, typename _Allocator,
 			!is_integral<_Functor>::value, _Useless>::type)
       : _Function_base()
       {
-	typedef _Function_handler<_Signature_type, _Functor,
-                                  std::allocator<_Functor> >
+	typedef _Function_handler<_Signature_type, _Functor, false>
           _My_handler;
 
 	if (_My_handler::_M_not_empty_function(__f))
@@ -2306,7 +2288,7 @@ template<typename _Class, typename _Member, typename _Allocator,
 	    _M_invoker = &_My_handler::_M_invoke;
 	    _M_manager = &_My_handler::_M_manager;
 	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
-                                         std::allocator<_Functor>());
+                                         _M_default_alloc_rsrc());
 	  }
       }
 
