@@ -1537,6 +1537,12 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     __get_functor_ptr,
     __clone_functor,
     __destroy_functor,
+
+    // PGH 2012/12/27 new _Manager_operation codes
+    __get_manager_without_alloc,
+    __get_manager_with_alloc,
+    __get_invoker,
+    __clone_functor_with_alloc,
     __get_allocator_resource_ptr
   };
 
@@ -1572,6 +1578,32 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     __callable_functor(_Member _Class::* const &__p)
     { return mem_fn(__p); }
 
+  // PGH Shared pointer to allocator resource
+  typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+
+  struct _Noop_alloc_rsrc_deleter {
+    void operator()(polyalloc::allocator_resource*) { }
+  };
+
+  template <typename __A>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(const __A& __alloc)
+    { return std::make_shared<POLYALLOC_RESOURCE_ADAPTOR(__A) >(__alloc); }
+
+  template <typename __T>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
+    const polyalloc::polymorphic_allocator<__T>& __alloc)
+    {
+      return _Shared_alloc_rsrc_ptr(__alloc.resource(),
+                                    _Noop_alloc_rsrc_deleter());
+    }
+
+  template <typename _Rsrc>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Rsrc* __p)
+    {
+      // Compiler failure if __Rsrc is not derived from allocator_resource
+      return _Shared_alloc_rsrc_ptr(__p, _Noop_alloc_rsrc_deleter());
+    }
+
   template<typename _Signature>
     class function;
 
@@ -1582,8 +1614,12 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     static const std::size_t _M_max_size = sizeof(_Nocopy_types);
     static const std::size_t _M_max_align = __alignof__(_Nocopy_types);
 
-    // PGH Shared pointer to allocator resource
-    typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+    static _Shared_alloc_rsrc_ptr _M_default_alloc_rsrc()
+    {
+      return _Shared_alloc_rsrc_ptr(
+        polyalloc::allocator_resource::default_resource(),
+        _Noop_alloc_rsrc_deleter());
+    }
 
     // PGH Functor with allocator
     template<typename _Functor>
@@ -1616,18 +1652,45 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
           { return _M_alloc_resource; }
       };
 
+      // PGH: bundle of a source function object and a target allocator.
+      // Used for cloning a function object using a new allocator.
+      struct _Functor_and_alloc
+      {
+        _Any_data              _M_f;  // source function object
+        _Shared_alloc_rsrc_ptr _M_a;  // new allocator
+
+        _Any_data _M_as_any_data()
+          {
+            _Any_data ret;
+            ret._M_access<_Functor_and_alloc*>() = this;
+            return ret;
+          }
+
+        template <typename __A>
+        _Functor_and_alloc(const _Any_data& __f, const __A& __alloc)
+          : _M_f(__f)
+          , _M_a(_M_make_shared_alloc(__alloc))
+          {
+          }
+      };
+
     template<typename _Functor, bool __uses_custom_alloc>
       class _Base_manager
       {
         typedef _Functor_wrapper<_Functor> _M_functor_wrapper;
 
       protected:
-	static const bool __stored_locally =
+        // True if _Functor could be stored locally (i.e., not on the heap)
+        // when no allocator is used.
+	static const bool __stored_locally_without_alloc =
 	(__is_location_invariant<_Functor>::value
 	 && sizeof(_Functor) <= _M_max_size
 	 && __alignof__(_Functor) <= _M_max_align
-	 && (_M_max_align % __alignof__(_Functor) == 0)
-         && !__uses_custom_alloc);
+	 && (_M_max_align % __alignof__(_Functor) == 0));
+
+        // True if _Functor is actually stored locally.
+	static const bool __stored_locally = (__stored_locally_without_alloc
+                                              && !__uses_custom_alloc);
 
 	typedef integral_constant<bool, __stored_locally> _Local_storage;
 
@@ -1635,12 +1698,24 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	static _Functor*
 	_M_get_pointer(const _Any_data& __source)
 	{
-	  const _Functor* __ptr =
-	    std::__addressof(__stored_locally? __source._M_access<_Functor>()
-                /* have stored a pointer */
-                : __source._M_access<_M_functor_wrapper*>()->_M_get_functor());
+          const _Functor* __ptr =
+            (__stored_locally ? 
+             std::__addressof(__source._M_access<_Functor>()) :
+             std::__addressof(
+               __source._M_access<_M_functor_wrapper*>()->_M_get_functor()));
 	  return const_cast<_Functor*>(__ptr);
 	}
+
+        static inline _M_functor_wrapper*
+        _M_make_functor_wrapper(const _Functor&               __f,
+                                const _Shared_alloc_rsrc_ptr& __a)
+        {
+          // Allocate clone from allocator resource and construct it
+          _M_functor_wrapper *__ret = static_cast<_M_functor_wrapper *>(
+            __a->allocate(sizeof(_M_functor_wrapper),
+                          __alignof(_M_functor_wrapper)));
+          return new (__ret) _M_functor_wrapper(__f, __a);
+        }
 
 	// Clone a location-invariant function object that fits within
 	// an _Any_data structure.
@@ -1655,21 +1730,45 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	static void
 	_M_clone(_Any_data& __dest, const _Any_data& __source, false_type)
 	{
-          // Get allocator resource from __source
-          const _M_functor_wrapper *__psource =
-            __source._M_access<_M_functor_wrapper*>();
-          const _Shared_alloc_rsrc_ptr& __alloc_rsrc =
-            __psource->_M_get_alloc_resource();
+          // Ignore allocator in source
+          const _Functor& __f =
+            __source._M_access<_M_functor_wrapper*>()->_M_get_functor();
 
-          // Allocate clone from allocator resource and construct it
-          _M_functor_wrapper *__pdest = static_cast<_M_functor_wrapper *>(
-            __alloc_rsrc->allocate(sizeof(_M_functor_wrapper),
-                                   __alignof(_M_functor_wrapper)));
-          new (__pdest) _M_functor_wrapper(__psource->_M_get_functor(),
-                                           __alloc_rsrc);
+          if (__stored_locally_without_alloc)
+            // Function object fits locally
+            new (__dest._M_access()) _Functor(__f);
+          else
+            // Return result in __dest, using default allocator
+            __dest._M_access<_M_functor_wrapper*>() =
+              _M_make_functor_wrapper(__f, 
+                                      _Function_base::_M_default_alloc_rsrc());
+	}
+
+	// Clone a location-invariant function object that fits within
+	// an _Any_data structure.
+	static void
+	_M_clone_with_alloc(_Any_data& __dest, const _Any_data& __source,
+                            const _Shared_alloc_rsrc_ptr& __a, true_type)
+	{
+          const _Functor& __f = __source._M_access<_Functor>();
 
           // Return result in __dest
-	  __dest._M_access<_M_functor_wrapper*>() = __pdest;
+	  __dest._M_access<_M_functor_wrapper*>() =
+            _M_make_functor_wrapper(__f, __a);
+	}
+
+	// Clone a function object that is not location-invariant or
+	// that cannot fit into an _Any_data structure.
+	static void
+	_M_clone_with_alloc(_Any_data& __dest, const _Any_data& __source,
+                            const _Shared_alloc_rsrc_ptr& __a, false_type)
+	{
+          const _Functor& __f =
+            __source._M_access<_M_functor_wrapper*>()->_M_get_functor();
+
+          // Return result in __dest
+	  __dest._M_access<_M_functor_wrapper*>() =
+            _M_make_functor_wrapper(__f, __a);
 	}
 
 	// Destroying a location-invariant object may still require
@@ -1705,7 +1804,8 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
                                   true_type)
         {
           __resource._M_access<polyalloc::allocator_resource*>() =
-            __source._M_access<_M_functor_wrapper*>()->_M_get_alloc_resource();
+            __source._M_access<_M_functor_wrapper*>()->
+            _M_get_alloc_resource().get();
         }
 
       public:
@@ -1713,6 +1813,9 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	_M_manager(_Any_data& __dest, const _Any_data& __source,
 		   _Manager_operation __op)
 	{
+          typedef bool (*_Manager_type)(_Any_data&, const _Any_data&,
+                                        _Manager_operation);
+
 	  switch (__op)
 	    {
 #ifdef __GXX_RTTI
@@ -1732,12 +1835,42 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	      _M_destroy(__dest, _Local_storage());
 	      break;
 
-            // PGH 2012/12/16
+            // PGH 2012/12/27
+            // Invoking _M_manager with an unknown __op is a no-op.  The
+            // following OP codes are new for allocator-enabled function
+            // objects.  Since these cases were previously no-ops, the caller
+            // should handle the situation where __dest is unchanged, for
+            // binary compatibility with std::function objects that were
+            // created by code that was compiled prior to these changes.
+            case __get_manager_without_alloc:
+              // Return a pointer to this manager function, for a function
+              // object that does not use a custom allocator.
+              __dest._M_access<_Manager_type>() =
+                _Base_manager<_Functor, false>::_M_manager;
+              break;
+
+            case __get_manager_with_alloc:
+              // Return a pointer to this manager function, for a function
+              // object that uses a custom allocator.
+              __dest._M_access<_Manager_type>() =
+                _Base_manager<_Functor, true>::_M_manager;
+              break;
+
+            case __get_invoker:
+              // Return a pointer to the invoker corresponding to this manager.
+              __dest._M_access<void*>() = nullptr;
+              break;
+
+            case __clone_functor_with_alloc:
+              {
+                _Functor_and_alloc *__fa =
+                  __source._M_access<_Functor_and_alloc *>();
+                _M_clone_with_alloc(__dest, __fa->_M_f, __fa->_M_a,
+                                    _Local_storage());
+              }
+	      break;
+
             case __get_allocator_resource_ptr:
-              // Invoking _M_manager with an unknown __op was always a no-op.
-              // Since this case was previously a no-op, for binary
-              // compatibility, the caller should handle the situation where
-              // __dest is unchanged
               typedef integral_constant<bool,
                                         __uses_custom_alloc> _Custom_allocator;
               _M_get_allocator_resource(__dest, __source, _Custom_allocator());
@@ -1748,8 +1881,9 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Shared_alloc_rsrc_ptr& __a)
-        { _M_init_functor(__functor, std::move(__f), __a, _Local_storage()); }
+                        _Shared_alloc_rsrc_ptr&& __a)
+        { _M_init_functor(__functor, std::move(__f),
+                          std::move(__a), _Local_storage()); }
 
 	template<typename _Signature>
 	  static bool
@@ -1774,18 +1908,18 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       private:
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Shared_alloc_rsrc_ptr& __a, true_type)
+                        _Shared_alloc_rsrc_ptr&& __a, true_type)
 	{ new (__functor._M_access()) _Functor(std::move(__f)); }
 
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        const _Shared_alloc_rsrc_ptr& __a, false_type)
+                        _Shared_alloc_rsrc_ptr&& __a, false_type)
 	{ 
           // Allocate a functor from the allocator resource and construct it.
           _M_functor_wrapper *__pfunctor = static_cast<_M_functor_wrapper *>(
             __a->allocate(sizeof(_M_functor_wrapper),
                           __alignof__(_M_functor_wrapper)));
-          new (__pfunctor) _M_functor_wrapper(std::move(__f), __a);
+          new (__pfunctor) _M_functor_wrapper(std::move(__f), std::move(__a));
           __functor._M_access<_M_functor_wrapper*>() = __pfunctor;
         }
       };
@@ -1802,6 +1936,9 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	_M_manager(_Any_data& __dest, const _Any_data& __source,
 		   _Manager_operation __op)
 	{
+          typedef bool (*_Manager_type)(_Any_data&, const _Any_data&,
+                                        _Manager_operation);
+
 	  switch (__op)
 	    {
 #ifdef __GXX_RTTI
@@ -1814,6 +1951,32 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	      return is_const<_Functor>::value;
 	      break;
 
+            // PGH 2012/12/27
+            // Invoking _M_manager with an unknown __op is a no-op.  The
+            // following OP codes are new for allocator-enabled function
+            // objects.  Since these cases were previously no-ops, the caller
+            // should handle the situation where __dest is unchanged, for
+            // binary compatibility with std::function objects that were
+            // created by code that was compiled prior to these changes.
+            case __get_manager_without_alloc:
+              // Return a pointer to this manager function, for a function
+              // object that does not use a custom allocator.
+              __dest._M_access<_Manager_type>() =
+                _Ref_manager<_Functor, false>::_M_manager;
+              break;
+
+            case __get_manager_with_alloc:
+              // Return a pointer to this manager function, for a function
+              // object that uses a custom allocator.
+              __dest._M_access<_Manager_type>() =
+                _Ref_manager<_Functor, true>::_M_manager;
+              break;
+
+            case __get_invoker:
+              // Return a pointer to the invoker corresponding to this manager.
+              __dest._M_access<void*>() = nullptr;
+              break;
+
 	    default:
 	      _Base::_M_manager(__dest, __source, __op);
 	    }
@@ -1822,10 +1985,10 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
 	static void
 	_M_init_functor(_Any_data& __functor, reference_wrapper<_Functor> __f,
-                        const _Shared_alloc_rsrc_ptr& __a)
+                        _Shared_alloc_rsrc_ptr&& __a)
 	{
 	  // TBD: Use address_of function instead.
-	  _Base::_M_init_functor(__functor, &__f.get(), __a);
+	  _Base::_M_init_functor(__functor, &__f.get(), std::move(__a));
 	}
       };
 
@@ -1849,6 +2012,66 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
   template<typename _Signature, typename _Functor, bool __uses_custom_alloc>
     class _Function_handler;
+
+  template<typename _Signature, typename _Functor, bool __uses_custom_alloc>
+    struct _Function_handler_wrapper :
+      _Function_handler<_Signature, _Functor, __uses_custom_alloc>
+    {
+      static bool
+      _M_manager(_Any_data& __dest, const _Any_data& __source,
+		 _Manager_operation __op)
+      {
+        typedef bool (*_Manager_type)(_Any_data&, const _Any_data&,
+                                      _Manager_operation);
+
+        typedef _Function_handler_wrapper<_Signature, _Functor,
+                                          __uses_custom_alloc> _Self;
+        typedef _Function_handler<_Signature, _Functor, __uses_custom_alloc>
+          _Base;
+
+	switch (__op)
+	  {
+#ifdef __GXX_RTTI
+	  case __get_type_info:
+	    __dest._M_access<const type_info*>() = &typeid(_Functor);
+	    break;
+#endif
+          // PGH 2012/12/27
+          // Invoking _M_manager with an unknown __op is a no-op.  The
+          // following OP codes are new for allocator-enabled function
+          // objects.  Since these cases were previously no-ops, the caller
+          // should handle the situation where __dest is unchanged, for
+          // binary compatibility with std::function objects that were
+          // created by code that was compiled prior to these changes.
+          case __get_manager_without_alloc:
+            // Return a pointer to this manager function, for a function
+            // object that does not use a custom allocator.
+            __dest._M_access<_Manager_type>() =
+              _Function_handler_wrapper<_Signature, _Functor,
+                                        false>::_M_manager;
+            break;
+
+          case __get_manager_with_alloc:
+            // Return a pointer to this manager function, for a function
+            // object that uses a custom allocator.
+            __dest._M_access<_Manager_type>() =
+              _Function_handler_wrapper<_Signature, _Functor,
+                                        true>::_M_manager;
+            break;
+
+          case __get_invoker:
+            // Return a pointer to the invoker corresponding to this manager.
+            typedef decltype(&_Self::_M_invoke) _Invoker_type;
+            __dest._M_access<_Invoker_type>() = &_Self::_M_invoke;
+            break;
+
+	  default:
+	    _Base::_M_manager(__dest, __source, __op);
+	  }
+	return false;
+      }
+      
+    };
 
   template<typename _Res, typename _Functor, bool __uses_custom_alloc,
            typename... _ArgTypes>
@@ -1953,6 +2176,9 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       _M_manager(_Any_data& __dest, const _Any_data& __source,
 		 _Manager_operation __op)
       {
+        typedef bool (*_Manager_type)(_Any_data&, const _Any_data&,
+                                      _Manager_operation);
+
 	switch (__op)
 	  {
 #ifdef __GXX_RTTI
@@ -1994,18 +2220,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 
       // PGH Shared pointer to allocator resource
       typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
-      struct _Noop_alloc_rsrc_deleter {
-        void operator()(polyalloc::allocator_resource*) { }
-      };
 
       struct _Useless { };
-
-      static _Shared_alloc_rsrc_ptr _M_default_alloc_rsrc()
-      {
-        return _Shared_alloc_rsrc_ptr(
-          polyalloc::allocator_resource::default_resource(),
-          _Noop_alloc_rsrc_deleter());
-      }
 
     public:
       typedef _Res result_type;
@@ -2253,6 +2469,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       template<typename _Functor> const _Functor* target() const;
 #endif
 
+      polyalloc::allocator_resource* get_allocator_resource() const;
+
     private:
       typedef _Res (*_Invoker_type)(const _Any_data&, _ArgTypes...);
       _Invoker_type _M_invoker;
@@ -2266,8 +2484,19 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     {
       if (static_cast<bool>(__x))
 	{
-	  _M_invoker = __x._M_invoker;
-	  _M_manager = __x._M_manager;
+          // Get a variant of __x._M_manager that doesn't use an allocator
+          // Note that __get_manager_without_alloc is a new op, so we must set a
+          // default value in case it is a no-op for __x.
+          _Any_data __out_param;
+          __out_param._M_access<_Manager_type>() = __x._M_manager;
+          __x._M_manager(__out_param, __out_param,
+                         __get_manager_without_alloc);
+	  _M_manager = __out_param._M_access<_Manager_type>();
+
+          // Get a variant of __x._M_invoker that does not use an allocator.
+          this->_M_manager(__out_param, __out_param, __get_invoker);
+          _M_invoker = __out_param._M_access<_Invoker_type>();
+          
 	  __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
 	}
     }
@@ -2280,7 +2509,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 			!is_integral<_Functor>::value, _Useless>::type)
       : _Function_base()
       {
-	typedef _Function_handler<_Signature_type, _Functor, false>
+	typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
           _My_handler;
 
 	if (_My_handler::_M_not_empty_function(__f))
@@ -2289,6 +2518,125 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 	    _M_manager = &_My_handler::_M_manager;
 	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
                                          _M_default_alloc_rsrc());
+	  }
+      }
+
+  // PGH: allocator_arg_t versions
+  template<typename _Res, typename... _ArgTypes>
+    template<typename __A>
+      function<_Res(_ArgTypes...)>::
+      function(allocator_arg_t, const __A& __alloc)
+      : _Function_base()
+      {
+	typedef _Base_manager<_Signature_type*, true> _My_handler;
+
+        _M_invoker = nullptr;
+        _M_manager = &_My_handler::_M_manager;
+        _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
+                                     __alloc);
+      }
+
+  template<typename _Res, typename... _ArgTypes>
+    template<typename __A>
+      function<_Res(_ArgTypes...)>::
+      function(allocator_arg_t, const __A& __alloc, nullptr_t)
+      : _Function_base()
+      {
+	typedef _Base_manager<_Signature_type*, true> _My_handler;
+
+        _M_invoker = nullptr;
+        _M_manager = &_My_handler::_M_manager;
+        _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
+                                     __alloc);
+      }
+
+  template<typename _Res, typename... _ArgTypes>
+    template<typename __A>
+      function<_Res(_ArgTypes...)>::
+      function(allocator_arg_t, const __A& __alloc, const function& __x)
+      : _Function_base()
+        {
+          // Get a variant of __x._M_manager that uses an allocator.
+          // Note that __get_manager_with_alloc is a new op, so we must set a
+          // default value in case it is a no-op for __x.
+          _Any_data __out_param;
+          __out_param._M_access<_Manager_type>() = __x._M_manager;
+          __x._M_manager(__out_param, __out_param,
+                         __get_manager_with_alloc);
+	  _M_manager = __out_param._M_access<_Manager_type>();
+
+          // Get a variant of __x._M_invoker that uses an allocator.
+          this->_M_manager(__out_param, __out_param, __get_invoker);
+          _M_invoker = __out_param._M_access<_Invoker_type>();
+          
+	  __x._M_manager(_M_functor,
+                         _Functor_and_alloc(__x._M_functor,
+                                            __alloc)._M_as_any_data(),
+                         __clone_functor_with_alloc);
+       }
+
+  template<typename _Res, typename... _ArgTypes>
+    template<typename __A>
+      function<_Res(_ArgTypes...)>::
+      function(allocator_arg_t, const __A& __alloc, function&& __x)
+      : _Function_base()
+        {
+          _Any_data __x_alloc_data;
+          __x_alloc_data._M_access<polyalloc::allocator_resource*>() = nullptr;
+          __x._M_manager(__x_alloc_data, __x._M_functor,
+                         __get_allocator_resource_ptr);
+          polyalloc::allocator_resource *__x_alloc = 
+            __x_alloc_data._M_access<polyalloc::allocator_resource*>();
+          if (nullptr == __x_alloc)
+            __x_alloc = polyalloc::allocator_resource::default_resource();
+
+          POLYALLOC_RESOURCE_ADAPTOR(__A) *__x_alloc_cast =
+            dynamic_cast<POLYALLOC_RESOURCE_ADAPTOR(__A) *>(__x_alloc);
+          if (__x_alloc_cast && *__x_alloc_cast == __alloc)
+          {
+            // Allocator for __x is equal to __alloc.  Implement as fast swap.
+            this->swap(__x);
+            return;
+          }
+
+          // If got here, then __alloc is different from allocator in __x.
+          // Use same logic as extended copy constructor.
+
+          // Get a variant of __x._M_manager that uses an allocator.
+          // Note that __get_manager_with_alloc is a new op, so we must set a
+          // default value in case it is a no-op for __x.
+          _Any_data __out_param;
+          __out_param._M_access<_Manager_type>() = __x._M_manager;
+          __x._M_manager(__out_param, __out_param,
+                         __get_manager_with_alloc);
+	  _M_manager = __out_param._M_access<_Manager_type>();
+
+          // Get a variant of __x._M_invoker that uses an allocator.
+          this->_M_manager(__out_param, __out_param, __get_invoker);
+          _M_invoker = __out_param._M_access<_Invoker_type*>();
+          
+	  __x._M_manager(_M_functor,
+                         _Functor_and_alloc(__x._M_functor,
+                                            __alloc._M_as_any_data()),
+                         __clone_functor_with_alloc);
+        }
+
+  template<typename _Res, typename... _ArgTypes>
+    template<typename _Functor, typename __A>
+      function<_Res(_ArgTypes...)>::
+      function(allocator_arg_t, const __A& __alloc, _Functor __f,
+		 typename enable_if<
+                   !is_integral<_Functor>::value, _Useless>::type)
+      {
+	typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
+          _My_handler;
+
+	if (_My_handler::_M_not_empty_function(__f))
+	  {
+	    _M_invoker = &_My_handler::_M_invoke;
+	    _M_manager = &_My_handler::_M_manager;
+	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
+                                         _M_make_shared_alloc(__alloc));
 	  }
       }
 
@@ -2354,6 +2702,17 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       }
 #endif
 
+  template<typename _Res, typename... _Args>
+    polyalloc::allocator_resource*
+    function<_Res(_Args...)>::  
+    get_allocator_resource() const
+      {
+        _Any_data __alloc_data;
+        _M_manager(__alloc_data, _M_functor, __get_allocator_resource_ptr);
+        return __alloc_data._M_access<polyalloc::allocator_resource*>();
+      }
+
+
   // [20.7.15.2.6] null pointer comparisons
 
   /**
@@ -2410,3 +2769,7 @@ END_NAMESPACE_XSTD
 #endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #endif // _XFUNCTIONAL
+
+// Local Variables:
+// c-basic-offset: 2
+// End:

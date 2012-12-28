@@ -41,8 +41,7 @@ class allocator_resource
     // instances of a polymorphic_allocator_resource may actually represent
     // the same underlying allocator and should compare equal, even though
     // their addresses are different.
-    virtual bool
-    is_equal(const allocator_resource& other) const = 0;
+    virtual bool is_equal(const allocator_resource& other) const = 0;
 
     static allocator_resource *default_resource();
     static void set_default_resource(allocator_resource *r);
@@ -90,6 +89,8 @@ class resource_adaptor_imp : public allocator_resource
 template <class Allocator>
 using resource_adaptor = resource_adaptor_imp<
     allocator_traits<Allocator>::rebind_alloc<char>>;
+#define POLYALLOC_RESOURCE_ADAPTOR(Alloc) \
+    XSTD::polyalloc::resource_adaptor<Alloc >
 #else
 template <class Allocator>
 struct resource_adaptor_mf
@@ -97,6 +98,8 @@ struct resource_adaptor_mf
     typedef resource_adaptor_imp<typename
         allocator_traits<Allocator>::template rebind_alloc<char>::_Base > type;
 };
+#define POLYALLOC_RESOURCE_ADAPTOR(Alloc) \
+    typename XSTD::polyalloc::resource_adaptor_mf<Alloc >::type
 #endif
 
 // STL allocator that holds a pointer to a polymorphic allocator resource.

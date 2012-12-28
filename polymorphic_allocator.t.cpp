@@ -418,8 +418,8 @@ int main(int argc, char *argv[])
             typedef XSTD::list<strlist, polymorphic_allocator<strlist> >
                 strlist2;
 
-            resource_adaptor_mf<SimpleAllocator<char> >::type crx(&x);
-            resource_adaptor_mf<SimpleAllocator<char> >::type cry(&y);
+            POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) crx(&x);
+            POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) cry(&y);
 
             strlist a(&crx);
             strlist2 b(&cry);
