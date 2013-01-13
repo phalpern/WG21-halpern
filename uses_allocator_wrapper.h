@@ -1,4 +1,4 @@
-/* uses_allocator.h                  -*-C++-*-
+/* uses_allocator_wrapper.h                  -*-C++-*-
  *
  *            Copyright 2012 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
@@ -6,54 +6,15 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
-#ifndef INCLUDED_USES_ALLOCATOR_DOT_H
-#define INCLUDED_USES_ALLOCATOR_DOT_H
+#ifndef INCLUDED_USES_ALLOCATOR_WRAPPER_DOT_H
+#define INCLUDED_USES_ALLOCATOR_WRAPPER_DOT_H
 
 #include <allocator_traits.h>
 #include <polymorphic_allocator.h>
 
 BEGIN_NAMESPACE_XSTD
 
-// A class that uses type erasure to handle allocators should declare
-// 'typedef erased_type allocator_type'
-struct erased_type { };
-
 namespace __details {
-
-template <typename _Tp, typename _Alloc>
-struct __uses_allocator_imp<_Tp, _Alloc*>
-{
-    // Specialize 'uses_allocator<T, Alloc>' for 'Alloc' being a pointer to a
-    // type derived from polyalloc::allocator_resource.  The 'value' member
-    // will be true if either of the following are true:
-    //
-    // 1. 'T::allocator_type' is convertible from '_Alloc*'
-    // 2. 'T::allocator_type' is 'erased_type'
-
-    static_assert(std::is_convertible<_Alloc*,
-                                      polyalloc::allocator_resource*>::value,
-                  "Allocator pointer target must be derived from "
-                  "allocator_resource");
-
-  private:
-    template <typename _Up>
-    static char __test(int, typename _Up::allocator_type);
-        // Match this function if _TypeT::allocator_type exists and is
-        // implicitly convertible from _Alloc
-
-    template <typename _Up>
-    static int __test(_LowPriorityConversion<int>,
-		      _LowPriorityConversion<_Alloc>);
-        // Match this function if _TypeT::allocator_type does not exist or is
-        // not convertible from _Alloc.
-
-    static _Alloc*     __allocp;  // Declared but not defined
-    static erased_type __erased;  // Declared but not defined
-
-public:
-    enum { value = (sizeof(__test<_Tp>(0, __allocp)) == 1 ||
-                    sizeof(__test<_Tp>(0, __erased)) == 1) };
-};
 
 template <class _Tp>
 class __uses_allocator_construction_imp
@@ -157,4 +118,4 @@ public:
 
 END_NAMESPACE_XSTD
 
-#endif // ! defined(INCLUDED_USES_ALLOCATOR_DOT_H)
+#endif // ! defined(INCLUDED_USES_ALLOCATOR_WRAPPER_DOT_H)

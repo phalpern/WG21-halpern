@@ -5,16 +5,21 @@
 
 TESTARGS +=
 
-SCOPED_ALLOC_DIR = ../allocator_traits
+#SCOPED_ALLOC_DIR = ../allocator_traits
+SCOPED_ALLOC_DIR = .
 
 CXX=g++ -m32 -std=c++0x
 CXXFLAGS=-I. -I$(SCOPED_ALLOC_DIR) -Wall
 
-all : polymorphic_allocator.test uses_allocator.test xfunctional.test
+all : polymorphic_allocator.test uses_allocator_wrapper.test xfunctional.test
 
 .SECONDARY :
 
-%.t : %.t.cpp %.h polymorphic_allocator.o
+.FORCE :
+
+.PHONY : .FORCE clean
+
+%.t : %.t.cpp %.h polymorphic_allocator.o .FORCE
 	$(CXX) $(CXXFLAGS) -o $@ -g $*.t.cpp polymorphic_allocator.o
 
 %.test : %.t

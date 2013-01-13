@@ -1,4 +1,4 @@
-/* uses_allocator.t.cpp                  -*-C++-*-
+/* uses_allocator_wrapper.t.cpp                  -*-C++-*-
  *
  *            Copyright 2012 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
@@ -6,7 +6,7 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
-#include "uses_allocator.h"
+#include "uses_allocator_wrapper.h"
 #include <iostream>
 
 //=============================================================================
@@ -100,6 +100,24 @@ public:
 
     Alloc get_allocator() const { return m_alloc; }
     int   value() const { return m_value; }
+};
+
+class UsesTypeErasedAlloc
+{
+    int m_alloc_id;
+    int m_value;
+
+public:
+    typedef XSTD::erased_type allocator_type;
+
+    UsesTypeErasedAlloc(int v = 0) : m_alloc_id(0), m_value(v) { }
+
+    template <class Alloc>
+    UsesTypeErasedAlloc(XSTD::allocator_arg_t, const Alloc& a, int v = 0)
+        : m_alloc_id(a.id()), m_value(v) { }
+
+    int get_allocator_id() const { return m_alloc_id; }
+    int value() const { return m_value; }
 };
 
 // Allocator stub.  No allocations are actually done with this allocator, so
@@ -264,6 +282,45 @@ int main(int argc, char *argv[])
         Wrapper w4(XSTD::allocator_arg, MyAlloc, 99);
         ASSERT(w4.value().value() == 99);
         ASSERT(w4.value().get_allocator() == MyAlloc);
+
+      } if (test != 0) break;
+
+      case 4: {
+        // --------------------------------------------------------------------
+        // Test type-erased allocator
+        //
+        // Concerns: Can construct a wrapper where allocator is automatically
+        //     appended to wrapped type's constructor argument list.
+        //
+        // Plan:
+	//
+        // Testing:
+        //
+        // --------------------------------------------------------------------
+
+        std::cout << "\ntype-erased allocator"
+                  << "\n=====================\n";
+
+        typedef UsesTypeErasedAlloc Obj;
+        typedef XSTD::uses_allocator_construction_wrapper<Obj> Wrapper;
+        StubAllocator<int>  DfltAlloc;
+        StubAllocator<int>  MyAlloc(1);
+
+        Wrapper w1;
+        ASSERT(w1.value().value() == 0);
+        ASSERT(w1.value().get_allocator_id() == DfltAlloc.id());
+
+        Wrapper w2(99);
+        ASSERT(w2.value().value() == 99);
+        ASSERT(w2.value().get_allocator_id() == DfltAlloc.id());
+
+        Wrapper w3(XSTD::allocator_arg, MyAlloc);
+        ASSERT(w3.value().value() == 0);
+        ASSERT(w3.value().get_allocator_id() == MyAlloc.id());
+
+        Wrapper w4(XSTD::allocator_arg, MyAlloc, 99);
+        ASSERT(w4.value().value() == 99);
+        ASSERT(w4.value().get_allocator_id() == MyAlloc.id());
 
       } if (test != 0) break;
 
