@@ -120,6 +120,47 @@ public:
     int value() const { return m_value; }
 };
 
+class UsesResourcePrefix
+{
+    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+
+    allocator_resource *m_alloc;
+    int                 m_value;
+
+public:
+    typedef allocator_resource *allocator_type;
+
+    UsesResourcePrefix(int v = 0)
+        : m_alloc(allocator_resource::default_resource())
+        , m_value(v) { }
+    UsesResourcePrefix(XSTD::allocator_arg_t, allocator_resource *a, int v = 0)
+        : m_alloc(a), m_value(v) { }
+
+    allocator_resource *get_allocator_resource() const { return m_alloc; }
+    int value() const { return m_value; }
+};
+
+class UsesResourceSuffix
+{
+    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+
+    allocator_resource *m_alloc;
+    int                 m_value;
+
+public:
+    typedef allocator_resource *allocator_type;
+
+    UsesResourceSuffix(allocator_resource *a =
+                       allocator_resource::default_resource())
+        : m_alloc(a), m_value(0) { }
+    UsesResourceSuffix(int v, allocator_resource *a =
+                       allocator_resource::default_resource())
+        : m_alloc(a), m_value(v) { }
+
+    allocator_resource *get_allocator_resource() const { return m_alloc; }
+    int value() const { return m_value; }
+};
+
 // Allocator stub.  No allocations are actually done with this allocator, so
 // it is not necessary to actually implement the allocation and deallocation
 // functions.  What is important is to be able to identify the allocator
@@ -155,12 +196,33 @@ bool operator!=(const StubAllocator<T>& a, const StubAllocator<T>& b)
     return a.id() != b.id();
 }
 
+// allocator_resource stub. No allocations are actually done with this
+// resource, so the allocation and deallocation functions can be stubbed out.
+// What is important is to be able to identify the allocator instance.
+class StubResource : public XSTD::polyalloc::allocator_resource
+{
+public:
+    virtual ~StubResource();
+    virtual void* allocate(size_t bytes, size_t alignment = 0);
+    virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
+    virtual bool is_equal(const allocator_resource& other) const;
+};
+
+StubResource::~StubResource() { }
+void* StubResource::allocate(size_t bytes, size_t alignment)
+    { return nullptr; }
+void  StubResource::deallocate(void *p, size_t bytes, size_t alignment) { }
+bool StubResource::is_equal(const allocator_resource& other) const
+    { return &other == this; }
+
 //=============================================================================
 //                              MAIN PROGRAM
 //-----------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
 {
+    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+
     int test = argc > 1 ? atoi(argv[1]) : 0;
     // verbose = argc > 2;
     // veryVerbose = argc > 3;
@@ -324,8 +386,90 @@ int main(int argc, char *argv[])
 
       } if (test != 0) break;
 
+      case 5: {
+        // --------------------------------------------------------------------
+        // Test allocator_resource at front of argument list
+        //
+        // Concerns: Can construct a wrapper where allocator_resource pointer
+        //     is automatically prepended to wrapped type's constructor
+        //     argument list.
+        //
+        // Plan:
+	//
+        // Testing:
+        //
+        // --------------------------------------------------------------------
+
+        std::cout << "\nallocator_resource at front of argument list"
+                  << "\n============================================\n";
+
+        typedef UsesResourcePrefix Obj;
+        typedef XSTD::uses_allocator_construction_wrapper<Obj> Wrapper;
+        StubResource myRsrc;
+        allocator_resource *pDfltRsrc = allocator_resource::default_resource();
+        allocator_resource *pMyRsrc   = &myRsrc;
+
+        Wrapper w1;
+        ASSERT(w1.value().value() == 0);
+        ASSERT(w1.value().get_allocator_resource() == pDfltRsrc);
+
+        Wrapper w2(99);
+        ASSERT(w2.value().value() == 99);
+        ASSERT(w2.value().get_allocator_resource() == pDfltRsrc);
+
+        Wrapper w3(XSTD::allocator_arg, pMyRsrc);
+        ASSERT(w3.value().value() == 0);
+        ASSERT(w3.value().get_allocator_resource() == pMyRsrc);
+
+        Wrapper w4(XSTD::allocator_arg, pMyRsrc, 99);
+        ASSERT(w4.value().value() == 99);
+        ASSERT(w4.value().get_allocator_resource() == pMyRsrc);
+
+      } if (test != 0) break;
+
+      case 6: {
+        // --------------------------------------------------------------------
+        // Test allocator_resource at end of argument list
+        //
+        // Concerns: Can construct a wrapper where allocator_resource is
+        //     automatically appended to wrapped type's constructor argument
+        //     list.
+        //
+        // Plan:
+	//
+        // Testing:
+        //
+        // --------------------------------------------------------------------
+
+        std::cout << "\nallocator_resource at end of argument list"
+                  << "\n==========================================\n";
+
+        typedef UsesResourceSuffix Obj;
+        typedef XSTD::uses_allocator_construction_wrapper<Obj> Wrapper;
+        StubResource myRsrc;
+        allocator_resource *pDfltRsrc = allocator_resource::default_resource();
+        allocator_resource *pMyRsrc   = &myRsrc;
+
+        Wrapper w1;
+        ASSERT(w1.value().value() == 0);
+        ASSERT(w1.value().get_allocator_resource() == pDfltRsrc);
+
+        Wrapper w2(99);
+        ASSERT(w2.value().value() == 99);
+        ASSERT(w2.value().get_allocator_resource() == pDfltRsrc);
+
+        Wrapper w3(XSTD::allocator_arg, pMyRsrc);
+        ASSERT(w3.value().value() == 0);
+        ASSERT(w3.value().get_allocator_resource() == pMyRsrc);
+
+        Wrapper w4(XSTD::allocator_arg, pMyRsrc, 99);
+        ASSERT(w4.value().value() == 99);
+        ASSERT(w4.value().get_allocator_resource() == pMyRsrc);
+
+      } if (test != 0) break;
+
 #ifdef NEGATIVE_COMPILATION_TEST
-      case 4: {
+      case -1: {
         // --------------------------------------------------------------------
         // Test uses-allocator construction option 4: ill-formed
         //
