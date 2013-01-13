@@ -1652,8 +1652,10 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
           { return _M_alloc_resource; }
       };
 
-      // PGH: bundle of a source function object and a target allocator.
-      // Used for cloning a function object using a new allocator.
+      // PGH: bundle of a source function object and a target allocator.  Used
+      // as an argument to pass both arguments into a single call to the
+      // manager function for cloning a function object using a new allocator.
+      // This struct is not a permanent part of any larger data structure.
       struct _Functor_and_alloc
       {
         _Any_data              _M_f;  // source function object
