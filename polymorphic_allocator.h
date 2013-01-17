@@ -9,12 +9,13 @@
 #ifndef INCLUDED_POLYMORPHIC_ALLOCATOR_DOT_H
 #define INCLUDED_POLYMORPHIC_ALLOCATOR_DOT_H
 
+#include <allocator_traits.h>
+#include <uses_allocator_wrapper.h>
 #include <xstd.h>
 #include <atomic>
-#include <memory.h>
+#include <memory>
 #include <stdlib.h>
-#include <allocator_traits.h>
-#include <scoped_allocator.h>
+#include <new>
 
 BEGIN_NAMESPACE_XSTD
 
@@ -106,7 +107,7 @@ struct resource_adaptor_mf
 template <class Tp>
 class polymorphic_allocator
 {
-    allocator_resource* d_resource;
+    allocator_resource* m_resource;
 
   public:
     typedef Tp value_type;
@@ -122,6 +123,16 @@ class polymorphic_allocator
 
     template <typename T, typename... Args>
       void construct(T* p, Args&&... args);
+
+    // Specializations to pass inner_allocator to pair::first and pair::second
+    template <class T1, class T2>
+      void construct(std::pair<T1,T2>* p);
+    template <class T1, class T2, class U, class V>
+      void construct(std::pair<T1,T2>* p, U&& x, V&& y);
+    template <class T1, class T2, class U, class V>
+      void construct(std::pair<T1,T2>* p, const std::pair<U, V>& pr);
+    template <class T1, class T2, class U, class V>
+      void construct(std::pair<T1,T2>* p, std::pair<U, V>&& pr);
 
     template <typename T>
       void destroy(T* p);
@@ -141,20 +152,6 @@ bool operator!=(const polymorphic_allocator<T1>& a,
                 const polymorphic_allocator<T2>& b);
 
 namespace __details {
-
-template <class Tp>
-class non_scoped_polymorphic_allocator : public polymorphic_allocator<Tp>
-{
-public:
-    non_scoped_polymorphic_allocator(const polymorphic_allocator<Tp>& a)
-        : polymorphic_allocator<Tp>(a) { }
-
-    template <typename T, typename... Args>
-    void construct(T* p, Args&&... args)
-    {
-        new (static_cast<void*>(p)) T(forward<Args>(args)...);
-    }
-};
 
 template <size_t Align> struct aligned_chunk;
 
@@ -343,7 +340,7 @@ bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
 template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator()
-    : d_resource(allocator_resource::default_resource())
+    : m_resource(allocator_resource::default_resource())
 {
 }
 
@@ -351,7 +348,7 @@ template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
     polyalloc::allocator_resource *r)
-    : d_resource(r)
+    : m_resource(r)
 {
 }
 
@@ -360,7 +357,7 @@ template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
     const polyalloc::polymorphic_allocator<U>& other)
-    : d_resource(other.resource())
+    : m_resource(other.resource())
 {
 }
 
@@ -368,22 +365,87 @@ template <class Tp>
 inline
 Tp *polyalloc::polymorphic_allocator<Tp>::allocate(size_t n)
 {
-    return static_cast<Tp*>(d_resource->allocate(n * sizeof(Tp), alignof(Tp)));
+    return static_cast<Tp*>(m_resource->allocate(n * sizeof(Tp), alignof(Tp)));
 }
 
 template <class Tp>
 inline
 void polyalloc::polymorphic_allocator<Tp>::deallocate(Tp *p, size_t n)
 {
-    d_resource->deallocate(p, n * sizeof(Tp), alignof(Tp));
+    m_resource->deallocate(p, n * sizeof(Tp), alignof(Tp));
 }
 
 template <class Tp>
 template <typename T, typename... Args>
 void polyalloc::polymorphic_allocator<Tp>::construct(T* p, Args&&... args)
 {
-    scoped_allocator_adaptor<__details::non_scoped_polymorphic_allocator<Tp> >(
-        *this).construct(p, forward<Args>(args)...);
+    using XSTD::uses_allocator_construction_wrapper;
+    typedef uses_allocator_construction_wrapper<T> Wrapper;
+    ::new((void*) p) Wrapper(allocator_arg, *this, std::forward<Args>(args)...);
+}
+
+// Specializations to pass inner_allocator to pair::first and pair::second
+template <class Tp>
+template <class T1, class T2>
+void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p)
+{
+    // TBD: Should really use piecewise construction here
+    construct(addressof(p->first));
+    try {
+        construct(addressof(p->second));
+    }
+    catch (...) {
+        destroy(addressof(p->first));
+        throw;
+    }
+}
+
+template <class Tp>
+template <class T1, class T2, class U, class V>
+void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+                                                     U&& x, V&& y)
+{
+    // TBD: Should really use piecewise construction here
+    construct(addressof(p->first), std::forward<U>(x));
+    try {
+        construct(addressof(p->second), std::forward<V>(y));
+    }
+    catch (...) {
+        destroy(addressof(p->first));
+        throw;
+    }
+}
+
+template <class Tp>
+template <class T1, class T2, class U, class V>
+void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+                                                     const std::pair<U, V>& pr)
+{
+    // TBD: Should really use piecewise construction here
+    construct(addressof(p->first), pr.first);
+    try {
+        construct(addressof(p->second), pr.second);
+    }
+    catch (...) {
+        destroy(addressof(p->first));
+        throw;
+    }
+}
+
+template <class Tp>
+template <class T1, class T2, class U, class V>
+void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+                                                     std::pair<U, V>&& pr)
+{
+    // TBD: Should really use piecewise construction here
+    construct(addressof(p->first), std::move(pr.first));
+    try {
+        construct(addressof(p->second), std::move(pr.second));
+    }
+    catch (...) {
+        destroy(addressof(p->first));
+        throw;
+    }
 }
 
 template <class Tp>
@@ -407,7 +469,7 @@ inline
 polyalloc::allocator_resource *
 polyalloc::polymorphic_allocator<Tp>::resource() const
 {
-    return d_resource;
+    return m_resource;
 }
 
 template <class T1, class T2>

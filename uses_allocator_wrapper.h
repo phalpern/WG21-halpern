@@ -10,9 +10,11 @@
 #define INCLUDED_USES_ALLOCATOR_WRAPPER_DOT_H
 
 #include <allocator_traits.h>
-#include <polymorphic_allocator.h>
+#include <type_traits>
 
 BEGIN_NAMESPACE_XSTD
+
+using namespace std;
 
 namespace __details {
 

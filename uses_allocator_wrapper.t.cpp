@@ -40,6 +40,23 @@ enum { VERBOSE_ARG_NUM = 2, VERY_VERBOSE_ARG_NUM, VERY_VERY_VERBOSE_ARG_NUM };
 //                  CLASSES FOR TESTING USAGE EXAMPLES
 //-----------------------------------------------------------------------------
 
+// To avoid circular dependencies, we cannot use polymorphic_allocator.h, but
+// all we really need is a stub type for allocator_resource.
+BEGIN_NAMESPACE_XSTD
+namespace polyalloc {
+    struct allocator_resource
+    {
+        static allocator_resource *default_resource();
+    };
+
+    allocator_resource *allocator_resource::default_resource()
+    {
+        static allocator_resource x;
+        return &x;
+    }
+}
+END_NAMESPACE_XSTD
+
 class UsesNoAlloc
 {
     int   m_value;
@@ -197,23 +214,11 @@ bool operator!=(const StubAllocator<T>& a, const StubAllocator<T>& b)
 }
 
 // allocator_resource stub. No allocations are actually done with this
-// resource, so the allocation and deallocation functions can be stubbed out.
+// resource, so the allocation and deallocation functions can be omitted.
 // What is important is to be able to identify the allocator instance.
-class StubResource : public XSTD::polyalloc::allocator_resource
+struct StubResource : XSTD::polyalloc::allocator_resource
 {
-public:
-    virtual ~StubResource();
-    virtual void* allocate(size_t bytes, size_t alignment = 0);
-    virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
-    virtual bool is_equal(const allocator_resource& other) const;
 };
-
-StubResource::~StubResource() { }
-void* StubResource::allocate(size_t bytes, size_t alignment)
-    { return nullptr; }
-void  StubResource::deallocate(void *p, size_t bytes, size_t alignment) { }
-bool StubResource::is_equal(const allocator_resource& other) const
-    { return &other == this; }
 
 //=============================================================================
 //                              MAIN PROGRAM
