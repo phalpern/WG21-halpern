@@ -48,6 +48,18 @@ class allocator_resource
     static void set_default_resource(allocator_resource *r);
 };
 
+inline
+bool operator==(const allocator_resource& a, const allocator_resource& b)
+{
+    return a.is_equal(b);
+}
+
+inline
+bool operator!=(const allocator_resource& a, const allocator_resource& b)
+{
+    return ! a.is_equal(b);
+}
+
 // Adaptor make a polymorphic allocator resource type from an STL allocator
 // type.
 template <class Allocator>

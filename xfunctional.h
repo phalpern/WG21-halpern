@@ -1587,7 +1587,10 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 
   template <typename __A>
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(const __A& __alloc)
-    { return std::make_shared<POLYALLOC_RESOURCE_ADAPTOR(__A) >(__alloc); }
+  {
+    return std::allocate_shared<POLYALLOC_RESOURCE_ADAPTOR(__A) >(__alloc,
+                                                                  __alloc);
+  }
 
   template <typename __T>
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
@@ -1910,12 +1913,12 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       private:
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        _Shared_alloc_rsrc_ptr&& __a, true_type)
+                        _Shared_alloc_rsrc_ptr&& __a, true_type /* local */)
 	{ new (__functor._M_access()) _Functor(std::move(__f)); }
 
 	static void
 	_M_init_functor(_Any_data& __functor, _Functor&& __f,
-                        _Shared_alloc_rsrc_ptr&& __a, false_type)
+                        _Shared_alloc_rsrc_ptr&& __a, false_type /* local */)
 	{ 
           // Allocate a functor from the allocator resource and construct it.
           _M_functor_wrapper *__pfunctor = static_cast<_M_functor_wrapper *>(
@@ -2535,7 +2538,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
         _M_invoker = nullptr;
         _M_manager = &_My_handler::_M_manager;
         _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
-                                     __alloc);
+                                     _M_make_shared_alloc(__alloc));
       }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2549,7 +2552,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
         _M_invoker = nullptr;
         _M_manager = &_My_handler::_M_manager;
         _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
-                                     __alloc);
+                                     _M_make_shared_alloc(__alloc));
       }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2585,9 +2588,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
         {
           _Any_data __x_alloc_data;
           __x_alloc_data._M_access<polyalloc::allocator_resource*>() = nullptr;
-          __x._M_manager(__x_alloc_data, __x._M_functor,
-                         __get_allocator_resource_ptr);
-          polyalloc::allocator_resource *__x_alloc = 
+          polyalloc::allocator_resource *__x_alloc =
+            __x.get_allocator_resource();
             __x_alloc_data._M_access<polyalloc::allocator_resource*>();
           if (nullptr == __x_alloc)
             __x_alloc = polyalloc::allocator_resource::default_resource();
@@ -2709,9 +2711,14 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     function<_Res(_Args...)>::  
     get_allocator_resource() const
       {
-        _Any_data __alloc_data;
-        _M_manager(__alloc_data, _M_functor, __get_allocator_resource_ptr);
-        return __alloc_data._M_access<polyalloc::allocator_resource*>();
+        if (_M_manager)
+        {
+          _Any_data __alloc_data;
+          _M_manager(__alloc_data, _M_functor, __get_allocator_resource_ptr);
+          return __alloc_data._M_access<polyalloc::allocator_resource*>();
+        }
+        else
+          return polyalloc::allocator_resource::default_resource();
       }
 
 

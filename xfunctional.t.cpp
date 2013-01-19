@@ -205,15 +205,25 @@ class SimpleAllocator
 {
     AllocCounters *m_counters;
 
+    template <typename T2> friend class SimpleAllocator;
+
   public:
     typedef Tp              value_type;
+
+    // C++11 allocators usually don't need a rebind, but the gcc 4.6.3
+    // implementation of shared_ptr still depends on the C++03 allocator
+    // definition.
+    template <class T2>
+    struct rebind {
+        typedef SimpleAllocator<T2> other;
+    };
 
     SimpleAllocator(AllocCounters* c = &globalCounters) : m_counters(c) { }
 
     // Required constructor
     template <typename T>
     SimpleAllocator(const SimpleAllocator<T>& other)
-        : m_counters(other.counters()) { }
+        : m_counters(other.m_counters) { }
 
     Tp* allocate(std::size_t n)
         { return static_cast<Tp*>(m_counters->allocate(n*sizeof(Tp))); }
@@ -221,13 +231,13 @@ class SimpleAllocator
     void deallocate(Tp* p, std::size_t n)
         { m_counters->deallocate(p, n*sizeof(Tp)); }
 
-    AllocCounters* counters() const { return m_counters; }
+    const AllocCounters& counters() const { return *m_counters; }
 };
 
 template <typename Tp1, typename Tp2>
 bool operator==(const SimpleAllocator<Tp1>& a, const SimpleAllocator<Tp2>& b)
 {
-    return a.counters() == b.counters();
+    return &a.counters() == &b.counters();
 }
 
 template <typename Tp1, typename Tp2>
@@ -266,6 +276,12 @@ int main(int argc, char *argv[])
 
     XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTestRsrc);
 
+    TestResource testRsrc;
+    POLYALLOC<char> polyAlloc(&testRsrc);
+    SimpleAllocator<char>  sAlloc(
+        const_cast<AllocCounters*>(&testRsrc.counters()));
+    POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
+
     switch (test) {
       case 0: // Do all cases for test-case 0
       case 1: {
@@ -283,10 +299,40 @@ int main(int argc, char *argv[])
         std::cout << "\nBREATHING TEST"
                   << "\n==============" << std::endl;
 
-        XSTD::function<int(const char*)> f([](const char* s) {
-                return std::atoi(s); });
-        int x = f("5");
-        ASSERT(5 == x);
+        if (verbose) std::cout << "construct with no allocator" << std::endl;
+        {
+            XSTD::function<int(const char*)> f([](const char* s) {
+                    return std::atoi(s); });
+            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
+            ASSERT(5 == f("5"));
+        }
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+
+        if (verbose)
+            std::cout << "construct with SimplAllocator" << std::endl;
+        {
+            XSTD::function<int(const char*)> f(allocator_arg, sAlloc,
+                                               [](const char* s) {
+                                                   return std::atoi(s); });
+            ASSERT(sAllocAdaptor == *f.get_allocator_resource());
+            // 2 blocks allocated, 1 for a copy of the functor, 1 for the copy
+            // of the allocator:
+            ASSERT(2 == sAlloc.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+            ASSERT(6 == f("6"));
+        }
+
+        if (verbose)
+            std::cout << "construct with allocator resource" << std::endl;
+        {
+            XSTD::function<int(const char*)> f(allocator_arg, &testRsrc,
+                                               [](const char* s) {
+                                                   return std::atoi(s); });
+            ASSERT(&testRsrc == f.get_allocator_resource());
+            ASSERT(1 == testRsrc.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+            ASSERT(7 == f("7"));
+        }
 
       } if (test != 0) break;
 
@@ -298,21 +344,45 @@ int main(int argc, char *argv[])
         std::cout << "\nCONSTRUCTION WITH ALLOCATOR"
                   << "\n===========================" << std::endl;
 
-        TestResource theDefaultResource;
-        XSTD::polyalloc::allocator_resource::set_default_resource(
-            &theDefaultResource);
-
         auto lambda = [](const char* s) { return std::atoi(s); };
 
+        dfltTestRsrc.clear();
+        testRsrc.clear();
+
+        if (verbose) std::cout << "    function()" << std::endl;
+        {
+            XSTD::function<int(const char*)> f;
+            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        }
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        dfltTestRsrc.clear();
+
+        if (verbose) std::cout << "    function(F)" << std::endl;
         {
             XSTD::function<int(const char*)> f(lambda);
-            ASSERT(&theDefaultResource == f.get_allocator_resource());
-            ASSERT(1 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
+            ASSERT(1 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(5 == f("5"));
         }
-        ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
-        theDefaultResource.clear();
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        dfltTestRsrc.clear();
 
+        if (verbose)
+            std::cout << "    function(allocator_arg, A)" << std::endl;
+        {
+            XSTD::polyalloc::polymorphic_allocator<char> testAlloc(&testRsrc);
+            XSTD::function<int(const char*)> f(allocator_arg, testAlloc);
+            ASSERT(&testRsrc == f.get_allocator_resource());
+            ASSERT(1 == testRsrc.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        }
+        ASSERT(0 == testRsrc.counters().blocks_outstanding());
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        dfltTestRsrc.clear();
+
+        if (verbose)
+            std::cout << "    function(allocator_arg, A, F)" << std::endl;
         {
             TestResource testRsrc;
             XSTD::polyalloc::polymorphic_allocator<char> testAlloc(&testRsrc);
@@ -320,7 +390,7 @@ int main(int argc, char *argv[])
                                                lambda);
             ASSERT(&testRsrc == f.get_allocator_resource());
             ASSERT(1 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(6 == f("6"));
         }
 
@@ -330,7 +400,7 @@ int main(int argc, char *argv[])
                                                lambda);
             ASSERT(&testRsrc == f.get_allocator_resource());
             ASSERT(1 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(7 == f("7"));
         }
 
@@ -341,7 +411,7 @@ int main(int argc, char *argv[])
             ASSERT(&testRsrc1 == f1.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(0 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(8 == f1("8"));
 
             XSTD::polyalloc::polymorphic_allocator<char> testAlloc2(&testRsrc2);
@@ -349,7 +419,7 @@ int main(int argc, char *argv[])
             ASSERT(&testRsrc2 == f2.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(9 == f2("9"));
 
             XSTD::function<int(const char*)> f3(f1);
@@ -357,10 +427,10 @@ int main(int argc, char *argv[])
                    f3.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(1 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(1 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(10 == f3("10"));
         }
-        ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
         {
             XSTD::function<int(const char*)> f0(func);
@@ -373,7 +443,7 @@ int main(int argc, char *argv[])
             ASSERT(&testRsrc1 == f1.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(0 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(8 == f1("8"));
 
             XSTD::polyalloc::polymorphic_allocator<char> testAlloc2(&testRsrc2);
@@ -381,7 +451,7 @@ int main(int argc, char *argv[])
             ASSERT(&testRsrc2 == f2.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(9 == f2("9"));
 
             XSTD::function<int(const char*)> f3(f1);
@@ -389,10 +459,10 @@ int main(int argc, char *argv[])
                    f3.get_allocator_resource());
             ASSERT(1 == testRsrc1.counters().blocks_outstanding());
             ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(10 == f3("10"));
         }
-        ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
       } if (test != 0) break;
 
