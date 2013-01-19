@@ -16,96 +16,70 @@ using namespace std;
 //-----------------------------------------------------------------------------
 
 //==========================================================================
-//                  STANDARD BDE ASSERT TEST MACRO
+//                  ASSERT TEST MACRO
 //--------------------------------------------------------------------------
-// NOTE: THIS IS A LOW-LEVEL COMPONENT AND MAY NOT USE ANY C++ LIBRARY
-// FUNCTIONS, INCLUDING IOSTREAMS.
 
 namespace {
 
 int testStatus = 0;
-
-int verbose = 0;
-int veryVerbose = 0;
-int veryVeryVerbose = 0;
+bool verbose = false;
 
 void aSsErT(int c, const char *s, int i) {
     if (c) {
-        // NOTE: This implementation macros must use printf since
-        //       cout uses new and must not be called during exception testing.
-        printf(__FILE__ ":%d: Error: %s    (failed)\n", i, s);
+        std::cout << __FILE__ << ":" << i << ": error: " << s
+                  << "    (failed)" << std::endl;
         if (testStatus >= 0 && testStatus <= 100) ++testStatus;
     }
 }
 
-}  // close unnamed namespace
+} // Close unnamed namespace
 
 # define ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
-
-//=============================================================================
-//                  STANDARD BDE LOOP-ASSERT TEST MACROS
-//-----------------------------------------------------------------------------
-// NOTE: This implementation of LOOP_ASSERT macros must use printf since
-//       cout uses new and must not be called during exception testing.
-
+//--------------------------------------------------------------------------
 #define LOOP_ASSERT(I,X) { \
-    if (!(X)) { printf("%s", #I ": "); dbg_print(I); printf("\n"); \
-                fflush(stdout); aSsErT(1, #X, __LINE__); } }
+    if (!(X)) { std::cout << #I << ": " << I << "\n"; \
+                aSsErT(1, #X, __LINE__); } }
 
 #define LOOP2_ASSERT(I,J,X) { \
-    if (!(X)) { printf("%s", #I ": "); dbg_print(I); printf("\t"); \
-                printf("%s", #J ": "); dbg_print(J); printf("\n"); \
-                fflush(stdout); aSsErT(1, #X, __LINE__); } }
+    if (!(X)) { std::cout << #I << ": " << I << "\t" << #J << ": " \
+                          << J << "\n"; aSsErT(1, #X, __LINE__); } }
 
-#define LOOP3_ASSERT(I,J,K,X) {                    \
-    if (!(X)) { printf("%s", #I ": "); dbg_print(I); printf("\t"); \
-                printf("%s", #J ": "); dbg_print(J); printf("\t"); \
-                printf("%s", #K ": "); dbg_print(K); printf("\n"); \
-                fflush(stdout); aSsErT(1, #X, __LINE__); } }
+#define LOOP3_ASSERT(I,J,K,X) { \
+   if (!(X)) { std::cout << #I << ": " << I << "\t" << #J << ": " << J \
+                         << "\t" << #K << ": " << K << "\n";           \
+                aSsErT(1, #X, __LINE__); } }
 
-#define LOOP4_ASSERT(I,J,K,L,X) {                  \
-    if (!(X)) { printf("%s", #I ": "); dbg_print(I); printf("\t"); \
-                printf("%s", #J ": "); dbg_print(J); printf("\t"); \
-                printf("%s", #K ": "); dbg_print(K); printf("\t"); \
-                printf("%s", #L ": "); dbg_print(L); printf("\n"); \
-                fflush(stdout); aSsErT(1, #X, __LINE__); } }
+#define LOOP4_ASSERT(I,J,K,L,X) { \
+   if (!(X)) { std::cout << #I << ": " << I << "\t" << #J << ": " << J \
+                         << "\t" << #K << ": " << K << "\t" << #L << ": " \
+                         << L << "\n"; aSsErT(1, #X, __LINE__); } }
 
-#define LOOP5_ASSERT(I,J,K,L,M,X) {                \
-    if (!(X)) { printf("%s", #I ": "); dbg_print(I); printf("\t"); \
-                printf("%s", #J ": "); dbg_print(J); printf("\t"); \
-                printf("%s", #K ": "); dbg_print(K); printf("\t"); \
-                printf("%s", #L ": "); dbg_print(L); printf("\t"); \
-                printf("%s", #M ": "); dbg_print(M); printf("\n"); \
-                fflush(stdout); aSsErT(1, #X, __LINE__); } }
+#define LOOP5_ASSERT(I,J,K,L,M,X) { \
+   if (!(X)) { std::cout << #I << ": " << I << "\t" << #J << ": " << J    \
+                         << "\t" << #K << ": " << K << "\t" << #L << ": " \
+                         << L << "\t" << #M << ": " << M << "\n";         \
+               aSsErT(1, #X, __LINE__); } }
+
+#define LOOP6_ASSERT(I,J,K,L,M,N,X) { \
+   if (!(X)) { std::cout << #I << ": " << I << "\t" << #J << ": " << J     \
+                         << "\t" << #K << ": " << K << "\t" << #L << ": "  \
+                         << L << "\t" << #M << ": " << M << "\t" << #N     \
+                         << ": " << N << "\n"; aSsErT(1, #X, __LINE__); } }
+
+// Allow compilation of individual test-cases (for test drivers that take a
+// very long time to compile).  Specify '-DSINGLE_TEST=<testcase>' to compile
+// only the '<testcase>' test case.
+#define TEST_IS_ENABLED(num) (! defined(SINGLE_TEST) || SINGLE_TEST == (num))
+
 
 //=============================================================================
 //                  SEMI-STANDARD TEST OUTPUT MACROS
 //-----------------------------------------------------------------------------
-#define Q(X) printf("<| " #X " |>\n");     // Quote identifier literally.
-#define P(X) dbg_print(#X " = ", X, "\n")  // Print identifier and value.
-#define P_(X) dbg_print(#X " = ", X, ", ") // P(X) without '\n'
-#define L_ __LINE__                        // current Line number
-#define T_ putchar('\t');                  // Print a tab (w/o newline)
-
-//=============================================================================
-//                      GLOBAL HELPER FUNCTIONS FOR TESTING
-//-----------------------------------------------------------------------------
-
-// Fundamental-type-specific print functions.
-inline void dbg_print(char c) { printf("%c", c); fflush(stdout); }
-inline void dbg_print(unsigned char c) { printf("%c", c); fflush(stdout); }
-inline void dbg_print(signed char c) { printf("%c", c); fflush(stdout); }
-inline void dbg_print(short val) { printf("%hd", val); fflush(stdout); }
-inline void dbg_print(unsigned short val) {printf("%hu", val); fflush(stdout);}
-inline void dbg_print(int val) { printf("%d", val); fflush(stdout); }
-inline void dbg_print(unsigned int val) { printf("%u", val); fflush(stdout); }
-inline void dbg_print(long val) { printf("%lu", val); fflush(stdout); }
-inline void dbg_print(unsigned long val) { printf("%lu", val); fflush(stdout);}
-// inline void dbg_print(Int64 val) { printf("%lld", val); fflush(stdout); }
-// inline void dbg_print(Uint64 val) { printf("%llu", val); fflush(stdout); }
-inline void dbg_print(float val) { printf("'%f'", val); fflush(stdout); }
-inline void dbg_print(double val) { printf("'%f'", val); fflush(stdout); }
-inline void dbg_print(const char* s) { printf("\"%s\"", s); fflush(stdout); }
+#define P(X) std::cout << #X " = " << (X) << std::endl; // Print identifier and value.
+#define Q(X) std::cout << "<| " #X " |>" << std::endl;  // Quote identifier literally.
+#define P_(X) std::cout << #X " = " << (X) << ", " << flush; // P(X) without '\n'
+#define L_ __LINE__                           // current Line number
+#define T_ std::cout << "\t" << flush;             // Print a tab (w/o newline)
 
 //=============================================================================
 //                  GLOBAL TYPEDEFS/CONSTANTS FOR TESTING
@@ -181,8 +155,6 @@ class AllocCounters
     }
 };
 
-AllocCounters globalCounters;
-
 class TestResource : public XSTD::polyalloc::allocator_resource
 {
     AllocCounters m_counters;
@@ -223,6 +195,10 @@ bool TestResource::is_equal(const allocator_resource& other) const
     // Two TestResource objects are equal only if they are the same object
     return this == &other;
 }
+
+TestResource dfltTestRsrc;
+AllocCounters& globalCounters =
+    const_cast<AllocCounters&>(dfltTestRsrc.counters());
 
 template <typename Tp>
 class SimpleAllocator
@@ -273,19 +249,25 @@ int main(int argc, char *argv[])
 {
     int test = argc > 1 ? atoi(argv[1]) : 0;
     verbose = argc > 2;
-    veryVerbose = argc > 3;
-    veryVeryVerbose = argc > 4;
+    // veryVerbose = argc > 3;
+    // veryVeryVerbose = argc > 4;
 
-    int firstTest = 1;
-    int lastTest = 99;
-    if (test)
-        firstTest = lastTest = test;
+//     int verbose = argc > 2;
+//     int veryVerbose = argc > 3;
+//     int veryVeryVerbose = argc > 4;
 
-  for (test = firstTest; test <= lastTest; ++test) {
+    std::cout << "TEST " << __FILE__;
+    if (test != 0)
+        std::cout << " CASE " << test << std::endl;
+    else
+        std::cout << " all cases" << std::endl;
 
-    printf("TEST " __FILE__ " CASE %d\n", test);
+#define POLYALLOC XSTD::polyalloc::polymorphic_allocator
+
+    XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTestRsrc);
 
     switch (test) {
+      case 0: // Do all cases for test-case 0
       case 1: {
         // --------------------------------------------------------------------
         // BREATHING/USAGE TEST
@@ -298,23 +280,23 @@ int main(int argc, char *argv[])
         //
         // --------------------------------------------------------------------
 
-        if (verbose) printf("\nBREATHING TEST"
-                            "\n==============\n");
+        std::cout << "\nBREATHING TEST"
+                  << "\n==============" << std::endl;
 
         XSTD::function<int(const char*)> f([](const char* s) {
                 return std::atoi(s); });
         int x = f("5");
         ASSERT(5 == x);
 
-      } break;
+      } if (test != 0) break;
 
       case 2: {
         // --------------------------------------------------------------------
         // TEST CONSTRUCTION WITH ALLOCATOR
         // --------------------------------------------------------------------
           
-        if (verbose) printf("\nBREATHING TEST"
-                            "\n==============\n");
+        std::cout << "\nCONSTRUCTION WITH ALLOCATOR"
+                  << "\n===========================" << std::endl;
 
         TestResource theDefaultResource;
         XSTD::polyalloc::allocator_resource::set_default_resource(
@@ -412,31 +394,20 @@ int main(int argc, char *argv[])
         }
         ASSERT(0 == theDefaultResource.counters().blocks_outstanding());
 
-      } break;
+      } if (test != 0) break;
+
+      break;
 
       default: {
-        if (lastTest < 99)
-        {
-          fprintf(stderr, "WARNING: CASE `%d' NOT FOUND.\n", test);
-          testStatus = -1;
-        }
-        test = lastTest;
+        std::cerr << "ERROR: CASE " << test << " NOT FOUND." << std::endl;
+        ++testStatus;
       }
-    }
-  } // End for
+    } // End switch
 
     if (testStatus > 0) {
-        fprintf(stderr, "Error, non-zero test status = %d.\n", testStatus);
+        std::cerr << "Error, non-zero test status = " << testStatus
+                  << std::endl;
     }
 
     return testStatus;
 }
-
-// ---------------------------------------------------------------------------
-// NOTICE:
-//      Copyright (C) Bloomberg L.P., 2012
-//      All Rights Reserved.
-//      Property of Bloomberg L.P. (BLP)
-//      This software is made available solely pursuant to the
-//      terms of a BLP license agreement which governs its use.
-// ----------------------------- END-OF-FILE ---------------------------------
