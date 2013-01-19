@@ -7,7 +7,6 @@
  */
 
 #include <polymorphic_allocator.h>
-#include <../allocator_traits/xstd_list.h>
 
 #include <iostream>
 #include <cstdlib>
@@ -240,12 +239,6 @@ int func(const char* s)
     return std::atoi(s);
 }
 
-template class XSTD::polyalloc::polymorphic_allocator<double>;
-template class XSTD::list<double,
-                          XSTD::polyalloc::polymorphic_allocator<double> >;
-template class SimpleAllocator<double>;
-template class XSTD::list<double, SimpleAllocator<double> >;
-
 struct UniqDummyType { void zzzzz(UniqDummyType, bool) { } };
 typedef void (UniqDummyType::*UniqPointerType)(UniqDummyType);
 
@@ -374,6 +367,160 @@ bool operator!=(const char *a, const SimpleString<Alloc>& b)
     return ! (a == b);
 }
 
+template <typename Tp, typename Alloc = std::allocator<Tp> >
+class SimpleVector
+{
+    // A simple vector-like class with a fixed capacity determined at
+    // constuction.
+
+    static_assert(std::is_same<typename Alloc::value_type, Tp>::value,
+                  "Allocator's value_type does not match container's");
+
+    typedef XSTD::allocator_traits<Alloc> AllocTraits;
+
+    std::size_t m_capacity;
+    std::size_t m_size;
+    Alloc       m_alloc;
+    Tp         *m_data;
+
+    enum { default_capacity = 5 };
+
+    // No need to make this assignable, so skip implementation
+    SimpleVector& operator=(const SimpleVector& other) { return *this; }
+
+public:
+    typedef Tp        value_type;
+    typedef Alloc     allocator_type;
+    typedef Tp       *iterator;
+    typedef const Tp *const_iterator;
+
+    SimpleVector(const allocator_type& a = allocator_type());
+    SimpleVector(std::size_t capacity,
+                 const allocator_type& a = allocator_type());
+    SimpleVector(std::size_t size, const value_type& v,
+                 const allocator_type& a = allocator_type());
+    SimpleVector(const SimpleVector& other);
+    SimpleVector(const SimpleVector& other, const allocator_type& a);
+    ~SimpleVector();
+
+    void push_back(const value_type& x);
+    template <typename... Args>
+      void emplace_back(Args&&... args);
+    void pop_back();
+
+    Tp      & front()       { return m_data[0]; }
+    Tp const& front() const { return m_data[0]; }
+    Tp      & back()       { return m_data[m_size - 1]; }
+    Tp const& back() const { return m_data[m_size - 1]; }
+    Tp      & operator[](std::size_t i)       { return m_data[i]; }
+    Tp const& operator[](std::size_t i) const { return m_data[i]; }
+    iterator       begin()       { return m_data; }
+    const_iterator begin() const { return m_data; }
+    iterator       end()       { return m_data + m_size; }
+    const_iterator end() const { return m_data + m_size; }
+
+    std::size_t capacity() const { return m_capacity; }
+    std::size_t size() const { return m_size; }
+    allocator_type get_allocator() const { return m_alloc; }
+};
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::SimpleVector(const allocator_type& a)
+    : m_capacity(default_capacity)
+    , m_size(0)
+    , m_alloc(a)
+    , m_data(nullptr)
+{
+    m_data = AllocTraits::allocate(m_alloc, m_capacity);
+}
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::SimpleVector(std::size_t capacity,
+                                      const allocator_type& a)
+    : m_capacity(capacity)
+    , m_size(0)
+    , m_alloc(a)
+    , m_data(nullptr)
+{
+    m_data = AllocTraits::allocate(m_alloc, m_capacity);
+}
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::SimpleVector(std::size_t size, const value_type& v,
+                                      const allocator_type& a)
+    : m_capacity(size + default_capacity)
+    , m_size(0)
+    , m_alloc(a)
+    , m_data(nullptr)
+{
+    m_data = AllocTraits::allocate(m_alloc, m_capacity);
+    for (std::size_t i = 0; i < size; ++i)
+        push_back(v);
+}
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::SimpleVector(const SimpleVector& other)
+    : m_capacity(other.m_capacity)
+    , m_size(0)
+    , m_alloc(AllocTraits::select_on_container_copy_construction(other.m_alloc))
+    , m_data(nullptr)
+{
+    m_data = AllocTraits::allocate(m_alloc, m_capacity);
+    for (std::size_t i = 0; i < other.m_size; ++i)
+        push_back(other[i]);
+}
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::SimpleVector(const SimpleVector&   other,
+                                      const allocator_type& a)
+    : m_capacity(other.m_capacity)
+    , m_size(0)
+    , m_alloc(a)
+    , m_data(nullptr)
+{
+    m_data = AllocTraits::allocate(m_alloc, m_capacity);
+    for (std::size_t i = 0; i < other.m_size; ++i)
+        push_back(other[i]);
+}
+
+template <typename Tp, typename Alloc>
+SimpleVector<Tp, Alloc>::~SimpleVector()
+{
+    for (std::size_t i = 0; i < m_size; ++i)
+        AllocTraits::destroy(m_alloc, XSTD::addressof(m_data[i]));
+    AllocTraits::deallocate(m_alloc, m_data, m_capacity);
+}
+
+template <typename Tp, typename Alloc>
+void SimpleVector<Tp, Alloc>::push_back(const value_type& x)
+{
+    ASSERT(m_size < m_capacity);
+    AllocTraits::construct(m_alloc, XSTD::addressof(m_data[m_size++]), x);
+}
+
+template <typename Tp, typename Alloc>
+template <typename... Args>
+void SimpleVector<Tp, Alloc>::emplace_back(Args&&... args)
+{
+    ASSERT(m_size < m_capacity);
+    AllocTraits::construct(m_alloc, XSTD::addressof(m_data[m_size++]),
+                           std::forward<Args>(args)...);
+}
+
+template <typename Tp, typename Alloc>
+void SimpleVector<Tp, Alloc>::pop_back()
+{
+    ASSERT(m_size > 0);
+    AllocTraits::destroy(m_alloc, XSTD::addressof(m_data[--m_size]));
+}
+
+// Force instantiation of whole classes
+template class XSTD::polyalloc::polymorphic_allocator<double>;
+template class SimpleVector<double,
+                            XSTD::polyalloc::polymorphic_allocator<double> >;
+template class SimpleAllocator<double>;
+template class SimpleVector<double, SimpleAllocator<double> >;
+
 //=============================================================================
 //                              MAIN PROGRAM
 //-----------------------------------------------------------------------------
@@ -419,15 +566,17 @@ int main(int argc, char *argv[])
         AllocCounters &xc = const_cast<AllocCounters&>(x.counters()),
                       &yc = const_cast<AllocCounters&>(y.counters());
 
-        // Simple use of list with polymorphic allocator
+        // Simple use of vector with polymorphic allocator
         {
             typedef POLYALLOC<int> Alloc;
 
-            XSTD::list<int, Alloc> lx(&x);
+            SimpleVector<int, Alloc> vx(&x);
+            ASSERT(1 == x.counters().blocks_outstanding());
 
-            lx.push_back(3);
-            ASSERT(1 == lx.size());
-            ASSERT(2 == x.counters().blocks_outstanding());
+            vx.push_back(3);
+            ASSERT(3 == vx.front());
+            ASSERT(1 == vx.size());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
         }
         ASSERT(0 == x.counters().blocks_outstanding());
@@ -438,25 +587,24 @@ int main(int argc, char *argv[])
             typedef SimpleString<SimpleAllocator<char> > String;
             typedef POLYALLOC<String> Alloc;
 
-            XSTD::list<String, Alloc> lx(&x);
+            SimpleVector<String, Alloc> vx(&x);
             ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
             
-            lx.push_back("hello");
-            ASSERT(1 == lx.size());
-            ASSERT("hello" == lx.back());
-            ASSERT(2 == x.counters().blocks_outstanding());
+            vx.push_back("hello");
+            ASSERT(1 == vx.size());
+            ASSERT("hello" == vx.back());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(1 == globalCounters.blocks_outstanding());
-            lx.push_back("goodbye");
-            ASSERT(2 == lx.size());
-            ASSERT("hello" == lx.front());
-            ASSERT("goodbye" == lx.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
+            vx.push_back("goodbye");
+            ASSERT(2 == vx.size());
+            ASSERT("hello" == vx.front());
+            ASSERT("goodbye" == vx.back());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(2 == globalCounters.blocks_outstanding());
-            ASSERT(SimpleAllocator<char>() == lx.front().get_allocator());
+            ASSERT(SimpleAllocator<char>() == vx.front().get_allocator());
         }
         ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == y.counters().blocks_outstanding());
         ASSERT(0 == globalCounters.blocks_outstanding());
 
         // Inner allocator is polymorphic, outer is not.
@@ -464,22 +612,22 @@ int main(int argc, char *argv[])
             typedef SimpleString<POLYALLOC<char> > String;
             typedef SimpleAllocator<String> Alloc;
 
-            XSTD::list<String, Alloc> lx(&xc);
+            SimpleVector<String, Alloc> vx(&xc);
             ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
             
-            lx.push_back("hello");
-            ASSERT(1 == lx.size());
-            ASSERT("hello" == lx.back());
-            ASSERT(2 == x.counters().blocks_outstanding());
+            vx.push_back("hello");
+            ASSERT(1 == vx.size());
+            ASSERT("hello" == vx.back());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(1 == globalCounters.blocks_outstanding());
-            lx.push_back("goodbye");
-            ASSERT(2 == lx.size());
-            ASSERT("hello" == lx.front());
-            ASSERT("goodbye" == lx.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
+            vx.push_back("goodbye");
+            ASSERT(2 == vx.size());
+            ASSERT("hello" == vx.front());
+            ASSERT("goodbye" == vx.back());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(2 == globalCounters.blocks_outstanding());
-            ASSERT(&dfltTestRsrc == lx.front().get_allocator().resource());
+            ASSERT(&dfltTestRsrc == vx.front().get_allocator().resource());
         }
         ASSERT(0 == x.counters().blocks_outstanding());
         ASSERT(0 == globalCounters.blocks_outstanding());
@@ -489,22 +637,22 @@ int main(int argc, char *argv[])
             typedef SimpleString<POLYALLOC<char> > String;
             typedef POLYALLOC<String> Alloc;
 
-            XSTD::list<String, Alloc> lx(&x);
+            SimpleVector<String, Alloc> vx(&x);
             ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
             
-            lx.push_back("hello");
-            ASSERT(1 == lx.size());
-            ASSERT("hello" == lx.back());
+            vx.push_back("hello");
+            ASSERT(1 == vx.size());
+            ASSERT("hello" == vx.back());
+            ASSERT(2 == x.counters().blocks_outstanding());
+            ASSERT(0 == globalCounters.blocks_outstanding());
+            vx.push_back("goodbye");
+            ASSERT(2 == vx.size());
+            ASSERT("hello" == vx.front());
+            ASSERT("goodbye" == vx.back());
             ASSERT(3 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
-            lx.push_back("goodbye");
-            ASSERT(2 == lx.size());
-            ASSERT("hello" == lx.front());
-            ASSERT("goodbye" == lx.back());
-            ASSERT(5 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
-            ASSERT(&x == lx.front().get_allocator().resource());
+            ASSERT(&x == vx.front().get_allocator().resource());
         }
         ASSERT(0 == x.counters().blocks_outstanding());
         ASSERT(0 == globalCounters.blocks_outstanding());
@@ -514,33 +662,34 @@ int main(int argc, char *argv[])
             typedef SimpleString<POLYALLOC<char> > String;
             typedef POLYALLOC<String> Alloc;
 
-            XSTD::list<String, Alloc> lx(&x);
+            SimpleVector<String, Alloc> vx(&x);
+            ASSERT(1 == x.counters().blocks_outstanding());
 
-            lx.push_back("hello");
-            lx.push_back("goodbye");
-            ASSERT(2 == lx.size());
-            ASSERT("hello" == lx.front());
-            ASSERT("goodbye" == lx.back());
-            ASSERT(5 == x.counters().blocks_outstanding());
+            vx.push_back("hello");
+            vx.push_back("goodbye");
+            ASSERT(2 == vx.size());
+            ASSERT("hello" == vx.front());
+            ASSERT("goodbye" == vx.back());
+            ASSERT(3 == x.counters().blocks_outstanding());
             ASSERT(0 == globalCounters.blocks_outstanding());
-            ASSERT(&x == lx.front().get_allocator().resource());
+            ASSERT(&x == vx.front().get_allocator().resource());
 
-            XSTD::list<String, Alloc> lg(lx);
-            ASSERT(2 == lg.size());
-            ASSERT("hello" == lg.front());
-            ASSERT("goodbye" == lg.back());
-            ASSERT(5 == x.counters().blocks_outstanding());
-            ASSERT(5 == globalCounters.blocks_outstanding());
-            ASSERT(&dfltTestRsrc == lg.front().get_allocator().resource());
+            SimpleVector<String, Alloc> vg(vx);
+            ASSERT(2 == vg.size());
+            ASSERT("hello" == vg.front());
+            ASSERT("goodbye" == vg.back());
+            ASSERT(3 == x.counters().blocks_outstanding());
+            ASSERT(3 == globalCounters.blocks_outstanding());
+            ASSERT(&dfltTestRsrc == vg.front().get_allocator().resource());
 
-            XSTD::list<String, Alloc> ly(lx, &y);
-            ASSERT(2 == lg.size());
-            ASSERT("hello" == ly.front());
-            ASSERT("goodbye" == ly.back());
-            ASSERT(5 == x.counters().blocks_outstanding());
-            ASSERT(5 == y.counters().blocks_outstanding());
-            ASSERT(5 == globalCounters.blocks_outstanding());
-            ASSERT(&y == ly.front().get_allocator().resource());
+            SimpleVector<String, Alloc> vy(vx, &y);
+            ASSERT(2 == vy.size());
+            ASSERT("hello" == vy.front());
+            ASSERT("goodbye" == vy.back());
+            ASSERT(3 == x.counters().blocks_outstanding());
+            ASSERT(3 == y.counters().blocks_outstanding());
+            ASSERT(3 == globalCounters.blocks_outstanding());
+            ASSERT(&y == vy.front().get_allocator().resource());
         }
         ASSERT(0 == x.counters().blocks_outstanding());
         ASSERT(0 == y.counters().blocks_outstanding());
@@ -548,55 +697,53 @@ int main(int argc, char *argv[])
 
         // Test resource_adaptor
         {
-            typedef SimpleString<polymorphic_allocator<char> > String;
-            typedef XSTD::list<String, polymorphic_allocator<String> > strlist;
-            typedef XSTD::list<strlist, polymorphic_allocator<strlist> >
-                strlist2;
+            typedef SimpleString<POLYALLOC<char> > String;
+            typedef SimpleVector<String, POLYALLOC<String> > strvec;
+            typedef SimpleVector<strvec, POLYALLOC<strvec> > strvecvec;
 
             SimpleAllocator<char> sax(&xc);
             SimpleAllocator<char> say(&yc);
             POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) crx(sax);
             POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) cry(say);
 
-            strlist a(&crx);
-            strlist2 b(&cry);
+            strvec    a(&crx);
+            strvecvec b(&cry);
+            ASSERT(1 == x.counters().blocks_outstanding());
+            ASSERT(1 == y.counters().blocks_outstanding());
 
             ASSERT(0 == a.size());
-            ASSERT(0 == std::distance(a.begin(), a.end()));
             a.push_back("hello");
             ASSERT(1 == a.size());
             ASSERT("hello" == a.front());
-            ASSERT(1 == std::distance(a.begin(), a.end()));
             a.push_back("goodbye");
             ASSERT(2 == a.size());
             ASSERT("hello" == a.front());
             ASSERT("goodbye" == a.back());
-            ASSERT(2 == std::distance(a.begin(), a.end()));
-            ASSERT(5 == x.counters().blocks_outstanding());
+            ASSERT(3 == x.counters().blocks_outstanding());
             b.push_back(a);
             ASSERT(1 == b.size());
             ASSERT(2 == b.front().size());
             ASSERT("hello" == b.front().front());
             ASSERT("goodbye" == b.front().back());
-            ASSERT(5 == x.counters().blocks_outstanding());
+            ASSERT(3 == x.counters().blocks_outstanding());
             LOOP_ASSERT(y.counters().blocks_outstanding(),
-                        7 == y.counters().blocks_outstanding());
+                        4 == y.counters().blocks_outstanding());
 
-            b.emplace_front(3, "repeat");
+            b.emplace_back(3, "repeat");
             ASSERT(2 == b.size());
-            ASSERT(3 == b.front().size());
-            ASSERT(5 == x.counters().blocks_outstanding());
+            ASSERT(3 == b.back().size());
+            ASSERT(3 == x.counters().blocks_outstanding());
             LOOP_ASSERT(y.counters().blocks_outstanding(),
-                        15 == y.counters().blocks_outstanding());
+                        8 == y.counters().blocks_outstanding());
 
             static const char* const exp[] = {
-                "repeat", "repeat", "repeat", "hello", "goodbye"
+                "hello", "goodbye", "repeat", "repeat", "repeat"
             };
 
             int e = 0;
-            for (strlist2::iterator i = b.begin(); i != b.end(); ++i) {
+            for (strvecvec::iterator i = b.begin(); i != b.end(); ++i) {
                 ASSERT(i->get_allocator().resource() == &cry);
-                for (strlist::iterator j = i->begin(); j != i->end(); ++j) {
+                for (strvec::iterator j = i->begin(); j != i->end(); ++j) {
                     ASSERT(j->get_allocator().resource() == &cry);
                     ASSERT(*j == exp[e++]);
                 }
@@ -611,35 +758,35 @@ int main(int argc, char *argv[])
         // Test construct() using pairs
         {
             typedef SimpleString<POLYALLOC<char> > String;
-            typedef POLYALLOC<String> Alloc;
             typedef std::pair<String, int> StrInt;
+            typedef POLYALLOC<StrInt> Alloc;
 
-            XSTD::list<StrInt, SimpleAllocator<StrInt> > lx(&xc);
-            XSTD::list<StrInt, Alloc> ly(&y);
+            SimpleVector<StrInt, SimpleAllocator<StrInt> > vx(&xc);
+            SimpleVector<StrInt, Alloc> vy(&y);
             
-            lx.push_back(StrInt("hello", 5));
-            ASSERT(1 == lx.size());
-            ASSERT(2 == x.counters().blocks_outstanding());
+            vx.push_back(StrInt("hello", 5));
+            ASSERT(1 == vx.size());
+            ASSERT(1 == x.counters().blocks_outstanding());
             ASSERT(1 == globalCounters.blocks_outstanding());
-            ASSERT(&dfltTestRsrc == lx.front().first.get_allocator().resource());
-            ASSERT("hello" == lx.front().first);
-            ASSERT(5 == lx.front().second);
-            ly.push_back(StrInt("goodbye", 6));
-            ASSERT(1 == ly.size());
+            ASSERT(&dfltTestRsrc==vx.front().first.get_allocator().resource());
+            ASSERT("hello" == vx.front().first);
+            ASSERT(5 == vx.front().second);
+            vy.push_back(StrInt("goodbye", 6));
+            ASSERT(1 == vy.size());
+            ASSERT(2 == y.counters().blocks_outstanding());
+            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(&y == vy.front().first.get_allocator().resource());
+            ASSERT("goodbye" == vy.front().first);
+            ASSERT(6 == vy.front().second);
+            vy.emplace_back("howdy", 9);
+            ASSERT(2 == vy.size());
             ASSERT(3 == y.counters().blocks_outstanding());
+            ASSERT(&y == vy.back().first.get_allocator().resource());
             ASSERT(1 == globalCounters.blocks_outstanding());
-            ASSERT(&y == ly.front().first.get_allocator().resource());
-            ASSERT("goodbye" == ly.front().first);
-            ASSERT(6 == ly.front().second);
-            ly.emplace_front("howdy", 9);
-            ASSERT(2 == ly.size());
-            ASSERT(5 == y.counters().blocks_outstanding());
-            ASSERT(&y == ly.front().first.get_allocator().resource());
-            ASSERT(1 == globalCounters.blocks_outstanding());
-            ASSERT("howdy" == ly.front().first);
-            ASSERT(9 == ly.front().second);
-            ASSERT("goodbye" == ly.back().first);
-            ASSERT(6 == ly.back().second);
+            ASSERT("goodbye" == vy[0].first);
+            ASSERT(6 == vy[0].second);
+            ASSERT("howdy" == vy[1].first);
+            ASSERT(9 == vy[1].second);
         }
         ASSERT(0 == x.counters().blocks_outstanding());
         ASSERT(0 == y.counters().blocks_outstanding());
