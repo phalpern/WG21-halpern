@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
 
     TestResource testRsrc;
     POLYALLOC<char> polyAlloc(&testRsrc);
-    SimpleAllocator<char>  sAlloc(
-        const_cast<AllocCounters*>(&testRsrc.counters()));
+    AllocCounters sAllocCounters;
+    SimpleAllocator<char>  sAlloc(&sAllocCounters);
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
 
     switch (test) {
@@ -315,12 +315,14 @@ int main(int argc, char *argv[])
                                                [](const char* s) {
                                                    return std::atoi(s); });
             ASSERT(sAllocAdaptor == *f.get_allocator_resource());
-            // 2 blocks allocated, 1 for a copy of the functor, 1 for the copy
+            // 2 blocks allocated, 1 for a copy of the functor, 1 for a copy
             // of the allocator:
             ASSERT(2 == sAlloc.counters().blocks_outstanding());
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(6 == f("6"));
         }
+        ASSERT(0 == sAlloc.counters().blocks_outstanding());
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
         if (verbose)
             std::cout << "construct with allocator resource" << std::endl;
