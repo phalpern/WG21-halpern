@@ -246,10 +246,96 @@ bool operator!=(const SimpleAllocator<Tp1>& a, const SimpleAllocator<Tp2>& b)
     return ! (a == b);
 }
 
-int func(const char* s)
+class Functor
 {
-    return std::atoi(s);
+public:
+    typedef XSTD::polyalloc::polymorphic_allocator<int> allocator_type;
+
+private:
+    allocator_type  m_allocator;
+    int            *m_offset_p;
+
+    typedef XSTD::allocator_traits<allocator_type> ATraits;
+
+public:
+    Functor(int offset, const allocator_type& alloc) : m_allocator(alloc) {
+        m_offset_p = ATraits::allocate(m_allocator, 1);
+        *m_offset_p = offset;
+    }
+
+    Functor(const Functor& other)
+        : m_allocator(ATraits::select_on_container_copy_construction(
+                          other.m_allocator)) {
+        m_offset_p = ATraits::allocate(m_allocator, 1);
+        *m_offset_p = *other.m_offset_p;
+    }
+
+    Functor(const Functor& other, const allocator_type& alloc)
+        : m_allocator(alloc) {
+        m_offset_p = ATraits::allocate(m_allocator, 1);
+        *m_offset_p = *other.m_offset_p;
+    }
+
+    ~Functor() { ATraits::deallocate(m_allocator, m_offset_p, 1); }
+
+    int operator()(const char* s) {
+        return *m_offset_p + std::atoi(s);
+    }
+};
+
+// Return true if the counters in 'alloc' is the same as 'expCounters'.
+// Copies of 'alloc' will use the same counters and will match 'expCounters'
+// equally well.
+template <class T>
+bool match_counters(const SimpleAllocator<T>& alloc, 
+                    const AllocCounters *expCounters)
+{
+    return &alloc.counters() == expCounters;
 }
+
+// Return true if 'alloc' is a wrapper around a 'TestResource' containing
+// 'expCounters'.  Note that the 'AllocCounter' pointers are compared, not the
+// things they point to.  If a 'function' is constructed with a
+// 'polymorphic_allocator', it should store the exact resource, not a copy to
+// it.
+template <class T>
+bool match_counters(const XSTD::polyalloc::polymorphic_allocator<T>& alloc, 
+                    const AllocCounters *expCounters)
+{
+    const TestResource *rsrc =
+        dynamic_cast<const TestResource*>(alloc.resource());
+    return rsrc && (&rsrc->counters() == expCounters);
+}
+
+// Return true if 'alloc' is a pointer to a 'TestAllocator' whose counters are
+// identical to 'expCounters'.  Note that the 'AllocCounter' pointers are
+// compared, not the things they point to.  If a 'function' is constructed
+// with an 'allocator_resource', it should store the exact pointer, not a
+// pointer to a copy.
+bool match_counters(XSTD::polyalloc::allocator_resource *const &alloc,
+                    const AllocCounters *expCounters)
+{
+    const TestResource *rsrc =
+        dynamic_cast<const TestResource*>(alloc);
+    return &rsrc->counters() == expCounters;
+}
+
+// Orthogonal concerns:
+// 1. No allocator, SimpleAllocator, polymorphic_allocator, allocator_resource
+// 2. No function, function ptr, stateless functor, stateful functor
+// 3. Each of the (1) cases combined with copy construction and move construction.
+template <class F, class A>
+void testFunction(XSTD::function<F>& f, const A& alloc,
+                  const char* arg, int expRet,
+                  const AllocCounters *expCounters, int expBlocks)
+{
+    ASSERT(match_counters(alloc, expCounters));
+    ASSERT(expBlocks == expCounters->blocks_outstanding());
+    if (expCounters != &dfltTestRsrc.counters())
+        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+    if (arg)
+        ASSERT(expRet == f(arg));
+}    
 
 //=============================================================================
 //                              MAIN PROGRAM
@@ -282,6 +368,13 @@ int main(int argc, char *argv[])
     SimpleAllocator<char>  sAlloc(&sAllocCounters);
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
 
+    // Stateless lambda
+    auto lambda = [](const char* s) { return std::atoi(s); };
+
+    // Stateful functor that uses an allocator
+    TestResource tmpRsrc;  // Ignore this allocator resource
+    Functor functor(1, &tmpRsrc);
+
     switch (test) {
       case 0: // Do all cases for test-case 0
       case 1: {
@@ -299,7 +392,8 @@ int main(int argc, char *argv[])
         std::cout << "\nBREATHING TEST"
                   << "\n==============" << std::endl;
 
-        if (verbose) std::cout << "construct with no allocator" << std::endl;
+        if (verbose)
+            std::cout << "    construct with no allocator" << std::endl;
         {
             XSTD::function<int(const char*)> f([](const char* s) {
                     return std::atoi(s); });
@@ -309,7 +403,7 @@ int main(int argc, char *argv[])
         ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
         if (verbose)
-            std::cout << "construct with SimplAllocator" << std::endl;
+            std::cout << "    construct with SimplAllocator" << std::endl;
         {
             XSTD::function<int(const char*)> f(allocator_arg, sAlloc,
                                                [](const char* s) {
@@ -317,15 +411,15 @@ int main(int argc, char *argv[])
             ASSERT(sAllocAdaptor == *f.get_allocator_resource());
             // 2 blocks allocated, 1 for a copy of the functor, 1 for a copy
             // of the allocator:
-            ASSERT(2 == sAlloc.counters().blocks_outstanding());
+            ASSERT(2 == sAllocCounters.blocks_outstanding());
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
             ASSERT(6 == f("6"));
         }
-        ASSERT(0 == sAlloc.counters().blocks_outstanding());
+        ASSERT(0 == sAllocCounters.blocks_outstanding());
         ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
         if (verbose)
-            std::cout << "construct with allocator resource" << std::endl;
+            std::cout << "    construct with allocator resource" << std::endl;
         {
             XSTD::function<int(const char*)> f(allocator_arg, &testRsrc,
                                                [](const char* s) {
@@ -340,71 +434,164 @@ int main(int argc, char *argv[])
 
       case 2: {
         // --------------------------------------------------------------------
-        // TEST CONSTRUCTION WITH ALLOCATOR
+        // NO ALLOCATOR
         // --------------------------------------------------------------------
           
-        std::cout << "\nCONSTRUCTION WITH ALLOCATOR"
-                  << "\n===========================" << std::endl;
+        std::cout << "\nNO ALLOCATOR"
+                  << "\n============" << std::endl;
 
-        auto lambda = [](const char* s) { return std::atoi(s); };
+        typedef XSTD::function<int(const char*)> Obj;
 
-        dfltTestRsrc.clear();
-        testRsrc.clear();
+#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
+            {                                                                \
+                Obj f ctorArgs;                                              \
+                testFunction(f, &dfltTestRsrc, callArg, expRet,              \
+                             &dfltTestRsrc.counters(), expCount);            \
+            }                                                                \
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
+            dfltTestRsrc.clear();                                            \
+        } while (false)
 
-        if (verbose) std::cout << "    function()" << std::endl;
-        {
-            XSTD::function<int(const char*)> f;
-            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-        }
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-        dfltTestRsrc.clear();
+        //   Ctor args     call Arg Ret blocks
+        //   ============  ======== === ======
+        TEST(            , nullptr,  0, 0     );
+        TEST((nullptr)   , nullptr,  0, 0     );
+        TEST((&std::atoi), "3"    ,  3, 0     );
+        TEST((lambda)    , "4"    ,  4, 1     );
+        TEST((functor)   , "5"    ,  6, 2     );
 
-        if (verbose) std::cout << "    function(F)" << std::endl;
-        {
-            XSTD::function<int(const char*)> f(lambda);
-            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
-            ASSERT(1 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(5 == f("5"));
-        }
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-        dfltTestRsrc.clear();
+#undef TEST
 
-        if (verbose)
-            std::cout << "    function(allocator_arg, A)" << std::endl;
-        {
-            XSTD::polyalloc::polymorphic_allocator<char> testAlloc(&testRsrc);
-            XSTD::function<int(const char*)> f(allocator_arg, testAlloc);
-            ASSERT(&testRsrc == f.get_allocator_resource());
-            ASSERT(1 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-        }
-        ASSERT(0 == testRsrc.counters().blocks_outstanding());
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-        dfltTestRsrc.clear();
+      } if (test != 0) break;
 
-        if (verbose)
-            std::cout << "    function(allocator_arg, A, F)" << std::endl;
-        {
-            TestResource testRsrc;
-            XSTD::polyalloc::polymorphic_allocator<char> testAlloc(&testRsrc);
-            XSTD::function<int(const char*)> f(allocator_arg, testAlloc,
-                                               lambda);
-            ASSERT(&testRsrc == f.get_allocator_resource());
-            ASSERT(1 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(6 == f("6"));
-        }
+      case 3: {
+        // --------------------------------------------------------------------
+        // TYPE-ERASED ALLOCATOR
+        // --------------------------------------------------------------------
+          
+        std::cout << "\nTYPE-ERASED ALLOCATOR"
+                  << "\n=====================" << std::endl;
 
-        {
-            TestResource testRsrc;
-            XSTD::function<int(const char*)> f(allocator_arg, &testRsrc,
-                                               lambda);
-            ASSERT(&testRsrc == f.get_allocator_resource());
-            ASSERT(1 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(7 == f("7"));
-        }
+        typedef XSTD::function<int(const char*)> Obj;
+
+#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
+            {                                                                \
+                Obj f ctorArgs;                                              \
+                testFunction(f, sAlloc, callArg, expRet,                     \
+                             &sAllocCounters, expCount);                     \
+            }                                                                \
+            ASSERT(0 == sAllocCounters.blocks_outstanding());                \
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
+            sAllocCounters.clear();                                          \
+            dfltTestRsrc.clear();                                            \
+        } while (false)
+
+        // Always allocate one block for functor and one block for type-erased
+        // allocator.
+
+        //   Ctor args                            call Arg Ret blocks
+        //   ===================================  ======== === ======
+        TEST((allocator_arg, sAlloc)            , nullptr,  0, 2     );
+        // g++ 4.6.3 internal error if use nullptr
+        // TEST((allocator_arg, sAlloc, nullptr), nullptr,  0, 2     );
+        TEST((allocator_arg, sAlloc, 0)         , nullptr,  0, 2     );
+        TEST((allocator_arg, sAlloc, &std::atoi), "3"    ,  3, 2     );
+        TEST((allocator_arg, sAlloc, lambda)    , "4"    ,  4, 2     );
+        TEST((allocator_arg, sAlloc, functor)   , "5"    ,  6, 3     );
+
+#undef TEST
+
+      } if (test != 0) break;
+
+      case 4: {
+        // --------------------------------------------------------------------
+        // ALLOCATOR_RESOURCE
+        // --------------------------------------------------------------------
+          
+        std::cout << "\nALLOCATOR_RESOURCE"
+                  << "\n==================" << std::endl;
+
+        typedef XSTD::function<int(const char*)> Obj;
+
+#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
+            {                                                                \
+                Obj f ctorArgs;                                              \
+                testFunction(f, &testRsrc, callArg, expRet,                  \
+                             &testRsrc.counters(), expCount);                \
+            }                                                                \
+            ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
+            testRsrc.clear();                                                \
+            dfltTestRsrc.clear();                                            \
+        } while (false)
+
+        // Always allocate one block for functor but no additional blocks for
+        // allocator.
+
+        //   Ctor args                               call Arg Ret blocks
+        //   ======================================  ======== === ======
+        TEST((allocator_arg, &testRsrc)            , nullptr,  0, 1     );
+        // g++ 4.6.3 internal error if use nullptr
+        // TEST((allocator_arg, &testRsrc, nullptr), nullptr,  0, 1     );
+        TEST((allocator_arg, &testRsrc, 0)         , nullptr,  0, 1     );
+        TEST((allocator_arg, &testRsrc, &std::atoi), "3"    ,  3, 1     );
+        TEST((allocator_arg, &testRsrc, lambda)    , "4"    ,  4, 1     );
+        TEST((allocator_arg, &testRsrc, functor)   , "5"    ,  6, 2     );
+
+#undef TEST
+
+      } if (test != 0) break;
+
+      case 5: {
+        // --------------------------------------------------------------------
+        // POLYMORPHIC_ALLOCATOR
+        // --------------------------------------------------------------------
+          
+        std::cout << "\nPOLYMORPHIC_ALLOCATOR"
+                  << "\n=====================" << std::endl;
+
+        typedef XSTD::function<int(const char*)> Obj;
+
+#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
+            {                                                                \
+                Obj f ctorArgs;                                              \
+                testFunction(f, polyAlloc, callArg, expRet,                  \
+                             &testRsrc.counters(), expCount);                \
+            }                                                                \
+            ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
+            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
+            testRsrc.clear();                                                \
+            dfltTestRsrc.clear();                                            \
+        } while (false)
+
+        // Always allocate one block for functor but no additional blocks for
+        // allocator.
+
+        //   Ctor args                               call Arg Ret blocks
+        //   ======================================  ======== === ======
+        TEST((allocator_arg, polyAlloc)            , nullptr,  0, 1     );
+        // g++ 4.6.3 internal error if use nullptr
+        // TEST((allocator_arg, polyAlloc, nullptr), nullptr,  0, 1     );
+        TEST((allocator_arg, polyAlloc, 0)         , nullptr,  0, 1     );
+        TEST((allocator_arg, polyAlloc, &std::atoi), "3"    ,  3, 1     );
+        TEST((allocator_arg, polyAlloc, lambda)    , "4"    ,  4, 1     );
+        TEST((allocator_arg, polyAlloc, functor)   , "5"    ,  6, 2     );
+
+#undef TEST
+
+      } if (test != 0) break;
+
+      case 6: {
+        // --------------------------------------------------------------------
+        // COPY CONSTRUCTION (incomplete)
+        // --------------------------------------------------------------------
+          
+        std::cout << "\nCOPY CONSTRUCTION"
+                  << "\n=================" << std::endl;
 
         {
             TestResource testRsrc1, testRsrc2;
@@ -435,7 +622,7 @@ int main(int argc, char *argv[])
         ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
         {
-            XSTD::function<int(const char*)> f0(func);
+            XSTD::function<int(const char*)> f0(std::atoi);
             ASSERT(XSTD::polyalloc::allocator_resource::default_resource() ==
                    f0.get_allocator_resource());
             ASSERT(0 == f0("0"));

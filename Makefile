@@ -5,11 +5,8 @@
 
 TESTARGS +=
 
-#SCOPED_ALLOC_DIR = ../allocator_traits
-SCOPED_ALLOC_DIR = .
-
 CXX=g++ -m32 -std=c++0x
-CXXFLAGS=-I. -I$(SCOPED_ALLOC_DIR) -Wall
+CXXFLAGS=-I. -Wall
 
 all : polymorphic_allocator.test uses_allocator_wrapper.test xfunctional.test
 
