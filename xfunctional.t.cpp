@@ -299,51 +299,58 @@ public:
     }
 };
 
-// Return true if the counters in 'alloc' is the same as 'expCounters'.
-// Copies of 'alloc' will use the same counters and will match 'expCounters'
-// equally well.
+// Return the address of the 'AllocCounters' object managed by the specified
+// 'alloc'.  All (possibly rebound) copies of 'alloc' will use the same
+// counters.
 template <class T>
-bool match_counters(const SimpleAllocator<T>& alloc, 
-                    const AllocCounters *expCounters)
+const AllocCounters *getCounters(const SimpleAllocator<T>& alloc)
 {
-    return &alloc.counters() == expCounters;
+    return &alloc.counters();
 }
 
-// Return true if 'alloc' is a wrapper around a 'TestResource' containing
-// 'expCounters'.  Note that the 'AllocCounter' pointers are compared, not the
-// things they point to.  If a 'function' is constructed with a
-// 'polymorphic_allocator', it should store the exact resource, not a copy to
-// it.
-template <class T>
-bool match_counters(const XSTD::polyalloc::polymorphic_allocator<T>& alloc, 
-                    const AllocCounters *expCounters)
+// If the dynamic type of 'alloc' is 'TestResource', return the address of the
+// 'AllocCounters' object managed by 'alloc'. Otherwise, if the dynamic type
+// of 'alloc' is a 'resource_adaptor<SimpleAllocator<T>>', return the adddress
+// of the 'AllocCounters' object managed by the 'SimpleAllocator' within the
+// adaptor. Otherwise, return NULL.  Note that if a 'function' is constructed
+// with an 'allocator_resource*', it should store the exact pointer, not a
+// pointer to a copy of the resource.
+const AllocCounters *
+getCounters(XSTD::polyalloc::allocator_resource *const &alloc)
 {
-    const TestResource *rsrc =
-        dynamic_cast<const TestResource*>(alloc.resource());
-    return rsrc && (&rsrc->counters() == expCounters);
+    typedef POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char> ) RsrcAdaptor;
+    const TestResource *tstRsrc = dynamic_cast<const TestResource*>(alloc);
+    if (tstRsrc)
+        return &tstRsrc->counters();
+    const RsrcAdaptor *aRsrc = dynamic_cast<const RsrcAdaptor*>(alloc);
+    if (aRsrc)
+        return getCounters(aRsrc->get_allocator());
+    return NULL;
 }
 
-// Return true if 'alloc' is a pointer to a 'TestAllocator' whose counters are
-// identical to 'expCounters'.  Note that the 'AllocCounter' pointers are
-// compared, not the things they point to.  If a 'function' is constructed
-// with an 'allocator_resource', it should store the exact pointer, not a
-// pointer to a copy.
-bool match_counters(XSTD::polyalloc::allocator_resource *const &alloc,
-                    const AllocCounters *expCounters)
+// If 'alloc' is a wrapper around a 'TestResource', then return the address of
+// the 'AllocCounters' object managed by the 'TestResource', otherwise return
+// NULL.  Note that if a 'function' is constructed with an
+// 'polymorphic_allocator', it should store the exact pointer returned by
+// 'alloc.resource(), not a pointer to a copy of that resource.
+template <class T>
+const AllocCounters *
+getCounters(const XSTD::polyalloc::polymorphic_allocator<T>& alloc)
 {
-    const TestResource *rsrc =
-        dynamic_cast<const TestResource*>(alloc);
-    return &rsrc->counters() == expCounters;
+    return getCounters(alloc.resource());
 }
+
+#define POLYALLOC XSTD::polyalloc::polymorphic_allocator
 
 template <class F, class A>
 void testFunction(XSTD::function<F>& f, const A& alloc, int expRet,
-                  const AllocCounters *expCounters, int expBlocks)
+                  int expBlocks)
 {
-    ASSERT(match_counters(alloc, expCounters));
+    const AllocCounters *const expCounters = getCounters(alloc);
+    ASSERT(expCounters == getCounters(f.get_allocator_resource()));
     ASSERT(expBlocks == expCounters->blocks_outstanding());
-    if (expCounters != &dfltTestRsrc.counters())
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+    if (expCounters != &globalCounters)
+        ASSERT(0 == globalCounters.blocks_outstanding());
     if (expRet)
     {
         ASSERT(f);
@@ -358,10 +365,35 @@ template <class F>
 void
 testCopyAndMove(XSTD::function<F>& f, int expRet, int expRaw, int expAlloc)
 {
-    if (veryVerbose) std::cout << "        Regular copy ctor" << std::endl;
-    int expBlocks = dfltTestRsrc.counters().blocks_outstanding() + expRaw;
-    XSTD::function<F> f2(f);
-    testFunction(f2, &dfltTestRsrc, expRet, &globalCounters, expBlocks);
+    typedef XSTD::function<F> Obj;
+
+    TestResource testRsrc;
+    POLYALLOC<char> polyAlloc(&testRsrc);
+    AllocCounters sAllocCounters;
+    SimpleAllocator<char>  sAlloc(&sAllocCounters);
+    POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
+
+#define COPY_TEST(ctorArgs, alloc, ignore) do {                               \
+        if (veryVerbose)                                                      \
+            std::cout << "        copy function" #ctorArgs << std::endl;      \
+        const AllocCounters* const counters = getCounters(alloc);             \
+        int expCount = expRaw;                                                \
+        if (counters != &globalCounters) {                                    \
+            ++expCount;                                                       \
+            if (0 == expRaw) ++expCount;                                      \
+        }                                                                     \
+        int startBlocks = counters->blocks_outstanding();                     \
+        {                                                                     \
+            Obj f2 ctorArgs;                                                  \
+            testFunction(f2, (alloc), (expRet), startBlocks + expCount);      \
+        }                                                                     \
+        ASSERT(startBlocks == counters->blocks_outstanding());                \
+    } while (false)
+
+    COPY_TEST((f)                          , &dfltTestRsrc, expRaw);
+    COPY_TEST((allocator_arg, sAlloc, f)   , sAlloc       , expRaw);
+    COPY_TEST((allocator_arg, &testRsrc, f), &testRsrc    , expAlloc);
+    COPY_TEST((allocator_arg, polyAlloc, f), polyAlloc    , expAlloc);
 }
 
 //=============================================================================
@@ -384,8 +416,6 @@ int main(int argc, char *argv[])
         std::cout << " CASE " << test << std::endl;
     else
         std::cout << " all cases" << std::endl;
-
-#define POLYALLOC XSTD::polyalloc::polymorphic_allocator
 
     XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTestRsrc);
 
@@ -473,8 +503,7 @@ int main(int argc, char *argv[])
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, &dfltTestRsrc, expRet,                       \
-                             &dfltTestRsrc.counters(), expAlloc);            \
+                testFunction(f, &dfltTestRsrc, expRet, expAlloc);            \
                 testCopyAndMove(f, expRet, expAlloc, expAlloc);              \
             }                                                                \
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
@@ -507,8 +536,7 @@ int main(int argc, char *argv[])
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, sAlloc, expRet,                              \
-                             &sAllocCounters, expAlloc);                     \
+                testFunction(f, sAlloc, expRet, expAlloc);                   \
                 testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == sAllocCounters.blocks_outstanding());                \
@@ -549,8 +577,7 @@ int main(int argc, char *argv[])
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, &testRsrc, expRet,                           \
-                             &testRsrc.counters(), expAlloc);                \
+                testFunction(f, &testRsrc, expRet, expAlloc);                \
                 testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
@@ -591,8 +618,7 @@ int main(int argc, char *argv[])
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, polyAlloc, expRet,                           \
-                             &testRsrc.counters(), expAlloc);                \
+                testFunction(f, polyAlloc, expRet, expAlloc);                \
                 testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == testRsrc.counters().blocks_outstanding());           \

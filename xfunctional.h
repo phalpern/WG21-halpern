@@ -2562,23 +2562,35 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       function(allocator_arg_t, const __A& __alloc, const function& __x)
       : _Function_base()
         {
-          // Get a variant of __x._M_manager that uses an allocator.
-          // Note that __get_manager_with_alloc is a new op, so we must set a
-          // default value in case it is a no-op for __x.
-          _Any_data __out_param;
-          __out_param._M_access<_Manager_type>() = __x._M_manager;
-          __x._M_manager(__out_param, __out_param,
-                         __get_manager_with_alloc);
-	  _M_manager = __out_param._M_access<_Manager_type>();
+          if (__x)
+          {
+            // Get a variant of __x._M_manager that uses an allocator.
+            // Note that __get_manager_with_alloc is a new op, so we must set a
+            // default value in case it is a no-op for __x.
+            _Any_data __out_param;
+            __out_param._M_access<_Manager_type>() = __x._M_manager;
+            __x._M_manager(__out_param, __out_param,
+                           __get_manager_with_alloc);
+            _M_manager = __out_param._M_access<_Manager_type>();
 
-          // Get a variant of __x._M_invoker that uses an allocator.
-          this->_M_manager(__out_param, __out_param, __get_invoker);
-          _M_invoker = __out_param._M_access<_Invoker_type>();
+            // Get a variant of __x._M_invoker that uses an allocator.
+            this->_M_manager(__out_param, __out_param, __get_invoker);
+            _M_invoker = __out_param._M_access<_Invoker_type>();
           
-	  __x._M_manager(_M_functor,
-                         _Functor_and_alloc(__x._M_functor,
-                                            __alloc)._M_as_any_data(),
-                         __clone_functor_with_alloc);
+            __x._M_manager(_M_functor,
+                           _Functor_and_alloc(__x._M_functor,
+                                              __alloc)._M_as_any_data(),
+                           __clone_functor_with_alloc);
+          }
+          else
+          {
+            typedef _Base_manager<_Signature_type*, true> _My_handler;
+
+            _M_invoker = nullptr;
+            _M_manager = &_My_handler::_M_manager;
+            _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
+                                         _M_make_shared_alloc(__alloc));
+          }
        }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2606,24 +2618,35 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 
           // If got here, then __alloc is different from allocator in __x.
           // Use same logic as extended copy constructor.
+          if (__x)
+          {
+            // Get a variant of __x._M_manager that uses an allocator.
+            // Note that __get_manager_with_alloc is a new op, so we must set a
+            // default value in case it is a no-op for __x.
+            _Any_data __out_param;
+            __out_param._M_access<_Manager_type>() = __x._M_manager;
+            __x._M_manager(__out_param, __out_param,
+                           __get_manager_with_alloc);
+            _M_manager = __out_param._M_access<_Manager_type>();
 
-          // Get a variant of __x._M_manager that uses an allocator.
-          // Note that __get_manager_with_alloc is a new op, so we must set a
-          // default value in case it is a no-op for __x.
-          _Any_data __out_param;
-          __out_param._M_access<_Manager_type>() = __x._M_manager;
-          __x._M_manager(__out_param, __out_param,
-                         __get_manager_with_alloc);
-	  _M_manager = __out_param._M_access<_Manager_type>();
-
-          // Get a variant of __x._M_invoker that uses an allocator.
-          this->_M_manager(__out_param, __out_param, __get_invoker);
-          _M_invoker = __out_param._M_access<_Invoker_type*>();
+            // Get a variant of __x._M_invoker that uses an allocator.
+            this->_M_manager(__out_param, __out_param, __get_invoker);
+            _M_invoker = __out_param._M_access<_Invoker_type*>();
           
-	  __x._M_manager(_M_functor,
-                         _Functor_and_alloc(__x._M_functor,
-                                            __alloc._M_as_any_data()),
-                         __clone_functor_with_alloc);
+            __x._M_manager(_M_functor,
+                           _Functor_and_alloc(__x._M_functor,
+                                              __alloc._M_as_any_data()),
+                           __clone_functor_with_alloc);
+          }
+          else
+          {
+            typedef _Base_manager<_Signature_type*, true> _My_handler;
+
+            _M_invoker = nullptr;
+            _M_manager = &_My_handler::_M_manager;
+            _My_handler::_M_init_functor(_M_functor, (_Signature_type*) nullptr,
+                                         _M_make_shared_alloc(__alloc));
+          }
         }
 
   template<typename _Res, typename... _ArgTypes>
