@@ -1628,15 +1628,16 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     template<typename _Functor>
       class _Functor_wrapper
       {
-        _Functor               _M_functor;
-        _Shared_alloc_rsrc_ptr _M_alloc_resource;
+        uses_allocator_construction_wrapper<_Functor> _M_functor;
+        _Shared_alloc_rsrc_ptr                        _M_alloc_resource;
 
       public:
         _Functor_wrapper(const _Functor& __f,
                          const _Shared_alloc_rsrc_ptr& __a)
-          : _M_functor(__f), _M_alloc_resource(__a) { }
+          : _M_functor(allocator_arg, &*__a, __f), _M_alloc_resource(__a) { }
         _Functor_wrapper(_Functor&& __f, const _Shared_alloc_rsrc_ptr& __a)
-          : _M_functor(move(__f)), _M_alloc_resource(__a) { }
+          : _M_functor(allocator_arg, &*__a, move(__f))
+          , _M_alloc_resource(__a) { }
 
         void _M_delete_self()
         {
@@ -1647,8 +1648,8 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
           __alloc_rsrc->deallocate(this, sizeof(_Functor_wrapper));
         }
 
-        _Functor      & _M_get_functor()       { return _M_functor; }
-        _Functor const& _M_get_functor() const { return _M_functor; }
+        _Functor      & _M_get_functor()       { return _M_functor.value(); }
+        _Functor const& _M_get_functor() const { return _M_functor.value(); }
 
         // Return reference to avoid bumping ref-count unnecessarily
         const _Shared_alloc_rsrc_ptr& _M_get_alloc_resource() const
