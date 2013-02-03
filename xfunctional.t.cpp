@@ -11,7 +11,17 @@ using namespace std;
 //                             TEST PLAN
 //-----------------------------------------------------------------------------
 //
+// Test allocator propgation in XSTD::function with each of the following
+// orthogonal concerns:
 //
+// 1. No allocator, SimpleAllocator, polymorphic_allocator, allocator_resource
+// 2. No function, function ptr, stateless functor, stateful functor
+// 3. Each of the (1) cases combined with copy construction, move
+//    construction, copy assignment, and move-assignment.
+//
+// Also test copy construction, move construction, copy assignment and move
+// assignment between XSTD::function and std::function to ensure binary
+// compatibility.
 
 //-----------------------------------------------------------------------------
 
@@ -23,6 +33,7 @@ namespace {
 
 int testStatus = 0;
 bool verbose = false;
+bool veryVerbose = false;
 
 void aSsErT(int c, const char *s, int i) {
     if (c) {
@@ -110,6 +121,11 @@ class AllocCounters
 	, m_bytes_allocated(0)
 	, m_bytes_deallocated(0)
 	{ }
+
+    ~AllocCounters() {
+        ASSERT(0 == blocks_outstanding());
+        ASSERT(0 == bytes_outstanding());
+    }
 
     void* allocate(std::size_t nbytes) {
 	ASSERT(this != nullptr);
@@ -320,22 +336,33 @@ bool match_counters(XSTD::polyalloc::allocator_resource *const &alloc,
     return &rsrc->counters() == expCounters;
 }
 
-// Orthogonal concerns:
-// 1. No allocator, SimpleAllocator, polymorphic_allocator, allocator_resource
-// 2. No function, function ptr, stateless functor, stateful functor
-// 3. Each of the (1) cases combined with copy construction and move construction.
 template <class F, class A>
-void testFunction(XSTD::function<F>& f, const A& alloc,
-                  const char* arg, int expRet,
+void testFunction(XSTD::function<F>& f, const A& alloc, int expRet,
                   const AllocCounters *expCounters, int expBlocks)
 {
     ASSERT(match_counters(alloc, expCounters));
     ASSERT(expBlocks == expCounters->blocks_outstanding());
     if (expCounters != &dfltTestRsrc.counters())
         ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-    if (arg)
-        ASSERT(expRet == f(arg));
+    if (expRet)
+    {
+        ASSERT(f);
+        ASSERT(expRet == f("74"));
+    }
+    // TBD: This test fails for empty functions with allocators
+    // else
+    //     ASSERT(! f);
 }    
+
+template <class F>
+void
+testCopyAndMove(XSTD::function<F>& f, int expRet, int expRaw, int expAlloc)
+{
+    if (veryVerbose) std::cout << "        Regular copy ctor" << std::endl;
+    int expBlocks = dfltTestRsrc.counters().blocks_outstanding() + expRaw;
+    XSTD::function<F> f2(f);
+    testFunction(f2, &dfltTestRsrc, expRet, &globalCounters, expBlocks);
+}
 
 //=============================================================================
 //                              MAIN PROGRAM
@@ -345,7 +372,7 @@ int main(int argc, char *argv[])
 {
     int test = argc > 1 ? atoi(argv[1]) : 0;
     verbose = argc > 2;
-    // veryVerbose = argc > 3;
+    veryVerbose = argc > 3;
     // veryVeryVerbose = argc > 4;
 
 //     int verbose = argc > 2;
@@ -442,24 +469,25 @@ int main(int argc, char *argv[])
 
         typedef XSTD::function<int(const char*)> Obj;
 
-#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+#define TEST(ctorArgs, expRet, expAlloc) do {                                \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, &dfltTestRsrc, callArg, expRet,              \
-                             &dfltTestRsrc.counters(), expCount);            \
+                testFunction(f, &dfltTestRsrc, expRet,                       \
+                             &dfltTestRsrc.counters(), expAlloc);            \
+                testCopyAndMove(f, expRet, expAlloc, expAlloc);              \
             }                                                                \
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
             dfltTestRsrc.clear();                                            \
         } while (false)
 
-        //   Ctor args     call Arg Ret blocks
-        //   ============  ======== === ======
-        TEST(            , nullptr,  0, 0     );
-        TEST((nullptr)   , nullptr,  0, 0     );
-        TEST((&std::atoi), "3"    ,  3, 0     );
-        TEST((lambda)    , "4"    ,  4, 1     );
-        TEST((functor)   , "5"    ,  6, 2     );
+        //   Ctor args     Ret blocks
+        //   ============  === ======
+        TEST(            ,  0, 0     );
+        TEST((nullptr)   ,  0, 0     );
+        TEST((&std::atoi), 74, 0     );
+        TEST((lambda)    , 74, 1     );
+        TEST((functor)   , 75, 2     );
 
 #undef TEST
 
@@ -475,12 +503,13 @@ int main(int argc, char *argv[])
 
         typedef XSTD::function<int(const char*)> Obj;
 
-#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, sAlloc, callArg, expRet,                     \
-                             &sAllocCounters, expCount);                     \
+                testFunction(f, sAlloc, expRet,                              \
+                             &sAllocCounters, expAlloc);                     \
+                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == sAllocCounters.blocks_outstanding());                \
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
@@ -491,15 +520,16 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor and one block for type-erased
         // allocator.
 
-        //   Ctor args                            call Arg Ret blocks
-        //   ===================================  ======== === ======
-        TEST((allocator_arg, sAlloc)            , nullptr,  0, 2     );
-        // g++ 4.6.3 internal error if use nullptr
-        // TEST((allocator_arg, sAlloc, nullptr), nullptr,  0, 2     );
-        TEST((allocator_arg, sAlloc, 0)         , nullptr,  0, 2     );
-        TEST((allocator_arg, sAlloc, &std::atoi), "3"    ,  3, 2     );
-        TEST((allocator_arg, sAlloc, lambda)    , "4"    ,  4, 2     );
-        TEST((allocator_arg, sAlloc, functor)   , "5"    ,  6, 3     );
+        //                                             Raw   Alloc
+        //   Ctor args                            Ret Blocks Blocks
+        //   ===================================  === ====== ======
+        TEST((allocator_arg, sAlloc)            ,  0, 0    , 2     );
+        // g++ 4.6.3 internal error if use nullptr           
+        // TEST((allocator_arg, sAlloc, nullptr),  0, 0    , 2     );
+        TEST((allocator_arg, sAlloc, 0)         ,  0, 0    , 2     );
+        TEST((allocator_arg, sAlloc, &std::atoi), 74, 0    , 2     );
+        TEST((allocator_arg, sAlloc, lambda)    , 74, 1    , 2     );
+        TEST((allocator_arg, sAlloc, functor)   , 75, 2    , 3     );
 
 #undef TEST
 
@@ -515,12 +545,13 @@ int main(int argc, char *argv[])
 
         typedef XSTD::function<int(const char*)> Obj;
 
-#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, &testRsrc, callArg, expRet,                  \
-                             &testRsrc.counters(), expCount);                \
+                testFunction(f, &testRsrc, expRet,                           \
+                             &testRsrc.counters(), expAlloc);                \
+                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
@@ -531,15 +562,16 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //   Ctor args                               call Arg Ret blocks
-        //   ======================================  ======== === ======
-        TEST((allocator_arg, &testRsrc)            , nullptr,  0, 1     );
-        // g++ 4.6.3 internal error if use nullptr
-        // TEST((allocator_arg, &testRsrc, nullptr), nullptr,  0, 1     );
-        TEST((allocator_arg, &testRsrc, 0)         , nullptr,  0, 1     );
-        TEST((allocator_arg, &testRsrc, &std::atoi), "3"    ,  3, 1     );
-        TEST((allocator_arg, &testRsrc, lambda)    , "4"    ,  4, 1     );
-        TEST((allocator_arg, &testRsrc, functor)   , "5"    ,  6, 2     );
+        //                                                Raw   Alloc
+        //   Ctor args                               Ret Blocks Blocks
+        //   ======================================  === ====== ======
+        TEST((allocator_arg, &testRsrc)            ,  0, 0    , 1     );
+        // g++ 4.6.3 internal error if use nullptr              
+        // TEST((allocator_arg, &testRsrc, nullptr),  0, 0    , 1     );
+        TEST((allocator_arg, &testRsrc, 0)         ,  0, 0    , 1     );
+        TEST((allocator_arg, &testRsrc, &std::atoi), 74, 0    , 1     );
+        TEST((allocator_arg, &testRsrc, lambda)    , 74, 1    , 1     );
+        TEST((allocator_arg, &testRsrc, functor)   , 75, 2    , 2     );
 
 #undef TEST
 
@@ -555,12 +587,13 @@ int main(int argc, char *argv[])
 
         typedef XSTD::function<int(const char*)> Obj;
 
-#define TEST(ctorArgs, callArg, expRet, expCount) do {                       \
+#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             {                                                                \
                 Obj f ctorArgs;                                              \
-                testFunction(f, polyAlloc, callArg, expRet,                  \
-                             &testRsrc.counters(), expCount);                \
+                testFunction(f, polyAlloc, expRet,                           \
+                             &testRsrc.counters(), expAlloc);                \
+                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
             }                                                                \
             ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
             ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
@@ -571,15 +604,16 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //   Ctor args                               call Arg Ret blocks
-        //   ======================================  ======== === ======
-        TEST((allocator_arg, polyAlloc)            , nullptr,  0, 1     );
-        // g++ 4.6.3 internal error if use nullptr
-        // TEST((allocator_arg, polyAlloc, nullptr), nullptr,  0, 1     );
-        TEST((allocator_arg, polyAlloc, 0)         , nullptr,  0, 1     );
-        TEST((allocator_arg, polyAlloc, &std::atoi), "3"    ,  3, 1     );
-        TEST((allocator_arg, polyAlloc, lambda)    , "4"    ,  4, 1     );
-        TEST((allocator_arg, polyAlloc, functor)   , "5"    ,  6, 2     );
+        //                                                Raw   Alloc
+        //   Ctor args                               Ret Blocks Blocks
+        //   ======================================  === ====== ======
+        TEST((allocator_arg, polyAlloc)            ,  0, 0    , 1     );
+        // g++ 4.6.3 internal error if use nullptr              
+        // TEST((allocator_arg, polyAlloc, nullptr),  0, 0    , 1     );
+        TEST((allocator_arg, polyAlloc, 0)         ,  0, 0    , 1     );
+        TEST((allocator_arg, polyAlloc, &std::atoi), 74, 0    , 1     );
+        TEST((allocator_arg, polyAlloc, lambda)    , 74, 1    , 1     );
+        TEST((allocator_arg, polyAlloc, functor)   , 75, 2    , 2     );
 
 #undef TEST
 
