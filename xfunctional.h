@@ -2635,14 +2635,14 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           if (__x._M_manager)
           {
             _Any_data __out_param;
-            polyalloc::allocator_resource *const __dflt_rsrc =
-              polyalloc::allocator_resource::default_resource();
+            bool __dflt_rsrc = _M_is_same_alloc_rsrc(
+              polyalloc::allocator_resource::default_resource(), __alloc);
 
             // Get a variant of __x._M_manager that uses an allocator.
             // Note that __get_manager_with_alloc is a new op, so we must set a
             // default value in case it is a no-op for __x.
             __out_param._M_access<_Manager_type>() = nullptr;
-            if (_M_is_same_alloc_rsrc(__dflt_rsrc, __alloc))
+            if (__dflt_rsrc)
               // Default allocator
               __x._M_manager(__out_param, __out_param,
                              __get_manager_without_alloc);
@@ -2651,6 +2651,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
               __x._M_manager(__out_param, __out_param,
                              __get_manager_with_alloc);
             _M_manager = __out_param._M_access<_Manager_type>();
+
             if (! _M_manager)
             {
               // Copying a legacy function for which __get_manager_with_alloc
@@ -2667,7 +2668,9 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           
             // Construct clone of __x._M_functor with allocator
             _Shared_alloc_rsrc_ptr __x_rsrc = __x._M_get_shared_alloc_rsrc_ptr();
-            if (_M_is_same_alloc_rsrc(__x_rsrc.get(), __alloc))
+            if (__dflt_rsrc)
+              __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
+            else if (_M_is_same_alloc_rsrc(__x_rsrc.get(), __alloc))
               __x._M_manager(_M_functor,
                              _Functor_and_alloc(__x._M_functor,
                                          std::move(__x_rsrc))._M_as_any_data(),
