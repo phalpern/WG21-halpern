@@ -1604,41 +1604,14 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       return __rsrca_p == __rsrcb_p || *__rsrca_p == *__rsrcb_p;
     }
 
+  template<typename _Signature>
+    class function;
+
   typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
 
   struct _Noop_alloc_rsrc_deleter {
     void operator()(polyalloc::allocator_resource*) { }
   };
-
-  template <typename __A>
-  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(const __A& __alloc)
-  {
-    return std::allocate_shared<POLYALLOC_RESOURCE_ADAPTOR(__A) >(__alloc,
-                                                                  __alloc);
-  }
-
-  template <typename __T>
-  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
-    const polyalloc::polymorphic_allocator<__T>& __alloc)
-    {
-      return _Shared_alloc_rsrc_ptr(__alloc.resource(),
-                                    _Noop_alloc_rsrc_deleter());
-    }
-
-  template <typename _Rsrc>
-  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Rsrc* __p)
-    {
-      // Compiler failure if __Rsrc is not derived from allocator_resource
-      return _Shared_alloc_rsrc_ptr(__p, _Noop_alloc_rsrc_deleter());
-    }
-
-  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Shared_alloc_rsrc_ptr __p)
-    {
-      return __p;
-    }
-
-  template<typename _Signature>
-    class function;
 
   /// Base class of all polymorphic function object wrappers.
   class _Function_base
@@ -2065,6 +2038,38 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     _Any_data     _M_functor;
     _Manager_type _M_manager;
   };
+
+  template <typename __A>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(const __A& __alloc)
+  {
+    return std::allocate_shared<POLYALLOC_RESOURCE_ADAPTOR(__A) >(__alloc,
+                                                                  __alloc);
+  }
+
+  template <typename __T>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
+    const polyalloc::polymorphic_allocator<__T>& __alloc)
+    {
+      if (__alloc.resource() ==
+          polyalloc::allocator_resource::default_resource())
+        return _Function_base::_M_default_alloc_rsrc();
+      else
+        return _Shared_alloc_rsrc_ptr(__alloc.resource(),
+                                      _Noop_alloc_rsrc_deleter(), __alloc);
+    }
+
+  template <typename _Rsrc>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Rsrc* __p)
+    {
+      // Compiler failure if __Rsrc is not derived from allocator_resource
+      XSTD::polyalloc::polymorphic_allocator<char> __a(__p);
+      return _M_make_shared_alloc(__a);
+    }
+
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Shared_alloc_rsrc_ptr __p)
+    {
+      return __p;
+    }
 
   template<typename _Signature, typename _Functor, bool __uses_custom_alloc>
     class _Function_handler;
@@ -2630,13 +2635,21 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           if (__x._M_manager)
           {
             _Any_data __out_param;
+            polyalloc::allocator_resource *const __dflt_rsrc =
+              polyalloc::allocator_resource::default_resource();
 
             // Get a variant of __x._M_manager that uses an allocator.
             // Note that __get_manager_with_alloc is a new op, so we must set a
             // default value in case it is a no-op for __x.
             __out_param._M_access<_Manager_type>() = nullptr;
-            __x._M_manager(__out_param, __out_param,
-                           __get_manager_with_alloc);
+            if (_M_is_same_alloc_rsrc(__dflt_rsrc, __alloc))
+              // Default allocator
+              __x._M_manager(__out_param, __out_param,
+                             __get_manager_without_alloc);
+            else
+              // Non-default allocator
+              __x._M_manager(__out_param, __out_param,
+                             __get_manager_with_alloc);
             _M_manager = __out_param._M_access<_Manager_type>();
             if (! _M_manager)
             {
@@ -2786,16 +2799,40 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 		 typename enable_if<
                    !is_integral<_Functor>::value, _Useless>::type)
       {
-	typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
-          _My_handler;
+        polyalloc::allocator_resource *const __dflt_rsrc =
+          polyalloc::allocator_resource::default_resource();
 
-	if (_My_handler::_M_not_empty_function(__f))
-	  {
+        if (_M_is_same_alloc_rsrc(__dflt_rsrc, __alloc))
+        {
+          typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
+            _My_handler;
+
+          // Default allocator
+          if (_My_handler::_M_not_empty_function(__f))
+          {
+	    _M_invoker = &_My_handler::_M_invoke;
+	    _M_manager = &_My_handler::_M_manager;
+            _Shared_alloc_rsrc_ptr dfltAllocRsrcPtr = _M_default_alloc_rsrc();
+	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
+                                         std::move(dfltAllocRsrcPtr));
+	  }
+        }
+        else
+        {
+          // Non-default allocator
+          typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
+            _My_handler;
+
+          if (_My_handler::_M_not_empty_function(__f))
+          {
 	    _M_invoker = &_My_handler::_M_invoke;
 	    _M_manager = &_My_handler::_M_manager;
 	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
                                          _M_make_shared_alloc(__alloc));
 	  }
+          else
+            _M_make_empty(__alloc);
+        }
       }
 
   template<typename _Res, typename... _ArgTypes>
