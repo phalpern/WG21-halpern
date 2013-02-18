@@ -223,9 +223,9 @@ bool TestResource::is_equal(const allocator_resource& other) const
     return this == &other;
 }
 
-TestResource dfltTestRsrc;
+TestResource dfltTstRsrc;
 AllocCounters& globalCounters =
-    const_cast<AllocCounters&>(dfltTestRsrc.counters());
+    const_cast<AllocCounters&>(dfltTstRsrc.counters());
 
 template <typename Tp>
 class SimpleAllocator
@@ -428,7 +428,7 @@ void testFunction(const A& alloc, int expRet,
     SimpleAllocator<char>  sAlloc(&sAllocCounters);
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
 
-#define COPY_CTOR_TEST(cArgs, cAlloc, nso, cIsDefaultAlloc) do {              \
+#define COPY_CTOR_TEST(cArgs, cAlloc, cIsDefaultAlloc) do {                   \
             if (veryVerbose)                                                  \
                 std::cout << "        copy function" #cArgs << std::endl;     \
             int expCopyBlocks = calcBlocks(expRawBlocks, static_cast<bool>(f),\
@@ -439,21 +439,20 @@ void testFunction(const A& alloc, int expRet,
     {
     Obj f(std::forward<CtorArgs>(ctorArgs)...);
 
-    // NSO = No Small Object optimization
     // DA  = Default allocator
     //
-    //             Copy ctor args                 Allocator     NSO DA
-    //             =============================  ============= === ==
-    COPY_CTOR_TEST((f)                          , &dfltTestRsrc,  0, 1);
-    COPY_CTOR_TEST((allocator_arg, sAlloc, f)   , sAlloc       ,  1, 0);
-    COPY_CTOR_TEST((allocator_arg, &testRsrc, f), &testRsrc    ,  1, 0);
-    COPY_CTOR_TEST((allocator_arg, polyAlloc, f), polyAlloc    ,  1, 0);
+    //             Copy ctor args                 Allocator     DA
+    //             =============================  ============ ==
+    COPY_CTOR_TEST((f)                          , &dfltTstRsrc, 1);
+    COPY_CTOR_TEST((allocator_arg, sAlloc, f)   , sAlloc      , 0);
+    COPY_CTOR_TEST((allocator_arg, &testRsrc, f), &testRsrc   , 0);
+    COPY_CTOR_TEST((allocator_arg, polyAlloc, f), polyAlloc   , 0);
     }
 #undef COPY_CTOR_TEST
 
 #define MF std::move(f)
 
-#define MOVE_CTOR_TEST(mArgs, mAlloc, mNoSmallObjOpt, mIsDefaultAlloc) do {   \
+#define MOVE_CTOR_TEST(mArgs, mAlloc, mIsDefaultAlloc) do {                   \
             if (veryVerbose)                                                  \
                 std::cout << "        move function" #mArgs << std::endl;     \
             Obj f(std::forward<CtorArgs>(ctorArgs)...);                       \
@@ -471,17 +470,16 @@ void testFunction(const A& alloc, int expRet,
 
 #define FRSRC (f.get_allocator_resource())
 
-    // NSO = No Small Object optimization
     // DA  = Default allocator
     //
-    //             Copy ctor args                  Allocator      NSO DA
-    //             ==============================  =============  === ==
-    MOVE_CTOR_TEST((MF)                          , FRSRC        ,  0,  1);
-    MOVE_CTOR_TEST((allocator_arg, sAlloc, MF)   , sAlloc       ,  1,  0);
-    MOVE_CTOR_TEST((allocator_arg, &testRsrc, MF), &testRsrc    ,  1,  0);
-    MOVE_CTOR_TEST((allocator_arg, polyAlloc, MF), polyAlloc    ,  1,  0);
-    MOVE_CTOR_TEST((allocator_arg, FRSRC, MF)    , FRSRC        ,  0,  0);
-    MOVE_CTOR_TEST((allocator_arg, alloc, MF)    , FRSRC        ,  0,  0);
+    //             Copy ctor args                  Allocator      DA
+    //             ==============================  =============  ==
+    MOVE_CTOR_TEST((MF)                          , FRSRC        ,  1);
+    MOVE_CTOR_TEST((allocator_arg, sAlloc, MF)   , sAlloc       ,  0);
+    MOVE_CTOR_TEST((allocator_arg, &testRsrc, MF), &testRsrc    ,  0);
+    MOVE_CTOR_TEST((allocator_arg, polyAlloc, MF), polyAlloc    ,  0);
+    MOVE_CTOR_TEST((allocator_arg, FRSRC, MF)    , FRSRC        ,  0);
+    MOVE_CTOR_TEST((allocator_arg, alloc, MF)    , FRSRC        ,  0);
 
 #undef MOVE_CTOR_TEST
 
@@ -519,10 +517,11 @@ int main(int argc, char *argv[])
     typedef int Sig(const char*);
     typedef XSTD::function<Sig> Obj;
 
-    XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTestRsrc);
+    XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTstRsrc);
 
     TestResource testRsrc;
     POLYALLOC<char> polyAlloc(&testRsrc);
+    POLYALLOC<char> dfltPolyAlloc(&dfltTstRsrc);
     AllocCounters sAllocCounters;
     SimpleAllocator<char>  sAlloc(&sAllocCounters);
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
@@ -533,6 +532,9 @@ int main(int argc, char *argv[])
     // Stateful functor that uses an allocator
     TestResource tmpRsrc;  // Ignore this allocator resource
     Functor functor(1, &tmpRsrc);
+
+    // Null function pointer
+    int (*const nullFuncPtr)(const char*) = nullptr;
 
     switch (test) {
       case 0: // Do all cases for test-case 0
@@ -556,10 +558,10 @@ int main(int argc, char *argv[])
         {
             XSTD::function<int(const char*)> f([](const char* s) {
                     return std::atoi(s); });
-            ASSERT(&dfltTestRsrc == f.get_allocator_resource());
+            ASSERT(&dfltTstRsrc == f.get_allocator_resource());
             ASSERT(5 == f("5"));
         }
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        ASSERT(0 == dfltTstRsrc.counters().blocks_outstanding());
 
         if (verbose)
             std::cout << "    construct with SimplAllocator" << std::endl;
@@ -571,11 +573,11 @@ int main(int argc, char *argv[])
             // 2 blocks allocated, 1 for a copy of the functor, 1 for a copy
             // of the allocator:
             ASSERT(2 == sAllocCounters.blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+            ASSERT(0 == dfltTstRsrc.counters().blocks_outstanding());
             ASSERT(6 == f("6"));
         }
         ASSERT(0 == sAllocCounters.blocks_outstanding());
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+        ASSERT(0 == dfltTstRsrc.counters().blocks_outstanding());
 
         if (verbose)
             std::cout << "    construct with allocator resource" << std::endl;
@@ -585,7 +587,7 @@ int main(int argc, char *argv[])
                                                    return std::atoi(s); });
             ASSERT(&testRsrc == f.get_allocator_resource());
             ASSERT(2 == testRsrc.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
+            ASSERT(0 == dfltTstRsrc.counters().blocks_outstanding());
             ASSERT(7 == f("7"));
         }
 
@@ -601,17 +603,18 @@ int main(int argc, char *argv[])
 
 #define TEST(ctorArgs, expRet, expAlloc) do {                                \
         if (verbose) std::cout << "    function" #ctorArgs << std::endl;     \
-        testFunction<Sig>(&dfltTestRsrc, expRet, expAlloc, true,             \
+        testFunction<Sig>(&dfltTstRsrc, expRet, expAlloc, true,             \
                           UNPAREN ctorArgs);                                 \
     } while (false)
 
         //   Ctor args     Ret blocks
-        //   ============  === ======
-        TEST((NO_ARGS)   ,  0, 0     );
-        TEST((nullptr)   ,  0, 0     );
-        TEST((&std::atoi), 74, 0     );
-        TEST((lambda)    , 74, 1     );
-        TEST((functor)   , 75, 2     );
+        //   =============  === ======
+        TEST((NO_ARGS)    ,  0, 0     );
+        TEST((nullptr)    ,  0, 0     );
+        TEST((nullFuncPtr),  0, 0     );
+        TEST((&std::atoi) , 74, 0     );
+        TEST((lambda)     , 74, 1     );
+        TEST((functor)    , 75, 2     );
 
 #undef TEST
 
@@ -637,12 +640,13 @@ int main(int argc, char *argv[])
         //                                             Raw   
         //   Ctor args                            Ret Blocks 
         //   ===================================  === ====== 
-        TEST((allocator_arg, sAlloc)            ,  0, 0    );
+        TEST((allocator_arg, sAlloc)             ,  0, 0    );
         // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, &testRsrc, nullptr),  0, 0    );
-        TEST((allocator_arg, sAlloc, &std::atoi), 74, 0    );
-        TEST((allocator_arg, sAlloc, lambda)    , 74, 1    );
-        TEST((allocator_arg, sAlloc, functor)   , 75, 2    );
+        // TEST((allocator_arg, sAlloc, nullptr) ,  0, 0    );
+        TEST((allocator_arg, sAlloc, nullFuncPtr),  0, 0    );
+        TEST((allocator_arg, sAlloc, &std::atoi) , 74, 0    );
+        TEST((allocator_arg, sAlloc, lambda)     , 74, 1    );
+        TEST((allocator_arg, sAlloc, functor)    , 75, 2    );
 
 #undef TEST
 
@@ -659,27 +663,30 @@ int main(int argc, char *argv[])
 #define TEST(ctorArgs, rsrc, expRet, expRawBlocks) do {                      \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
             testFunction<Sig>(&(rsrc), expRet, expRawBlocks,                 \
-                              (&dfltTestRsrc == &(rsrc)), UNPAREN ctorArgs); \
+                              (&dfltTstRsrc == &(rsrc)), UNPAREN ctorArgs);  \
         } while (false)
 
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //                                                                 Raw
-        //   Ctor args                                   Resource     Ret Blocks
-        //   ==========================================  ============ === =====
-        TEST((allocator_arg, &dfltTestRsrc)            , dfltTestRsrc,  0, 0 );
+        //                                                                Raw
+        //   Ctor args                                   Resource    Ret Blocks
+        //   ==========================================  =========== === ======
+        TEST((allocator_arg, &dfltTstRsrc)             , dfltTstRsrc,  0, 0 );
         // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, &dfltTestRsrc, nullptr), dfltTestRsrc,  0, 0 );
-        TEST((allocator_arg, &dfltTestRsrc, &std::atoi), dfltTestRsrc, 74, 0 );
-        TEST((allocator_arg, &dfltTestRsrc, lambda)    , dfltTestRsrc, 74, 1 );
-        TEST((allocator_arg, &dfltTestRsrc, functor)   , dfltTestRsrc, 75, 2 );
-        TEST((allocator_arg, &testRsrc)                , testRsrc    ,  0, 0 );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, &testRsrc, nullptr)    , testRsrc    ,  0, 0 );
-        TEST((allocator_arg, &testRsrc, &std::atoi)    , testRsrc    , 74, 0 );
-        TEST((allocator_arg, &testRsrc, lambda)        , testRsrc    , 74, 1 );
-        TEST((allocator_arg, &testRsrc, functor)       , testRsrc    , 75, 2 );
+        // TEST((allocator_arg, &dfltTstRsrc, nullptr) , dfltTstRsrc,  0, 0 );
+        TEST((allocator_arg, &dfltTstRsrc, nullFuncPtr), dfltTstRsrc,  0, 0 );
+        TEST((allocator_arg, &dfltTstRsrc, &std::atoi) , dfltTstRsrc, 74, 0 );
+        TEST((allocator_arg, &dfltTstRsrc, lambda)     , dfltTstRsrc, 74, 1 );
+        TEST((allocator_arg, &dfltTstRsrc, functor)    , dfltTstRsrc, 75, 2 );
+
+        TEST((allocator_arg, &testRsrc)                , testRsrc   ,  0, 0 );
+        // g++ 4.6.3 internal error if use nullptr           
+        // TEST((allocator_arg, &testRsrc, nullptr)    , testRsrc   ,  0, 0 );
+        TEST((allocator_arg, &testRsrc, nullFuncPtr)   , testRsrc   ,  0, 0 );
+        TEST((allocator_arg, &testRsrc, &std::atoi)    , testRsrc   , 74, 0 );
+        TEST((allocator_arg, &testRsrc, lambda)        , testRsrc   , 74, 1 );
+        TEST((allocator_arg, &testRsrc, functor)       , testRsrc   , 75, 2 );
 
 #undef TEST
 
@@ -702,15 +709,16 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //                                                Raw
-        //   Ctor args                               Ret Blocks
-        //   ======================================  === ======
-        TEST((allocator_arg, polyAlloc)            ,  0, 0    );
+        //                                                 Raw
+        //   Ctor args                                Ret Blocks
+        //   =======================================  === ======
+        TEST((allocator_arg, polyAlloc)             ,  0, 0    );
         // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, polyAlloc, nullptr),  0, 0    );
-        TEST((allocator_arg, polyAlloc, &std::atoi), 74, 0    );
-        TEST((allocator_arg, polyAlloc, lambda)    , 74, 1    );
-        TEST((allocator_arg, polyAlloc, functor)   , 75, 2    );
+        // TEST((allocator_arg, polyAlloc, nullptr) ,  0, 0    );
+        TEST((allocator_arg, polyAlloc, nullFuncPtr),  0, 0    );
+        TEST((allocator_arg, polyAlloc, &std::atoi) , 74, 0    );
+        TEST((allocator_arg, polyAlloc, lambda)     , 74, 1    );
+        TEST((allocator_arg, polyAlloc, functor)    , 75, 2    );
 
 #undef TEST
 
