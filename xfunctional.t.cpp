@@ -98,6 +98,8 @@ void aSsErT(int c, const char *s, int i) {
 
 enum { VERBOSE_ARG_NUM = 2, VERY_VERBOSE_ARG_NUM, VERY_VERY_VERBOSE_ARG_NUM };
 
+#define UNPAREN(...) __VA_ARGS__
+
 //=============================================================================
 //                  CLASSES FOR TESTING USAGE EXAMPLES
 //-----------------------------------------------------------------------------
@@ -169,6 +171,15 @@ class AllocCounters
 	m_bytes_allocated = 0;
 	m_bytes_deallocated = 0;
     }
+
+    // // Merge 'other' into '*this' and clear 'other'.
+    // void merge(AllocCounters& other) {
+    //     m_num_allocs        += other.m_num_allocs;
+    //     m_num_deallocs      += other.m_num_deallocs;
+    //     m_bytes_allocated   += other.m_bytes_allocated;
+    //     m_bytes_deallocated += other.m_bytes_deallocated;
+    //     other.clear();
+    // }
 };
 
 class TestResource : public XSTD::polyalloc::allocator_resource
@@ -340,32 +351,76 @@ getCounters(const XSTD::polyalloc::polymorphic_allocator<T>& alloc)
     return getCounters(alloc.resource());
 }
 
+// Compute the expected block count given the allocation requirements for the
+// functor, 'rawCount' as well as flags indicating whether the function is
+// invocable (i.e., not empty/null), whether the small-object optimization is
+// disabled, and whether a type-erased allocator is involved.
+int calcBlocks(int rawCount,
+               bool isInvocable, bool noSmallObjOpt, bool typeErasedAlloc)
+{
+    // Disabling the small-object optimization on an invocable function makes
+    // the block count at least one.
+    if (isInvocable && noSmallObjOpt)
+        rawCount = std::max(rawCount, 1);
+
+    // A type-erased allocator must be stored in an allocated block of
+    // storage, increasing the block count by one.
+    if (typeErasedAlloc)
+        ++rawCount;
+
+    return rawCount;
+}
+
 #define POLYALLOC XSTD::polyalloc::polymorphic_allocator
 
-template <class F, class A>
-void testFunction(XSTD::function<F>& f, const A& alloc, int expRet,
-                  int expBlocks)
-{
-    const AllocCounters *const expCounters = getCounters(alloc);
-    ASSERT(expCounters == getCounters(f.get_allocator_resource()));
-    ASSERT(expBlocks == expCounters->blocks_outstanding());
-    if (expCounters != &globalCounters)
-        ASSERT(0 == globalCounters.blocks_outstanding());
-    if (expRet)
-    {
-        ASSERT(f);
-        ASSERT(expRet == f("74"));
-    }
-    // TBD: This test fails for empty functions with allocators
-    // else
-    //     ASSERT(! f);
-}    
-
-template <class F>
-void
-testCopyAndMove(XSTD::function<F>& f, int expRet, int expRaw, int expAlloc)
+template <class F, class A, class... CtorArgs>
+void testCtor(const A& alloc, int expRet,
+              int expAllocBlocks, int expDeallocBlocks,
+              CtorArgs&&... ctorArgs)
 {
     typedef XSTD::function<F> Obj;
+
+    const AllocCounters *const counters = getCounters(alloc);
+    const int initialGlobalBlocks = globalCounters.blocks_outstanding();
+    int expBlocks = counters->blocks_outstanding();
+
+    {
+        Obj f(std::forward<CtorArgs>(ctorArgs)...);
+
+        expBlocks += expAllocBlocks;
+        ASSERT(getCounters(f.get_allocator_resource()) == counters);
+        ASSERT(counters->blocks_outstanding() == expBlocks);
+        if (counters != &globalCounters)
+            ASSERT(globalCounters.blocks_outstanding() == initialGlobalBlocks);
+        if (expRet)
+        {
+            ASSERT(f);
+            ASSERT(expRet == f("74"));
+        }
+        else
+        {
+            ASSERT(! f);
+            ASSERT(! static_cast<bool>(f));
+        }
+    }
+    expBlocks -= expDeallocBlocks;
+    ASSERT(counters->blocks_outstanding() == expBlocks);
+    if (counters != &globalCounters)
+        ASSERT(globalCounters.blocks_outstanding() == initialGlobalBlocks);
+}    
+
+template <class F, class A, class... CtorArgs>
+void testFunction(const A& alloc, int expRet,
+                  int expRawBlocks, bool noSmallObjOpt, bool typeErasedAlloc,
+                  CtorArgs&&... ctorArgs)
+{
+    typedef XSTD::function<F> Obj;
+
+    int expObjBlocks = calcBlocks(expRawBlocks, expRet, noSmallObjOpt,
+                                  typeErasedAlloc);
+
+    testCtor<F>(alloc, expRet, expObjBlocks, expObjBlocks,
+                std::forward<CtorArgs>(ctorArgs)...);
 
     TestResource testRsrc;
     POLYALLOC<char> polyAlloc(&testRsrc);
@@ -373,28 +428,77 @@ testCopyAndMove(XSTD::function<F>& f, int expRet, int expRaw, int expAlloc)
     SimpleAllocator<char>  sAlloc(&sAllocCounters);
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) sAllocAdaptor(sAlloc);
 
-#define COPY_TEST(ctorArgs, alloc, ignore) do {                               \
-        if (veryVerbose)                                                      \
-            std::cout << "        copy function" #ctorArgs << std::endl;      \
-        const AllocCounters* const counters = getCounters(alloc);             \
-        int expCount = expRaw;                                                \
-        if (counters != &globalCounters) {                                    \
-            ++expCount;                                                       \
-            if (0 == expRaw) ++expCount;                                      \
-        }                                                                     \
-        int startBlocks = counters->blocks_outstanding();                     \
-        {                                                                     \
-            Obj f2 ctorArgs;                                                  \
-            testFunction(f2, (alloc), (expRet), startBlocks + expCount);      \
-        }                                                                     \
-        ASSERT(startBlocks == counters->blocks_outstanding());                \
-    } while (false)
+#define COPY_CTOR_TEST(cArgs, cAlloc, cNoSmallObjOpt, cTypeErasedAlloc) do {  \
+            if (veryVerbose)                                                  \
+                std::cout << "        copy function" #cArgs << std::endl;     \
+            int expCopyBlocks = calcBlocks(expRawBlocks, static_cast<bool>(f),\
+                                           cNoSmallObjOpt, cTypeErasedAlloc); \
+            testCtor<F>(cAlloc, expRet, expCopyBlocks, expCopyBlocks,         \
+                        UNPAREN cArgs);                                       \
+        } while (false)
+    {
+    Obj f(std::forward<CtorArgs>(ctorArgs)...);
 
-    COPY_TEST((f)                          , &dfltTestRsrc, expRaw);
-    COPY_TEST((allocator_arg, sAlloc, f)   , sAlloc       , expRaw);
-    COPY_TEST((allocator_arg, &testRsrc, f), &testRsrc    , expAlloc);
-    COPY_TEST((allocator_arg, polyAlloc, f), polyAlloc    , expAlloc);
+    // NSO = No Small Object optimization
+    // TEA = Type-Erased Allocator
+    //
+    //             Copy ctor args                 Allocator     NSO TEA
+    //             =============================  ============= === ===
+    COPY_CTOR_TEST((f)                          , &dfltTestRsrc,  0,  0);
+    COPY_CTOR_TEST((allocator_arg, sAlloc, f)   , sAlloc       ,  1,  1);
+    COPY_CTOR_TEST((allocator_arg, &testRsrc, f), &testRsrc    ,  1,  0);
+    COPY_CTOR_TEST((allocator_arg, polyAlloc, f), polyAlloc    ,  1,  0);
+    }
+#undef COPY_CTOR_TEST
+
+#define MF std::move(f)
+
+#define MOVE_CTOR_TEST(mArgs, mAlloc, mNoSmallObjOpt, mTypeErasedAlloc) do {  \
+            if (veryVerbose)                                                  \
+                std::cout << "        move function" #mArgs << std::endl;     \
+            Obj f(std::forward<CtorArgs>(ctorArgs)...);                       \
+            int expAllocBlocks, expDeallocBlocks;                             \
+            if (getCounters(alloc) == getCounters(mAlloc)) {                  \
+                expAllocBlocks = 0;                                           \
+                expDeallocBlocks = expObjBlocks - (typeErasedAlloc ? 1 : 0);  \
+            } else                                                            \
+                expAllocBlocks = expDeallocBlocks =                           \
+                    calcBlocks(expRawBlocks, static_cast<bool>(f),            \
+                               mNoSmallObjOpt, mTypeErasedAlloc);             \
+            testCtor<F>(mAlloc, expRet, expAllocBlocks, expDeallocBlocks,     \
+                            UNPAREN mArgs);                                   \
+        } while (false)
+
+#define FRSRC (f.get_allocator_resource())
+
+    // NSO = No Small Object optimization
+    // TEA = Type-Erased Allocator
+    //
+    //             Copy ctor args                  Allocator      NSO TEA
+    //             ==============================  =============  === ===
+    MOVE_CTOR_TEST((MF)                          , FRSRC        ,  0,  0);
+    MOVE_CTOR_TEST((allocator_arg, sAlloc, MF)   , sAlloc       ,  1,  1);
+    MOVE_CTOR_TEST((allocator_arg, &testRsrc, MF), &testRsrc    ,  1,  0);
+    MOVE_CTOR_TEST((allocator_arg, polyAlloc, MF), polyAlloc    ,  1,  0);
+    MOVE_CTOR_TEST((allocator_arg, FRSRC, MF)    , FRSRC        ,  0,  0);
+    MOVE_CTOR_TEST((allocator_arg, alloc, MF)    , FRSRC        ,  0,  0);
+
+#undef MOVE_CTOR_TEST
+
 }
+
+enum no_args_t { NO_ARGS };
+
+// Special case of no constructor arguments
+template <class F, class A, class... CtorArgs>
+inline
+void testFunction(const A& alloc, int expRet, int expRawBlocks,
+                  bool noSmallObjOpt, bool typeErasedAlloc, no_args_t)
+{
+    testFunction<F>(alloc, expRet, expRawBlocks,
+                    noSmallObjOpt, typeErasedAlloc);
+}
+
 
 //=============================================================================
 //                              MAIN PROGRAM
@@ -407,15 +511,14 @@ int main(int argc, char *argv[])
     veryVerbose = argc > 3;
     // veryVeryVerbose = argc > 4;
 
-//     int verbose = argc > 2;
-//     int veryVerbose = argc > 3;
-//     int veryVeryVerbose = argc > 4;
-
     std::cout << "TEST " << __FILE__;
     if (test != 0)
         std::cout << " CASE " << test << std::endl;
     else
         std::cout << " all cases" << std::endl;
+
+    typedef int Sig(const char*);
+    typedef XSTD::function<Sig> Obj;
 
     XSTD::polyalloc::allocator_resource::set_default_resource(&dfltTestRsrc);
 
@@ -497,22 +600,15 @@ int main(int argc, char *argv[])
         std::cout << "\nNO ALLOCATOR"
                   << "\n============" << std::endl;
 
-        typedef XSTD::function<int(const char*)> Obj;
-
 #define TEST(ctorArgs, expRet, expAlloc) do {                                \
-            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            {                                                                \
-                Obj f ctorArgs;                                              \
-                testFunction(f, &dfltTestRsrc, expRet, expAlloc);            \
-                testCopyAndMove(f, expRet, expAlloc, expAlloc);              \
-            }                                                                \
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
-            dfltTestRsrc.clear();                                            \
-        } while (false)
+        if (verbose) std::cout << "    function" #ctorArgs << std::endl;     \
+        testFunction<Sig>(&dfltTestRsrc, expRet, expAlloc, false, false,     \
+                          UNPAREN ctorArgs);                                 \
+    } while (false)
 
         //   Ctor args     Ret blocks
         //   ============  === ======
-        TEST(            ,  0, 0     );
+        TEST((NO_ARGS)   ,  0, 0     );
         TEST((nullptr)   ,  0, 0     );
         TEST((&std::atoi), 74, 0     );
         TEST((lambda)    , 74, 1     );
@@ -530,34 +626,24 @@ int main(int argc, char *argv[])
         std::cout << "\nTYPE-ERASED ALLOCATOR"
                   << "\n=====================" << std::endl;
 
-        typedef XSTD::function<int(const char*)> Obj;
-
-#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
+#define TEST(ctorArgs, expRet, expRawBlocks) do {                            \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            {                                                                \
-                Obj f ctorArgs;                                              \
-                testFunction(f, sAlloc, expRet, expAlloc);                   \
-                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
-            }                                                                \
-            ASSERT(0 == sAllocCounters.blocks_outstanding());                \
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
-            sAllocCounters.clear();                                          \
-            dfltTestRsrc.clear();                                            \
+            testFunction<Sig>(sAlloc, expRet, expRawBlocks, true, true,      \
+                              UNPAREN ctorArgs);                             \
         } while (false)
 
         // Always allocate one block for functor and one block for type-erased
         // allocator.
 
-        //                                             Raw   Alloc
-        //   Ctor args                            Ret Blocks Blocks
-        //   ===================================  === ====== ======
-        TEST((allocator_arg, sAlloc)            ,  0, 0    , 2     );
-        // g++ 4.6.3 internal error if use nullptr           
-        // TEST((allocator_arg, sAlloc, nullptr),  0, 0    , 2     );
-        TEST((allocator_arg, sAlloc, 0)         ,  0, 0    , 2     );
-        TEST((allocator_arg, sAlloc, &std::atoi), 74, 0    , 2     );
-        TEST((allocator_arg, sAlloc, lambda)    , 74, 1    , 2     );
-        TEST((allocator_arg, sAlloc, functor)   , 75, 2    , 3     );
+        //                                             Raw   
+        //   Ctor args                            Ret Blocks 
+        //   ===================================  === ====== 
+        TEST((allocator_arg, sAlloc)            ,  0, 0    );
+        // g++ 4.6.3 internal error if use nullptr            
+        // TEST((allocator_arg, &testRsrc, nullptr),  0, 0    );
+        TEST((allocator_arg, sAlloc, &std::atoi), 74, 0    );
+        TEST((allocator_arg, sAlloc, lambda)    , 74, 1    );
+        TEST((allocator_arg, sAlloc, functor)   , 75, 2    );
 
 #undef TEST
 
@@ -571,34 +657,24 @@ int main(int argc, char *argv[])
         std::cout << "\nALLOCATOR_RESOURCE"
                   << "\n==================" << std::endl;
 
-        typedef XSTD::function<int(const char*)> Obj;
-
-#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
+#define TEST(ctorArgs, expRet, expRawBlocks) do {                            \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            {                                                                \
-                Obj f ctorArgs;                                              \
-                testFunction(f, &testRsrc, expRet, expAlloc);                \
-                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
-            }                                                                \
-            ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
-            testRsrc.clear();                                                \
-            dfltTestRsrc.clear();                                            \
+            testFunction<Sig>(&testRsrc, expRet, expRawBlocks, true, false,  \
+                              UNPAREN ctorArgs);                             \
         } while (false)
 
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //                                                Raw   Alloc
-        //   Ctor args                               Ret Blocks Blocks
-        //   ======================================  === ====== ======
-        TEST((allocator_arg, &testRsrc)            ,  0, 0    , 1     );
-        // g++ 4.6.3 internal error if use nullptr              
-        // TEST((allocator_arg, &testRsrc, nullptr),  0, 0    , 1     );
-        TEST((allocator_arg, &testRsrc, 0)         ,  0, 0    , 1     );
-        TEST((allocator_arg, &testRsrc, &std::atoi), 74, 0    , 1     );
-        TEST((allocator_arg, &testRsrc, lambda)    , 74, 1    , 1     );
-        TEST((allocator_arg, &testRsrc, functor)   , 75, 2    , 2     );
+        //                                                Raw
+        //   Ctor args                               Ret Blocks
+        //   ======================================  === ======
+        TEST((allocator_arg, &testRsrc)            ,  0, 0    );
+        // g++ 4.6.3 internal error if use nullptr            
+        // TEST((allocator_arg, &testRsrc, nullptr),  0, 0    );
+        TEST((allocator_arg, &testRsrc, &std::atoi), 74, 0    );
+        TEST((allocator_arg, &testRsrc, lambda)    , 74, 1    );
+        TEST((allocator_arg, &testRsrc, functor)   , 75, 2    );
 
 #undef TEST
 
@@ -612,106 +688,26 @@ int main(int argc, char *argv[])
         std::cout << "\nPOLYMORPHIC_ALLOCATOR"
                   << "\n=====================" << std::endl;
 
-        typedef XSTD::function<int(const char*)> Obj;
-
-#define TEST(ctorArgs, expRet, expRaw, expAlloc) do {                        \
+#define TEST(ctorArgs, expRet, expRawBlocks) do {                            \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            {                                                                \
-                Obj f ctorArgs;                                              \
-                testFunction(f, polyAlloc, expRet, expAlloc);                \
-                testCopyAndMove(f, expRet, expRaw, expAlloc);                \
-            }                                                                \
-            ASSERT(0 == testRsrc.counters().blocks_outstanding());           \
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());       \
-            testRsrc.clear();                                                \
-            dfltTestRsrc.clear();                                            \
+            testFunction<Sig>(polyAlloc, expRet, expRawBlocks, true, false,  \
+                              UNPAREN ctorArgs);                             \
         } while (false)
 
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //                                                Raw   Alloc
-        //   Ctor args                               Ret Blocks Blocks
-        //   ======================================  === ====== ======
-        TEST((allocator_arg, polyAlloc)            ,  0, 0    , 1     );
-        // g++ 4.6.3 internal error if use nullptr              
-        // TEST((allocator_arg, polyAlloc, nullptr),  0, 0    , 1     );
-        TEST((allocator_arg, polyAlloc, 0)         ,  0, 0    , 1     );
-        TEST((allocator_arg, polyAlloc, &std::atoi), 74, 0    , 1     );
-        TEST((allocator_arg, polyAlloc, lambda)    , 74, 1    , 1     );
-        TEST((allocator_arg, polyAlloc, functor)   , 75, 2    , 2     );
+        //                                                Raw
+        //   Ctor args                               Ret Blocks
+        //   ======================================  === ======
+        TEST((allocator_arg, polyAlloc)            ,  0, 0    );
+        // g++ 4.6.3 internal error if use nullptr            
+        // TEST((allocator_arg, polyAlloc, nullptr),  0, 0    );
+        TEST((allocator_arg, polyAlloc, &std::atoi), 74, 0    );
+        TEST((allocator_arg, polyAlloc, lambda)    , 74, 1    );
+        TEST((allocator_arg, polyAlloc, functor)   , 75, 2    );
 
 #undef TEST
-
-      } if (test != 0) break;
-
-      case 6: {
-        // --------------------------------------------------------------------
-        // COPY CONSTRUCTION (incomplete)
-        // --------------------------------------------------------------------
-          
-        std::cout << "\nCOPY CONSTRUCTION"
-                  << "\n=================" << std::endl;
-
-        {
-            TestResource testRsrc1, testRsrc2;
-            XSTD::function<int(const char*)> f1(allocator_arg, &testRsrc1,
-                                                lambda);
-            ASSERT(&testRsrc1 == f1.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(0 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(8 == f1("8"));
-
-            XSTD::polyalloc::polymorphic_allocator<char> testAlloc2(&testRsrc2);
-            XSTD::function<int(const char*)> f2(allocator_arg, &testRsrc2, f1);
-            ASSERT(&testRsrc2 == f2.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(9 == f2("9"));
-
-            XSTD::function<int(const char*)> f3(f1);
-            ASSERT(XSTD::polyalloc::allocator_resource::default_resource() ==
-                   f3.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(1 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(10 == f3("10"));
-        }
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-
-        {
-            XSTD::function<int(const char*)> f0(std::atoi);
-            ASSERT(XSTD::polyalloc::allocator_resource::default_resource() ==
-                   f0.get_allocator_resource());
-            ASSERT(0 == f0("0"));
-
-            TestResource testRsrc1, testRsrc2;
-            XSTD::function<int(const char*)> f1(allocator_arg, &testRsrc1, f0);
-            ASSERT(&testRsrc1 == f1.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(0 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(8 == f1("8"));
-
-            XSTD::polyalloc::polymorphic_allocator<char> testAlloc2(&testRsrc2);
-            XSTD::function<int(const char*)> f2(allocator_arg, &testRsrc2, f1);
-            ASSERT(&testRsrc2 == f2.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(9 == f2("9"));
-
-            XSTD::function<int(const char*)> f3(f1);
-            ASSERT(XSTD::polyalloc::allocator_resource::default_resource() ==
-                   f3.get_allocator_resource());
-            ASSERT(1 == testRsrc1.counters().blocks_outstanding());
-            ASSERT(1 == testRsrc2.counters().blocks_outstanding());
-            ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
-            ASSERT(10 == f3("10"));
-        }
-        ASSERT(0 == dfltTestRsrc.counters().blocks_outstanding());
 
       } if (test != 0) break;
 

@@ -124,6 +124,11 @@ class polymorphic_allocator
   public:
     typedef Tp value_type;
 
+    // g++-4.6.3 does not use allocator_traits in shared_ptr, so we have to
+    // provide an explicit rebind.
+    template <typename U>
+    struct rebind { typedef polymorphic_allocator<U> other; };
+
     polymorphic_allocator();
     polymorphic_allocator(allocator_resource *r);
 
