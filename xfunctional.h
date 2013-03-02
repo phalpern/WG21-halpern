@@ -57,6 +57,8 @@
 #include <type_traits>
 #include <bits/functexcept.h>
 #include <bits/functional_hash.h>
+#include <cassert>
+
 #include "polymorphic_allocator.h"
 
 BEGIN_NAMESPACE_XSTD
@@ -1577,6 +1579,8 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     { return mem_fn(__p); }
 
   // PGH Shared pointer to allocator resource
+  typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+
   template <typename __A>
   static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p,
                                     const __A& __b)
@@ -1589,25 +1593,30 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     return __adaptor_p->get_allocator() == __b;
   }
 
+  template <typename _Rsrc>
+  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p,
+                                    _Rsrc*                         __rsrcb_p)
+    {
+      return (__rsrca_p == __rsrcb_p ||
+              (__rsrca_p && __rsrcb_p && __rsrca_p->is_equal(*__rsrcb_p)));
+    }
+
   template <typename __T>
   static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
                           const polyalloc::polymorphic_allocator<__T>& __b)
     {
       polyalloc::allocator_resource *__rsrcb_p = __b.resource();
-      return __rsrca_p == __rsrcb_p || *__rsrca_p == *__rsrcb_p;
+      return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p);
     }
 
-  template <typename _Rsrc>
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p,
-                                    _Rsrc* __rsrcb_p)
+  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
+                                    const _Shared_alloc_rsrc_ptr&  __rsrcb_p)
     {
-      return __rsrca_p == __rsrcb_p || *__rsrca_p == *__rsrcb_p;
+      return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p.get());
     }
 
   template<typename _Signature>
     class function;
-
-  typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
 
   struct _Noop_alloc_rsrc_deleter {
     void operator()(polyalloc::allocator_resource*) { }
@@ -2378,7 +2387,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       function&
       operator=(const function& __x)
       {
-	function(__x).swap(*this);
+	function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
+                 __x)._M_do_swap(*this);
 	return *this;
       }
 
@@ -2396,7 +2406,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       function&
       operator=(function&& __x)
       {
-	function(std::move(__x)).swap(*this);
+	function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
+                 std::move(__x))._M_do_swap(*this);
 	return *this;
       }
 
@@ -2439,7 +2450,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 	typename enable_if<!is_integral<_Functor>::value, function&>::type
 	operator=(_Functor&& __f)
 	{
-	  function(std::forward<_Functor>(__f)).swap(*this);
+          function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
+                   std::forward<_Functor>(__f))._M_do_swap(*this);
 	  return *this;
 	}
 
@@ -2448,7 +2460,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 	typename enable_if<!is_integral<_Functor>::value, function&>::type
 	operator=(reference_wrapper<_Functor> __f)
 	{
-	  function(__f).swap(*this);
+	function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
+                 __f)._M_do_swap(*this);
 	  return *this;
 	}
 
@@ -2463,8 +2476,10 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
        */
       void swap(function& __x)
       {
-        // TBD: Assert same allocator
-        __do_swap(__x);
+        // Assert *this and __x have equal allocators
+        assert(_M_is_same_alloc_rsrc(this->get_allocator_resource(),
+                                     __x.get_allocator_resource()));
+        this->_M_do_swap(__x);
       }
 
       // [3.7.2.3] function capacity
@@ -2527,12 +2542,15 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       _Invoker_type _M_invoker;
 
       // PGH: Swap without testing for validity
-      void __do_swap(function& __x)
+      void _M_do_swap(function& __x)
       {
 	std::swap(_M_functor, __x._M_functor);
 	std::swap(_M_manager, __x._M_manager);
 	std::swap(_M_invoker, __x._M_invoker);
       }
+
+      // Special invoker for empty function that holds an allocator.
+      static _Res _M_null_invoker_with_alloc(const _Any_data&, _ArgTypes...);
 
       _Shared_alloc_rsrc_ptr
       _M_get_shared_alloc_rsrc_ptr() const
@@ -2559,9 +2577,6 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
               polyalloc::allocator_resource::default_resource(),
               _Noop_alloc_rsrc_deleter());
         }
-
-      // Special invoker for empty function that holds an allocator.
-      static _Res _M_null_invoker_with_alloc(const _Any_data&, _ArgTypes...);
 
       // Make an empty function object with an allocator shared_ptr
       void _M_make_empty(_Shared_alloc_rsrc_ptr&& __alloc);
@@ -2725,7 +2740,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     {
       // Create empty function with same allocator as __x, then swap.
       _M_make_empty(__x._M_get_shared_alloc_rsrc_ptr());
-      this->swap(__x);
+      this->_M_do_swap(__x);
     }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2789,7 +2804,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           {
             // Create an empty function with the correct allocator, then swap
             _M_make_empty(__x_rsrc);
-            __do_swap(__x);
+            _M_do_swap(__x);
           }
           else
             _M_make_copy(__alloc, __x);
