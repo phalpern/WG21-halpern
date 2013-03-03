@@ -1609,6 +1609,15 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
       return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p);
     }
 
+  template <typename __T>
+  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
+                                    const std::allocator<__T>& __b)
+    {
+      polyalloc::allocator_resource *__rsrcb_p =
+        polyalloc::new_delete_resource_singleton();
+      return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p);
+    }
+
   static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
                                     const _Shared_alloc_rsrc_ptr&  __rsrcb_p)
     {
@@ -1629,16 +1638,30 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     static const std::size_t _M_max_size = sizeof(_Nocopy_types);
     static const std::size_t _M_max_align = __alignof__(_Nocopy_types);
 
-    static const _Shared_alloc_rsrc_ptr& _M_default_alloc_rsrc()
+    // Return a shared pointer to the new/delete singleton.  Each call to this
+    // function returns the same shared pointer, so only one shared state
+    // object is created.
+    static const _Shared_alloc_rsrc_ptr& _M_new_delete_alloc_rsrc()
     {
-      // TBD: This code should change once we distinguish between the
-      // default-default resource and the current-default resource.  We cannot
-      // keep a static pointer to the current-default resource because it may
-      // change.
-      static _Shared_alloc_rsrc_ptr dfltRsrcPtr(
-        polyalloc::allocator_resource::default_resource(),
+      static _Shared_alloc_rsrc_ptr __new_del_rsrc_ptr(
+        polyalloc::new_delete_resource_singleton(),
         _Noop_alloc_rsrc_deleter());
-      return dfltRsrcPtr;
+      return __new_del_rsrc_ptr;
+    }
+
+    static _Shared_alloc_rsrc_ptr _M_default_alloc_rsrc()
+    {
+      polyalloc::allocator_resource *__rsrc =
+        polyalloc::allocator_resource::default_resource();
+
+      if (*__rsrc == *polyalloc::new_delete_resource_singleton())
+        return _M_new_delete_alloc_rsrc();
+      else
+        {
+          polyalloc::polymorphic_allocator<char> __alloc(__rsrc);
+          return _Shared_alloc_rsrc_ptr(__rsrc, _Noop_alloc_rsrc_deleter(),
+                                        __alloc);
+        }
     }
 
     // PGH Functor with allocator
@@ -1776,10 +1799,10 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
             // Function object fits locally
             new (__dest._M_access()) _Functor(__f);
           else
-            // Return result in __dest, using default allocator
+            // Return result in __dest, using new/delete allocator
             __dest._M_access<_M_functor_wrapper*>() =
               _M_make_functor_wrapper(__f, 
-                                      _Function_base::_M_default_alloc_rsrc());
+                                   _Function_base::_M_new_delete_alloc_rsrc());
 	}
 
 	// Clone a location-invariant function object that fits within
@@ -1825,14 +1848,14 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
           __victim._M_access<_M_functor_wrapper*>()->_M_delete_self();
 	}
 
-        // Return the default allocator if __uses_allocator is false
+        // Return the new/delete allocator if __uses_allocator is false
         static void
         _M_get_allocator_resource(_Any_data&       __resource,
                                   const _Any_data& __source,
                                   false_type)
         {
           __resource._M_access<const _Shared_alloc_rsrc_ptr*>() =
-            &_M_default_alloc_rsrc();
+            &_M_new_delete_alloc_rsrc();
         }
 
         // Return custom allocator if __uses_allocator is true
@@ -2055,24 +2078,25 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
                                                                   __alloc);
   }
 
-  template <typename __T>
-  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
-    const polyalloc::polymorphic_allocator<__T>& __alloc)
-    {
-      if (__alloc.resource() ==
-          polyalloc::allocator_resource::default_resource())
-        return _Function_base::_M_default_alloc_rsrc();
-      else
-        return _Shared_alloc_rsrc_ptr(__alloc.resource(),
-                                      _Noop_alloc_rsrc_deleter(), __alloc);
-    }
-
   template <typename _Rsrc>
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Rsrc* __p)
     {
       // Compiler failure if __Rsrc is not derived from allocator_resource
-      XSTD::polyalloc::polymorphic_allocator<char> __a(__p);
-      return _M_make_shared_alloc(__a);
+      if (*__p == *polyalloc::new_delete_resource_singleton())
+        return _Function_base::_M_new_delete_alloc_rsrc();
+      else
+        {
+          polyalloc::polymorphic_allocator<char> __alloc(__p);
+          return _Shared_alloc_rsrc_ptr(__p, _Noop_alloc_rsrc_deleter(),
+                                        __alloc);
+        }
+    }
+
+  template <typename __T>
+  static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(
+    const polyalloc::polymorphic_allocator<__T>& __alloc)
+    {
+      return _M_make_shared_alloc(__alloc.resource());
     }
 
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Shared_alloc_rsrc_ptr __p)
@@ -2302,13 +2326,13 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
        *  @brief Default construct creates an empty function call wrapper.
        *  @post @c !(bool)*this
        */
-      function() : _Function_base() { }
+      function() : _Function_base() { _M_make_empty(); }
 
       /**
        *  @brief Creates an empty function call wrapper.
        *  @post @c !(bool)*this
        */
-      function(nullptr_t) : _Function_base() { }
+      function(nullptr_t) : _Function_base() { _M_make_empty(); }
 
       /**
        *  @brief %Function copy constructor.
@@ -2552,28 +2576,31 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       _Shared_alloc_rsrc_ptr
       _M_get_shared_alloc_rsrc_ptr() const
         {
-          const _Shared_alloc_rsrc_ptr *ret_p = nullptr;
+          const _Shared_alloc_rsrc_ptr *__ret_p = nullptr;
+
           if (_M_manager)
           {
             // __get_allocator_rsrc_ptr returns a pointer to a shared_ptr
             _Any_data __alloc_data;
             __alloc_data._M_access<const _Shared_alloc_rsrc_ptr*>() = nullptr;
             _M_manager(__alloc_data, _M_functor, __get_allocator_rsrc_ptr);
-            ret_p = __alloc_data._M_access<const _Shared_alloc_rsrc_ptr*>();
+            __ret_p = __alloc_data._M_access<const _Shared_alloc_rsrc_ptr*>();
           }
           else if (_M_invoker == _M_null_invoker_with_alloc)
-            // shared_ptr is embedded in _M_functor.  Note that this is NOT a
-            // pointer to a shared_ptr, unlike the result of
+            // shared_ptr is embedded in _M_functor.  Note that this is NOT an
+            // indirect pointer to a shared_ptr, unlike the result of
             // __get_allocator_rsrc_ptr, above.
             return _M_functor._M_access<const _Shared_alloc_rsrc_ptr>();
 
-          if (ret_p)
-            return *ret_p;
+          if (__ret_p)
+            return *__ret_p;
           else
-            return _Shared_alloc_rsrc_ptr(
-              polyalloc::allocator_resource::default_resource(),
-              _Noop_alloc_rsrc_deleter());
+            // No stored allocator.  Return new/delete resource.
+            return _Function_base::_M_new_delete_alloc_rsrc();
         }
+
+      // Make an empty function object with the default allocator resource
+      void _M_make_empty();
 
       // Make an empty function object with an allocator shared_ptr
       void _M_make_empty(_Shared_alloc_rsrc_ptr&& __alloc);
@@ -2582,13 +2609,17 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       template <typename __A>
         void _M_make_empty(const __A& __alloc);
 
-      // Make an empty function object with the default allocator
+      // Make an empty function object with the new/delete allocator resource
       template <typename __T>
         void _M_make_empty(const std::allocator<__T>& __alloc);
 
       // Make a copy with an allocator
       template<typename __A>
         void _M_make_copy(const __A& __alloc, const function& __x);
+      
+      template<typename _Handler, typename _Functor>
+        void _M_make_from_functor(_Functor&& __f,
+                                  _Shared_alloc_rsrc_ptr __rsrc);
   };
 
   // Out-of-line member definitions.
@@ -2598,6 +2629,17 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
   {
     // assert(0);  // Should never be executed
     __throw_bad_function_call();
+  }
+
+  template<typename _Res, typename... _ArgTypes>
+  inline void
+  function<_Res(_ArgTypes...)>::_M_make_empty()
+  {
+    // Store the default allocator resource only if it is different from the
+    // new/delete allocator resource.
+    if (polyalloc::allocator_resource::default_resource() !=
+        polyalloc::new_delete_resource_singleton())
+      _M_make_empty(_Function_base::_M_default_alloc_rsrc());
   }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2614,8 +2656,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       // is not completely empty, but actually contains an allocator.
       static_assert(sizeof(_Shared_alloc_rsrc_ptr) <= sizeof(_Any_data),
                     "Cannot store a shared_ptr in _Any_data object");
-      if (__alloc.get() == polyalloc::allocator_resource::default_resource())
-        return;  // Default allocator.  Nothing to store.
+      if (__alloc.get() == polyalloc::new_delete_resource_singleton())
+        return;  // New/Delete allocator.  Nothing to store.
       new (_M_functor._M_access()) _Shared_alloc_rsrc_ptr(std::move(__alloc));
       _M_invoker = _M_null_invoker_with_alloc;
       _M_manager = nullptr;
@@ -2647,19 +2689,21 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           if (__x._M_manager)
           {
             _Any_data __out_param;
-            bool __dflt_rsrc = _M_is_same_alloc_rsrc(
-              polyalloc::allocator_resource::default_resource(), __alloc);
+            // Do not need to store an allocator if __alloc is the new/delete
+            // allocator.
+            bool __no_alloc = _M_is_same_alloc_rsrc(
+              polyalloc::new_delete_resource_singleton(), __alloc);
 
             // Get a variant of __x._M_manager that uses an allocator.
             // Note that __get_manager_with_alloc is a new op, so we must set a
             // default value in case it is a no-op for __x.
             __out_param._M_access<_Manager_type>() = nullptr;
-            if (__dflt_rsrc)
-              // Default allocator
+            if (__no_alloc)
+              // New/delete allocator
               __x._M_manager(__out_param, __out_param,
                              __get_manager_without_alloc);
             else
-              // Non-default allocator
+              // Non-new/delete allocator
               __x._M_manager(__out_param, __out_param,
                              __get_manager_with_alloc);
             _M_manager = __out_param._M_access<_Manager_type>();
@@ -2680,7 +2724,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           
             // Construct clone of __x._M_functor with allocator
             _Shared_alloc_rsrc_ptr __x_rsrc = __x._M_get_shared_alloc_rsrc_ptr();
-            if (__dflt_rsrc)
+            if (__no_alloc)
               __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
             else if (_M_is_same_alloc_rsrc(__x_rsrc.get(), __alloc))
               __x._M_manager(_M_functor,
@@ -2706,28 +2750,28 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
         }
 
   template<typename _Res, typename... _ArgTypes>
+    template<typename _Handler, typename _Functor>
+      void
+      function<_Res(_ArgTypes...)>::_M_make_from_functor(_Functor&& __f,
+                                                 _Shared_alloc_rsrc_ptr __rsrc)
+        {
+          if (_Handler::_M_not_empty_function(__f))
+            {
+              _M_invoker = &_Handler::_M_invoke;
+              _M_manager = &_Handler::_M_manager;
+              _Handler::_M_init_functor(_M_functor, std::move(__f),
+                                        std::move(__rsrc));
+            }
+          else
+            _M_make_empty(__rsrc);
+        }
+
+  template<typename _Res, typename... _ArgTypes>
     function<_Res(_ArgTypes...)>::
     function(const function& __x)
     : _Function_base()
     {
-      if (static_cast<bool>(__x))
-	{
-          // Get a variant of __x._M_manager that doesn't use an allocator
-          // Note that __get_manager_without_alloc is a new op, so we must set a
-          // default value in case it is a no-op for __x.
-          _Any_data __out_param;
-          __out_param._M_access<_Manager_type>() = __x._M_manager;
-          __x._M_manager(__out_param, __out_param,
-                         __get_manager_without_alloc);
-	  _M_manager = __out_param._M_access<_Manager_type>();
-
-          // Get a variant of __x._M_invoker that does not use an allocator.
-          __out_param._M_access<_Invoker_type>() = __x._M_invoker;
-          this->_M_manager(__out_param, __out_param, __get_invoker);
-          _M_invoker = __out_param._M_access<_Invoker_type>();
-          
-	  __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
-	}
+      _M_make_copy(polyalloc::allocator_resource::default_resource(), __x);
     }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2748,17 +2792,25 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 			!is_integral<_Functor>::value, _Useless>::type)
       : _Function_base()
       {
-	typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
-          _My_handler;
+        if (polyalloc::allocator_resource::default_resource() ==
+            polyalloc::new_delete_resource_singleton())
+          {
+            // new/delete allocator
+            typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
+              _My_handler;
 
-	if (_My_handler::_M_not_empty_function(__f))
-	  {
-	    _M_invoker = &_My_handler::_M_invoke;
-	    _M_manager = &_My_handler::_M_manager;
-            _Shared_alloc_rsrc_ptr dfltAllocRsrcPtr = _M_default_alloc_rsrc();
-	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
-                                         std::move(dfltAllocRsrcPtr));
-	  }
+            _M_make_from_functor<_My_handler>(std::move(__f),
+                                              _M_new_delete_alloc_rsrc());
+          }
+        else
+          {
+            // Non-new/delete allocator
+            typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
+              _My_handler;
+
+            _M_make_from_functor<_My_handler>(std::move(__f),
+                                              _M_default_alloc_rsrc());
+          }
       }
 
   // PGH: allocator_arg_t versions
@@ -2815,40 +2867,25 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
                    !is_integral<_Functor>::value &&
                    !is_convertible<_Functor, nullptr_t>::value, _Useless>::type)
       {
-        polyalloc::allocator_resource *const __dflt_rsrc =
-          polyalloc::allocator_resource::default_resource();
-
-        if (_M_is_same_alloc_rsrc(__dflt_rsrc, __alloc))
-        {
-          typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
-            _My_handler;
-
-          // Default allocator
-          if (_My_handler::_M_not_empty_function(__f))
+        if (_M_is_same_alloc_rsrc(polyalloc::new_delete_resource_singleton(),
+                                  __alloc))
           {
-	    _M_invoker = &_My_handler::_M_invoke;
-	    _M_manager = &_My_handler::_M_manager;
-            _Shared_alloc_rsrc_ptr dfltAllocRsrcPtr = _M_default_alloc_rsrc();
-	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
-                                         std::move(dfltAllocRsrcPtr));
-	  }
-        }
+            // new/delete allocator
+            typedef _Function_handler_wrapper<_Signature_type, _Functor, false>
+              _My_handler;
+
+            _M_make_from_functor<_My_handler>(std::move(__f),
+                                              _M_new_delete_alloc_rsrc());
+          }
         else
-        {
-          // Non-default allocator
-          typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
-            _My_handler;
-
-          if (_My_handler::_M_not_empty_function(__f))
           {
-	    _M_invoker = &_My_handler::_M_invoke;
-	    _M_manager = &_My_handler::_M_manager;
-	    _My_handler::_M_init_functor(_M_functor, std::move(__f),
-                                         _M_make_shared_alloc(__alloc));
-	  }
-          else
-            _M_make_empty(__alloc);
-        }
+            // Non-new/delete allocator
+            typedef _Function_handler_wrapper<_Signature_type, _Functor, true>
+              _My_handler;
+
+            _M_make_from_functor<_My_handler>(std::move(__f),
+                                              _M_make_shared_alloc(__alloc));
+          }
       }
 
   template<typename _Res, typename... _ArgTypes>
