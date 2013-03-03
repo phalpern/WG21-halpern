@@ -2367,8 +2367,9 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       template<typename _Functor, typename __A>
 	function(allocator_arg_t, const __A&, _Functor __f,
 		 typename enable_if<
-			   !is_integral<_Functor>::value, _Useless>::type
-		   = _Useless());
+			   !is_integral<_Functor>::value &&
+                           !is_convertible<_Functor, nullptr_t>::value,
+                           _Useless>::type = _Useless());
 
       ~function();
 
@@ -2421,13 +2422,9 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       function&
       operator=(nullptr_t)
       {
-	if (_M_manager)
-	  {
-	    _M_manager(_M_functor, _M_functor, __destroy_functor);
-	    _M_manager = 0;
-	    _M_invoker = 0;
-	  }
-	return *this;
+        function(allocator_arg,
+                 _M_get_shared_alloc_rsrc_ptr())._M_do_swap(*this);
+        return *this;
       }
 
       /**
@@ -2460,8 +2457,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 	typename enable_if<!is_integral<_Functor>::value, function&>::type
 	operator=(reference_wrapper<_Functor> __f)
 	{
-	function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
-                 __f)._M_do_swap(*this);
+          function(allocator_arg, _M_get_shared_alloc_rsrc_ptr(),
+                   __f)._M_do_swap(*this);
 	  return *this;
 	}
 
@@ -2815,7 +2812,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       function<_Res(_ArgTypes...)>::
       function(allocator_arg_t, const __A& __alloc, _Functor __f,
 		 typename enable_if<
-                   !is_integral<_Functor>::value, _Useless>::type)
+                   !is_integral<_Functor>::value &&
+                   !is_convertible<_Functor, nullptr_t>::value, _Useless>::type)
       {
         polyalloc::allocator_resource *const __dflt_rsrc =
           polyalloc::allocator_resource::default_resource();

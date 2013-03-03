@@ -7,6 +7,7 @@
 
 using namespace std;
 
+
 //=============================================================================
 //                             TEST PLAN
 //-----------------------------------------------------------------------------
@@ -389,6 +390,56 @@ int calcBlocks(int rawCount, bool isInvocable, bool isDefaultAlloc,
     return rawCount;
 }
 
+// Given a list of 0 to 3 XSTD::function constructor arguments, return the
+// allocator argument, if any, or the default allocator if none.
+allocator_resource* allocatorFromCtorArgs()
+{
+    return allocator_resource::default_resource();
+}
+
+template <class F>
+allocator_resource* allocatorFromCtorArgs(F&&)
+{
+    return allocator_resource::default_resource();
+}
+
+template <class A>
+const A& allocatorFromCtorArgs(allocator_arg_t, const A& a)
+{
+    return a;
+}
+
+template <class A, class F>
+const A& allocatorFromCtorArgs(allocator_arg_t, const A& a, F&&)
+{
+    return a;
+}
+
+// Given a list of 0 to 3 XSTD::function constructor arguments, return the
+// functor argument, if any, or nullptr if none.
+nullptr_t functorFromCtorArgs()
+{
+    return nullptr;
+}
+
+template <class F>
+F&& functorFromCtorArgs(F&& f)
+{
+    return std::forward<F>(f);
+}
+
+template <class A>
+nullptr_t functorFromCtorArgs(allocator_arg_t, const A& a)
+{
+    return nullptr;
+}
+
+template <class A, class F>
+F&& functorFromCtorArgs(allocator_arg_t, const A&, F&& f)
+{
+    return std::forward<F>(f);
+}
+
 #define POLYALLOC XSTD::polyalloc::polymorphic_allocator
 
 // Test constructor invocation.
@@ -444,16 +495,12 @@ void testCtor(const A& alloc, int expRet,
         ASSERT(globalCounters.blocks_outstanding() == initialGlobalBlocks);
 }    
 
-template <class A, class ObjRef, class... LhsCtorArgs>
-void testAssignment(const A& alloc, ObjRef&& rhs, int expRet,
+template <class F, class A, class Rhs, class... LhsCtorArgs>
+void testAssignment(const A& alloc, Rhs&& rhs, int expRet,
                     int expAllocBlocks, int expDeallocBlocks,
                     LhsCtorArgs&&... lhsCtorArgs)
 {
-    typedef typename std::remove_const<
-            typename std::remove_reference<ObjRef>::type
-        >::type Obj;
-
-    allocator_resource *rhsRsrc = rhs.get_allocator_resource();
+    typedef XSTD::function<F> Obj;
 
     const AllocCounters *const counters = getCounters(alloc);
     int expBlocks = counters->blocks_outstanding();
@@ -464,7 +511,7 @@ void testAssignment(const A& alloc, ObjRef&& rhs, int expRet,
         // should be returned to the heap, so only the memory from the copy
         // should remain outstanding.
         Obj lhs(std::forward<LhsCtorArgs>(lhsCtorArgs)...);
-        lhs = std::forward<ObjRef>(rhs);
+        lhs = std::forward<Rhs>(rhs);
 
         expBlocks += expAllocBlocks;
         ASSERT(getCounters(lhs.get_allocator_resource()) == counters);
@@ -488,8 +535,6 @@ void testAssignment(const A& alloc, ObjRef&& rhs, int expRet,
     ASSERT(counters->blocks_outstanding() == expBlocks);
     if (counters != &globalCounters)
         ASSERT(globalCounters.blocks_outstanding() == initialGlobalBlocks);
-    // Assert that rhs allocator is unchanged.
-    ASSERT(rhs.get_allocator_resource() == rhsRsrc);
 }
 
 // Test copy assignment of XSTD::function
@@ -517,17 +562,17 @@ void testCopyAssign(const A& alloc, const XSTD::function<F>& rhs,
     int expCopyBlocks = calcBlocks(expRawBlocks, expRet != 0,
                                    isDefaultAlloc, sharedAlloc);
 
-    // Test assignment with a lhs having each possible functor type.
-    testAssignment(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
-                   allocator_arg, alloc);
-    testAssignment(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
-                   allocator_arg, alloc, nullFuncPtr);
-    testAssignment(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
-                   allocator_arg, alloc, &std::atoi);
-    testAssignment(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
-                   allocator_arg, alloc, lambda);
-    testAssignment(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
-                   allocator_arg, alloc, functor);
+    // Test assignment with initial lhs having each possible functor type.
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, nullFuncPtr);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, &std::atoi);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, lambda);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, functor);
 }
 
 // Test move assignment of XSTD::function
@@ -565,17 +610,39 @@ void testMoveAssign(const A& alloc, const XSTD::function<F>& rhs,
 // rvalue copy of 'rhs':
 #define RHS_RV Obj(allocator_arg, rhs.get_allocator_resource(), rhs)
 
-    // Test assignment with a lhs having each possible functor type.
-    testAssignment(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
-                   allocator_arg, alloc);
-    testAssignment(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
-                   allocator_arg, alloc, nullFuncPtr);
-    testAssignment(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
-                   allocator_arg, alloc, &std::atoi);
-    testAssignment(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
-                   allocator_arg, alloc, lambda);
-    testAssignment(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
-                   allocator_arg, alloc, functor);
+    // Test assignment with initial lhs having each possible functor type.
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, nullFuncPtr);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, &std::atoi);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, lambda);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, functor);
+
+#undef RHS_RV
+}
+
+// Test heterogeneous assignment into XSTD::function
+template <class F, class A, class LhsFunc, class Rhs>
+void testHeteroAssign(const A& alloc, LhsFunc&& lhsFunc, Rhs&& rhs,
+                      int expRet, int expRawBlocks)
+{
+    const AllocCounters *const counters = getCounters(alloc);
+    bool isDefaultAlloc =
+        (counters == getCounters(allocator_resource::default_resource()));
+
+    int expCopyBlocks = calcBlocks(expRawBlocks, expRet != 0, isDefaultAlloc);
+
+#define FWD_RHS std::forward<Rhs>(rhs)
+
+    // Test assignment with initial lhs having each possible functor type.
+    testAssignment<F>(alloc, FWD_RHS, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, std::forward<LhsFunc>(lhsFunc));
+
+#undef FWD_RHS
 }
 
 // Test construction, copy construction, and move construction of
@@ -602,6 +669,18 @@ void testFunction(const A& alloc, int expRet,
     POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>)
         smplAllocAdaptor(smplAlloc);
     std::allocator<int> stdAlloc;
+
+    typedef XSTD::function<F> Obj;
+
+    // Stateless lambda
+    auto lambda = [](const char* s) { return std::atoi(s); };
+
+    // Stateful functor that uses an allocator
+    TestResource tmpRsrc;  // Ignore this allocator resource
+    Functor functor(1, &tmpRsrc);
+
+    // Null function pointer
+    int (*const nullFuncPtr)(const char*) = nullptr;
 
 // FRSRC is the allocator resource used by function object 'f'
 #define FRSRC (f.get_allocator_resource())
@@ -646,8 +725,6 @@ void testFunction(const A& alloc, int expRet,
     }
 #undef COPY_CTOR_TEST
 
-#define MF std::move(f)
-
 // This macro tests the move constructor and extended move constructor.  It
 // first constructs a new function object, 'f'.  If the allocator specified
 // for the move is the same as the allocator used by 'f', then a true move
@@ -677,6 +754,8 @@ void testFunction(const A& alloc, int expRet,
 
     const bool NA = false;  // NA == not-applicable/don't care
 
+#define MF std::move(f)
+
     // DA  = Use default allocator resource for move (true/false)
     //
     //             Copy ctor args                      Allocator     DA
@@ -690,12 +769,13 @@ void testFunction(const A& alloc, int expRet,
     MOVE_CTOR_TEST((allocator_arg, FRSRC, MF)        , FRSRC       , NA);
     MOVE_CTOR_TEST((allocator_arg, alloc, MF)        , FRSRC       , NA);
 
+#undef MF
 #undef MOVE_CTOR_TEST
 
-#define ASSIGN_TEST(cpOrMv, cAlloc) do {                                      \
+#define ASSIGN_TEST(cpOrMv, aAlloc) do {                                      \
         if (veryVerbose)                                                      \
-            std::cout << "        " #cpOrMv " assign w/ " #cAlloc <<std::endl;\
-        test##cpOrMv##Assign(cAlloc, f, expRet, expRawBlocks);                \
+            std::cout << "        " #cpOrMv " assign w/ " #aAlloc <<std::endl;\
+        test##cpOrMv##Assign(aAlloc, f, expRet, expRawBlocks);                \
     } while (false)
 
     {
@@ -718,8 +798,26 @@ void testFunction(const A& alloc, int expRet,
     ASSIGN_TEST(Move, polyAlloc    );
     ASSIGN_TEST(Move, FRSRC        );
     ASSIGN_TEST(Move, alloc        );
+
     }
-#undef COPY_ASSIGN_TEST
+#undef ASSIGN_TEST
+
+#define HETERO_ASSIGN_TEST(lhsFunc) do {                                      \
+        if (veryVerbose)                                                      \
+            std::cout << "        hetero assign over " #lhsFunc <<std::endl;  \
+        auto rhsFunc=functorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);\
+        testHeteroAssign<F>(alloc, lhsFunc, rhsFunc, expRet, expRawBlocks);   \
+    } while (false)
+
+    HETERO_ASSIGN_TEST(nullptr           );
+    HETERO_ASSIGN_TEST(nullFuncPtr       );
+    HETERO_ASSIGN_TEST(&std::atoi        );
+    HETERO_ASSIGN_TEST(lambda            );
+    HETERO_ASSIGN_TEST(functor           );
+    HETERO_ASSIGN_TEST(std::move(functor));
+
+#undef HETERO_ASSIGN_TEST
+#undef FRSRC
 }
 
 enum no_args_t { NO_ARGS };
@@ -881,8 +979,7 @@ int main(int argc, char *argv[])
         //   Ctor args                              Ret Blocks 
         //   =====================================  === ====== 
         TEST((allocator_arg, stdAlloc)             ,  0, 0    );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, stdAlloc, nullptr) ,  0, 0    );
+        TEST((allocator_arg, stdAlloc, nullptr)    ,  0, 0    );
         TEST((allocator_arg, stdAlloc, nullFuncPtr),  0, 0    );
         TEST((allocator_arg, stdAlloc, &std::atoi) , 74, 0    );
         TEST((allocator_arg, stdAlloc, lambda)     , 74, 1    );
@@ -914,8 +1011,7 @@ int main(int argc, char *argv[])
         //   Ctor args                               Ret Blocks 
         //   ======================================  === ====== 
         TEST((allocator_arg, smplAlloc)             ,  0, 0    );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, smplAlloc, nullptr) ,  0, 0    );
+        TEST((allocator_arg, smplAlloc, nullptr)    ,  0, 0    );
         TEST((allocator_arg, smplAlloc, nullFuncPtr),  0, 0    );
         TEST((allocator_arg, smplAlloc, &std::atoi) , 74, 0    );
         TEST((allocator_arg, smplAlloc, lambda)     , 74, 1    );
@@ -946,16 +1042,14 @@ int main(int argc, char *argv[])
         //   Ctor args                                   Resource    Ret Blocks
         //   ==========================================  =========== === ======
         TEST((allocator_arg, &dfltTstRsrc)             , dfltTstRsrc,  0, 0 );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, &dfltTstRsrc, nullptr) , dfltTstRsrc,  0, 0 );
+        TEST((allocator_arg, &dfltTstRsrc, nullptr)    , dfltTstRsrc,  0, 0 );
         TEST((allocator_arg, &dfltTstRsrc, nullFuncPtr), dfltTstRsrc,  0, 0 );
         TEST((allocator_arg, &dfltTstRsrc, &std::atoi) , dfltTstRsrc, 74, 0 );
         TEST((allocator_arg, &dfltTstRsrc, lambda)     , dfltTstRsrc, 74, 1 );
         TEST((allocator_arg, &dfltTstRsrc, functor)    , dfltTstRsrc, 75, 2 );
 
         TEST((allocator_arg, &testRsrc)                , testRsrc   ,  0, 0 );
-        // g++ 4.6.3 internal error if use nullptr           
-        // TEST((allocator_arg, &testRsrc, nullptr)    , testRsrc   ,  0, 0 );
+        TEST((allocator_arg, &testRsrc, nullptr)       , testRsrc   ,  0, 0 );
         TEST((allocator_arg, &testRsrc, nullFuncPtr)   , testRsrc   ,  0, 0 );
         TEST((allocator_arg, &testRsrc, &std::atoi)    , testRsrc   , 74, 0 );
         TEST((allocator_arg, &testRsrc, lambda)        , testRsrc   , 74, 1 );
@@ -990,16 +1084,14 @@ int main(int argc, char *argv[])
         //   Ctor args                                   Rsrc Ret Blocks
         //   =========================================== ==== === ======
         TEST((allocator_arg, dfltPolyAlloc)             ,   1,  0, 0    );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, dfltPolyAlloc, nullptr) ,   1,  0, 0    );
+        TEST((allocator_arg, dfltPolyAlloc, nullptr)    ,   1,  0, 0    );
         TEST((allocator_arg, dfltPolyAlloc, nullFuncPtr),   1,  0, 0    );
         TEST((allocator_arg, dfltPolyAlloc, &std::atoi) ,   1, 74, 0    );
         TEST((allocator_arg, dfltPolyAlloc, lambda)     ,   1, 74, 1    );
         TEST((allocator_arg, dfltPolyAlloc, functor)    ,   1, 75, 2    );
 
         TEST((allocator_arg, polyAlloc)                 ,   0,  0, 0    );
-        // g++ 4.6.3 internal error if use nullptr            
-        // TEST((allocator_arg, polyAlloc, nullptr)     ,   0,  0, 0    );
+        TEST((allocator_arg, polyAlloc, nullptr)        ,   0,  0, 0    );
         TEST((allocator_arg, polyAlloc, nullFuncPtr)    ,   0,  0, 0    );
         TEST((allocator_arg, polyAlloc, &std::atoi)     ,   0, 74, 0    );
         TEST((allocator_arg, polyAlloc, lambda)         ,   0, 74, 1    );
