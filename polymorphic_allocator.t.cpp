@@ -96,11 +96,6 @@ class AllocCounters
     int m_bytes_allocated;
     int m_bytes_deallocated;
 
-    union Header {
-        void*       m_align;
-        std::size_t m_size;
-    };
-
   public:
     AllocCounters()
 	: m_num_allocs(0)
@@ -109,23 +104,12 @@ class AllocCounters
 	, m_bytes_deallocated(0)
 	{ }
 
-    void* allocate(std::size_t nbytes) {
-	ASSERT(this != nullptr);
-        std::size_t blocksize =
-            (nbytes + 2*sizeof(Header) - 1) & ~(sizeof(Header)-1);
-        Header* ret = static_cast<Header*>(operator new(blocksize));
-        ret->m_size = nbytes;
-        ++ret;
+    void allocate(std::size_t nbytes) {
         ++m_num_allocs;
         m_bytes_allocated += nbytes;
-        return ret;
     }
 
-    void deallocate(void* p, std::size_t nbytes) {
-        Header* h = static_cast<Header*>(p) - 1;
-        ASSERT(nbytes == h->m_size);
-	h->m_size = 0xdeadbeaf;
-        operator delete((void*)h);
+    void deallocate(std::size_t nbytes) {
         ++m_num_deallocs;
         m_bytes_deallocated += nbytes;
     }
@@ -136,12 +120,12 @@ class AllocCounters
 
     void dump(std::ostream& os, const char* msg) {
 	os << msg << ":\n";
-        os << "  num allocs = " << m_num_allocs << '\n';
-        os << "  num deallocs = " << m_num_deallocs << '\n';
+        os << "  num allocs         = " << m_num_allocs << '\n';
+        os << "  num deallocs       = " << m_num_deallocs << '\n';
         os << "  outstanding allocs = " << blocks_outstanding() << '\n';
-        os << "  bytes allocated = " << m_bytes_allocated << '\n';
-        os << "  bytes deallocated = " << m_bytes_deallocated << '\n';
-        os << "  outstanding bytes = " << bytes_outstanding() << '\n';
+        os << "  bytes allocated    = " << m_bytes_allocated << '\n';
+        os << "  bytes deallocated  = " << m_bytes_deallocated << '\n';
+        os << "  outstanding bytes  = " << bytes_outstanding() << '\n';
         os << std::endl;
     }
 
@@ -152,6 +136,57 @@ class AllocCounters
 	m_bytes_deallocated = 0;
     }
 };
+
+union CountedAllocHeader {
+    void*       m_align;
+    std::size_t m_size;
+};
+
+void *countedAllocate(std::size_t nbytes, AllocCounters *counters)
+{
+    static const std::size_t headerSize = sizeof(CountedAllocHeader);
+    std::size_t blocksize = (nbytes + 2 * headerSize - 1) & ~(headerSize - 1);
+    CountedAllocHeader* ret =
+        static_cast<CountedAllocHeader*>(std::malloc(blocksize));
+    ret->m_size = nbytes;
+    ++ret;
+    if (counters)
+        counters->allocate(nbytes);
+    return ret;
+}
+
+void countedDeallocate(void *p, std::size_t nbytes, AllocCounters *counters)
+{
+    CountedAllocHeader* h = static_cast<CountedAllocHeader*>(p) - 1;
+    ASSERT(nbytes == h->m_size);
+    h->m_size = 0xdeadbeaf;
+    std::free(h);
+    if (counters)
+        counters->deallocate(nbytes);
+}
+
+void countedDeallocate(void *p, AllocCounters *counters)
+{
+    CountedAllocHeader* h = static_cast<CountedAllocHeader*>(p) - 1;
+    std::size_t nbytes = h->m_size;
+    h->m_size = 0xdeadbeaf;
+    std::free(h);
+    if (counters)
+        counters->deallocate(nbytes);
+}
+
+AllocCounters newDeleteCounters;
+
+// Replace global new and delete
+void* operator new(std::size_t nbytes)
+{
+    return countedAllocate(nbytes, &newDeleteCounters);
+}
+
+void operator delete(void *p)
+{
+    countedDeallocate(p, &newDeleteCounters);
+}
 
 class TestResource : public XSTD::polyalloc::allocator_resource
 {
@@ -169,7 +204,9 @@ public:
     virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
     virtual bool is_equal(const allocator_resource& other) const;
 
-    const AllocCounters& counters() const { return m_counters; }
+    AllocCounters      & counters()       { return m_counters; }
+    AllocCounters const& counters() const { return m_counters; }
+
     void clear() { m_counters.clear(); }
 };
 
@@ -180,12 +217,12 @@ TestResource::~TestResource()
 
 void* TestResource::allocate(size_t bytes, size_t alignment)
 {
-    return m_counters.allocate(bytes);
+    return countedAllocate(bytes, &m_counters);
 }
 
 void  TestResource::deallocate(void *p, size_t bytes, size_t alignment)
 {
-    m_counters.deallocate(p, bytes);
+    countedDeallocate(p, bytes, &m_counters);
 }
 
 bool TestResource::is_equal(const allocator_resource& other) const
@@ -195,8 +232,9 @@ bool TestResource::is_equal(const allocator_resource& other) const
 }
 
 TestResource dfltTestRsrc;
-AllocCounters& globalCounters =
-    const_cast<AllocCounters&>(dfltTestRsrc.counters());
+AllocCounters& dfltTestCounters = dfltTestRsrc.counters();
+
+AllocCounters dfltSimpleCounters;
 
 template <typename Tp>
 class SimpleAllocator
@@ -206,7 +244,7 @@ class SimpleAllocator
   public:
     typedef Tp              value_type;
 
-    SimpleAllocator(AllocCounters* c = &globalCounters) : m_counters(c) { }
+    SimpleAllocator(AllocCounters* c = &dfltSimpleCounters) : m_counters(c) { }
 
     // Required constructor
     template <typename T>
@@ -214,10 +252,10 @@ class SimpleAllocator
         : m_counters(other.counters()) { }
 
     Tp* allocate(std::size_t n)
-        { return static_cast<Tp*>(m_counters->allocate(n*sizeof(Tp))); }
+        { return static_cast<Tp*>(countedAllocate(n*sizeof(Tp), m_counters)); }
 
     void deallocate(Tp* p, std::size_t n)
-        { m_counters->deallocate(p, n*sizeof(Tp)); }
+        { countedDeallocate(p, n*sizeof(Tp), m_counters); }
 
     AllocCounters* counters() const { return m_counters; }
 };
@@ -542,8 +580,6 @@ int main(int argc, char *argv[])
 
 #define POLYALLOC XSTD::polyalloc::polymorphic_allocator
 
-    allocator_resource::set_default_resource(&dfltTestRsrc);
-
     switch (test) { case 0: // Do all cases for test-case 0
       case 1:
       {
@@ -555,6 +591,26 @@ int main(int argc, char *argv[])
                   << "\n==============" << std::endl;
 
         {
+            // Test new_delete_resource
+            int expBlocks = newDeleteCounters.blocks_outstanding();
+            int expBytes = newDeleteCounters.bytes_outstanding();
+
+            allocator_resource *r = new_delete_resource_singleton();
+            ASSERT(allocator_resource::default_resource() == r);
+
+            void *p = r->allocate(5);
+            ++expBlocks;
+            expBytes += 5;
+
+            ASSERT(p);
+            ASSERT(newDeleteCounters.blocks_outstanding() == expBlocks);
+            ASSERT(newDeleteCounters.bytes_outstanding() == expBytes);
+        }
+
+        allocator_resource::set_default_resource(&dfltTestRsrc);
+        ASSERT(allocator_resource::default_resource() == &dfltTestRsrc);
+
+        {
             // Test conversion constructor
             TestResource ar;
             const POLYALLOC<double> a1(&ar);
@@ -563,24 +619,27 @@ int main(int argc, char *argv[])
         }
 
         TestResource x, y, z;
-        AllocCounters &xc = const_cast<AllocCounters&>(x.counters()),
-                      &yc = const_cast<AllocCounters&>(y.counters());
+        AllocCounters &xc = x.counters(), &yc = y.counters();
+
+        newDeleteCounters.clear();
 
         // Simple use of vector with polymorphic allocator
         {
             typedef POLYALLOC<int> Alloc;
 
             SimpleVector<int, Alloc> vx(&x);
-            ASSERT(1 == x.counters().blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
 
             vx.push_back(3);
             ASSERT(3 == vx.front());
             ASSERT(1 == vx.size());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
+            ASSERT(0 == newDeleteCounters.blocks_outstanding());
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == dfltTestCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Outer allocator is polymorphic, inner is not.
         {
@@ -588,24 +647,27 @@ int main(int argc, char *argv[])
             typedef POLYALLOC<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
             
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(1 == dfltSimpleCounters.blocks_outstanding());
             vx.push_back("goodbye");
             ASSERT(2 == vx.size());
             ASSERT("hello" == vx.front());
             ASSERT("goodbye" == vx.back());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(2 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(2 == dfltSimpleCounters.blocks_outstanding());
             ASSERT(SimpleAllocator<char>() == vx.front().get_allocator());
+
+            ASSERT(0 == newDeleteCounters.blocks_outstanding());
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Inner allocator is polymorphic, outer is not.
         {
@@ -613,24 +675,28 @@ int main(int argc, char *argv[])
             typedef SimpleAllocator<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&xc);
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
+            ASSERT(&xc == vx.get_allocator().counters())
             
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(1 == dfltTestCounters.blocks_outstanding());
             vx.push_back("goodbye");
             ASSERT(2 == vx.size());
             ASSERT("hello" == vx.front());
             ASSERT("goodbye" == vx.back());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(2 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(2 == dfltTestCounters.blocks_outstanding());
             ASSERT(&dfltTestRsrc == vx.front().get_allocator().resource());
+
+            ASSERT(0 == newDeleteCounters.blocks_outstanding());
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == dfltTestCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Both outer and inner allocators are polymorphic.
         {
@@ -638,24 +704,27 @@ int main(int argc, char *argv[])
             typedef POLYALLOC<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
             
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
-            ASSERT(2 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(2 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
             vx.push_back("goodbye");
             ASSERT(2 == vx.size());
             ASSERT("hello" == vx.front());
             ASSERT("goodbye" == vx.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
             ASSERT(&x == vx.front().get_allocator().resource());
+
+            ASSERT(0 == newDeleteCounters.blocks_outstanding());
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == dfltTestCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Test container copy construction
         {
@@ -663,37 +732,40 @@ int main(int argc, char *argv[])
             typedef POLYALLOC<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
-            ASSERT(1 == x.counters().blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
 
             vx.push_back("hello");
             vx.push_back("goodbye");
             ASSERT(2 == vx.size());
             ASSERT("hello" == vx.front());
             ASSERT("goodbye" == vx.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            ASSERT(0 == globalCounters.blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            ASSERT(0 == dfltTestCounters.blocks_outstanding());
             ASSERT(&x == vx.front().get_allocator().resource());
 
             SimpleVector<String, Alloc> vg(vx);
             ASSERT(2 == vg.size());
             ASSERT("hello" == vg.front());
             ASSERT("goodbye" == vg.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            ASSERT(3 == globalCounters.blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            ASSERT(3 == dfltTestCounters.blocks_outstanding());
             ASSERT(&dfltTestRsrc == vg.front().get_allocator().resource());
 
             SimpleVector<String, Alloc> vy(vx, &y);
             ASSERT(2 == vy.size());
             ASSERT("hello" == vy.front());
             ASSERT("goodbye" == vy.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            ASSERT(3 == y.counters().blocks_outstanding());
-            ASSERT(3 == globalCounters.blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            ASSERT(3 == yc.blocks_outstanding());
+            ASSERT(3 == dfltTestCounters.blocks_outstanding());
             ASSERT(&y == vy.front().get_allocator().resource());
+
+            ASSERT(0 == newDeleteCounters.blocks_outstanding());
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == y.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == yc.blocks_outstanding());
+        ASSERT(0 == dfltTestCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Test resource_adaptor
         {
@@ -708,8 +780,8 @@ int main(int argc, char *argv[])
 
             strvec    a(&crx);
             strvecvec b(&cry);
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(1 == y.counters().blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(1 == yc.blocks_outstanding());
 
             ASSERT(0 == a.size());
             a.push_back("hello");
@@ -719,22 +791,22 @@ int main(int argc, char *argv[])
             ASSERT(2 == a.size());
             ASSERT("hello" == a.front());
             ASSERT("goodbye" == a.back());
-            ASSERT(3 == x.counters().blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
             b.push_back(a);
             ASSERT(1 == b.size());
             ASSERT(2 == b.front().size());
             ASSERT("hello" == b.front().front());
             ASSERT("goodbye" == b.front().back());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            LOOP_ASSERT(y.counters().blocks_outstanding(),
-                        4 == y.counters().blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            LOOP_ASSERT(yc.blocks_outstanding(),
+                        4 == yc.blocks_outstanding());
 
             b.emplace_back(3, "repeat");
             ASSERT(2 == b.size());
             ASSERT(3 == b.back().size());
-            ASSERT(3 == x.counters().blocks_outstanding());
-            LOOP_ASSERT(y.counters().blocks_outstanding(),
-                        8 == y.counters().blocks_outstanding());
+            ASSERT(3 == xc.blocks_outstanding());
+            LOOP_ASSERT(yc.blocks_outstanding(),
+                        8 == yc.blocks_outstanding());
 
             static const char* const exp[] = {
                 "hello", "goodbye", "repeat", "repeat", "repeat"
@@ -749,11 +821,12 @@ int main(int argc, char *argv[])
                 }
             }
         }
-        LOOP_ASSERT(x.counters().blocks_outstanding(),
-                    0 == x.counters().blocks_outstanding());
-        LOOP_ASSERT(y.counters().blocks_outstanding(),
-                    0 == y.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        LOOP_ASSERT(xc.blocks_outstanding(),
+                    0 == xc.blocks_outstanding());
+        LOOP_ASSERT(yc.blocks_outstanding(),
+                    0 == yc.blocks_outstanding());
+        ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
         // Test construct() using pairs
         {
@@ -766,31 +839,37 @@ int main(int argc, char *argv[])
             
             vx.push_back(StrInt("hello", 5));
             ASSERT(1 == vx.size());
-            ASSERT(1 == x.counters().blocks_outstanding());
-            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(1 == xc.blocks_outstanding());
+            ASSERT(1 == dfltTestCounters.blocks_outstanding());
             ASSERT(&dfltTestRsrc==vx.front().first.get_allocator().resource());
             ASSERT("hello" == vx.front().first);
             ASSERT(5 == vx.front().second);
             vy.push_back(StrInt("goodbye", 6));
             ASSERT(1 == vy.size());
-            ASSERT(2 == y.counters().blocks_outstanding());
-            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(2 == yc.blocks_outstanding());
+            ASSERT(1 == dfltTestCounters.blocks_outstanding());
             ASSERT(&y == vy.front().first.get_allocator().resource());
             ASSERT("goodbye" == vy.front().first);
             ASSERT(6 == vy.front().second);
             vy.emplace_back("howdy", 9);
             ASSERT(2 == vy.size());
-            ASSERT(3 == y.counters().blocks_outstanding());
+            ASSERT(3 == yc.blocks_outstanding());
             ASSERT(&y == vy.back().first.get_allocator().resource());
-            ASSERT(1 == globalCounters.blocks_outstanding());
+            ASSERT(1 == dfltTestCounters.blocks_outstanding());
             ASSERT("goodbye" == vy[0].first);
             ASSERT(6 == vy[0].second);
             ASSERT("howdy" == vy[1].first);
             ASSERT(9 == vy[1].second);
         }
-        ASSERT(0 == x.counters().blocks_outstanding());
-        ASSERT(0 == y.counters().blocks_outstanding());
-        ASSERT(0 == globalCounters.blocks_outstanding());
+        ASSERT(0 == xc.blocks_outstanding());
+        ASSERT(0 == yc.blocks_outstanding());
+        ASSERT(0 == dfltTestCounters.blocks_outstanding());
+        ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
+        ASSERT(0 == newDeleteCounters.blocks_outstanding());
+
+        allocator_resource::set_default_resource(nullptr);
+        ASSERT(XSTD::polyalloc::new_delete_resource_singleton() ==
+               allocator_resource::default_resource());
 
       } if (test != 0) break;
 

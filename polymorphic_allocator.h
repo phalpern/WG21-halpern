@@ -30,8 +30,6 @@ class allocator_resource
 {
     static atomic<allocator_resource *> s_default_resource;
 
-    static allocator_resource *init_default_resource();
-
   public:
     virtual ~allocator_resource();
     virtual void* allocate(size_t bytes, size_t alignment = 0) = 0;
@@ -51,13 +49,13 @@ class allocator_resource
 inline
 bool operator==(const allocator_resource& a, const allocator_resource& b)
 {
-    return a.is_equal(b);
+    return &a == &b || a.is_equal(b);
 }
 
 inline
 bool operator!=(const allocator_resource& a, const allocator_resource& b)
 {
-    return ! a.is_equal(b);
+    return ! (a == b);
 }
 
 // Adaptor make a polymorphic allocator resource type from an STL allocator
@@ -89,8 +87,7 @@ class resource_adaptor_imp : public allocator_resource
     virtual void *allocate(size_t bytes, size_t alignment = 0);
     virtual void deallocate(void *p, size_t bytes, size_t alignment = 0);
 
-    virtual bool
-    is_equal(const allocator_resource& other) const;
+    virtual bool is_equal(const allocator_resource& other) const;
 
     allocator_type get_allocator() const { return m_alloc; }
 };
@@ -114,6 +111,13 @@ struct resource_adaptor_mf
 #define POLYALLOC_RESOURCE_ADAPTOR(Alloc) \
     typename XSTD::polyalloc::resource_adaptor_mf<Alloc >::type
 #endif
+
+// An allocator resource that uses '::operator new' and '::operator delete' to
+// manage memory is created by adapting 'std::allocator':
+typedef POLYALLOC_RESOURCE_ADAPTOR(std::allocator<char>) new_delete_resource;
+
+// Return a pointer to a global instance of 'new_delete_resource'.
+new_delete_resource *new_delete_resource_singleton();
 
 // STL allocator that holds a pointer to a polymorphic allocator resource.
 template <class Tp>
@@ -213,7 +217,7 @@ polyalloc::allocator_resource::default_resource()
 {
     allocator_resource *ret = s_default_resource.load();
     if (nullptr == ret)
-        ret = init_default_resource();
+        ret = new_delete_resource_singleton();
     return ret;
 }
 
