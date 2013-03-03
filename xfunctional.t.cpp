@@ -566,6 +566,8 @@ void testCopyAssign(const A& alloc, const XSTD::function<F>& rhs,
     testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
                       allocator_arg, alloc);
     testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, nullptr);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
                       allocator_arg, alloc, nullFuncPtr);
     testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
                       allocator_arg, alloc, &std::atoi);
@@ -614,6 +616,8 @@ void testMoveAssign(const A& alloc, const XSTD::function<F>& rhs,
     testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
                       allocator_arg, alloc);
     testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, nullptr);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
                       allocator_arg, alloc, nullFuncPtr);
     testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
                       allocator_arg, alloc, &std::atoi);
@@ -626,33 +630,55 @@ void testMoveAssign(const A& alloc, const XSTD::function<F>& rhs,
 }
 
 // Test heterogeneous assignment into XSTD::function
-template <class F, class A, class LhsFunc, class Rhs>
-void testHeteroAssign(const A& alloc, LhsFunc&& lhsFunc, Rhs&& rhs,
-                      int expRet, int expRawBlocks)
+template <class F, class A, class Rhs>
+void testHeteroAssign(const A& alloc, Rhs&& rhs, int expRet, int expRawBlocks)
 {
+    // Stateless lambda
+    auto lambda = [](const char* s) { return std::atoi(s); };
+
+    // Stateful functor that uses an allocator
+    TestResource tmpRsrc;  // Ignore this allocator resource
+    Functor functor(1, &tmpRsrc);
+
+    // Null function pointer
+    int (*const nullFuncPtr)(const char*) = nullptr;
+
     const AllocCounters *const counters = getCounters(alloc);
     bool isDefaultAlloc =
         (counters == getCounters(allocator_resource::default_resource()));
 
-    int expCopyBlocks = calcBlocks(expRawBlocks, expRet != 0, isDefaultAlloc);
+    int expBlocks = calcBlocks(expRawBlocks, expRet != 0, isDefaultAlloc);
 
 #define FWD_RHS std::forward<Rhs>(rhs)
 
     // Test assignment with initial lhs having each possible functor type.
-    testAssignment<F>(alloc, FWD_RHS, expRet, expCopyBlocks, expCopyBlocks,
-                      allocator_arg, alloc, std::forward<LhsFunc>(lhsFunc));
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc);
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, nullptr);
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, nullFuncPtr);
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, &std::atoi);
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, lambda);
+    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, functor);
 
 #undef FWD_RHS
 }
 
 // Test construction, copy construction, and move construction of
 // XSTD::function
-template <class F, class A, class... CtorArgs>
-void testFunction(const A& alloc, int expRet,
+template <class F, class... CtorArgs>
+void testFunction(int expRet,
                   int expRawBlocks, bool isDefaultAlloc,
                   CtorArgs&&... ctorArgs)
 {
     typedef XSTD::function<F> Obj;
+
+    auto alloc = allocatorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);
+    auto rhsFunc = functorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);
 
     // Compute expected blocks needed to construct function.
     int expObjBlocks = calcBlocks(expRawBlocks, expRet != 0, isDefaultAlloc);
@@ -671,16 +697,6 @@ void testFunction(const A& alloc, int expRet,
     std::allocator<int> stdAlloc;
 
     typedef XSTD::function<F> Obj;
-
-    // Stateless lambda
-    auto lambda = [](const char* s) { return std::atoi(s); };
-
-    // Stateful functor that uses an allocator
-    TestResource tmpRsrc;  // Ignore this allocator resource
-    Functor functor(1, &tmpRsrc);
-
-    // Null function pointer
-    int (*const nullFuncPtr)(const char*) = nullptr;
 
 // FRSRC is the allocator resource used by function object 'f'
 #define FRSRC (f.get_allocator_resource())
@@ -801,34 +817,22 @@ void testFunction(const A& alloc, int expRet,
 
     }
 #undef ASSIGN_TEST
-
-#define HETERO_ASSIGN_TEST(lhsFunc) do {                                      \
-        if (veryVerbose)                                                      \
-            std::cout << "        hetero assign over " #lhsFunc <<std::endl;  \
-        auto rhsFunc=functorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);\
-        testHeteroAssign<F>(alloc, lhsFunc, rhsFunc, expRet, expRawBlocks);   \
-    } while (false)
-
-    HETERO_ASSIGN_TEST(nullptr           );
-    HETERO_ASSIGN_TEST(nullFuncPtr       );
-    HETERO_ASSIGN_TEST(&std::atoi        );
-    HETERO_ASSIGN_TEST(lambda            );
-    HETERO_ASSIGN_TEST(functor           );
-    HETERO_ASSIGN_TEST(std::move(functor));
-
-#undef HETERO_ASSIGN_TEST
 #undef FRSRC
+
+    if (veryVerbose)
+        std::cout << "        hetero assign " <<std::endl;
+    testHeteroAssign<F>(alloc, rhsFunc, expRet, expRawBlocks);
 }
 
 enum no_args_t { NO_ARGS };
 
 // Special case of no constructor arguments
-template <class F, class A, class... CtorArgs>
+template <class F, class... CtorArgs>
 inline
-void testFunction(const A& alloc, int expRet, int expRawBlocks,
+void testFunction(int expRet, int expRawBlocks,
                   bool isDefaultAlloc, no_args_t)
 {
-    testFunction<F>(alloc, expRet, expRawBlocks, isDefaultAlloc);
+    testFunction<F>(expRet, expRawBlocks, isDefaultAlloc);
 }
 
 
@@ -940,8 +944,7 @@ int main(int argc, char *argv[])
 
 #define TEST(ctorArgs, expRet, expAlloc) do {                                \
         if (verbose) std::cout << "    function" #ctorArgs << std::endl;     \
-        testFunction<Sig>(&dfltTstRsrc, expRet, expAlloc, true,              \
-                          UNPAREN ctorArgs);                                 \
+        testFunction<Sig>(expRet, expAlloc, true, UNPAREN ctorArgs);         \
     } while (false)
 
         //   Ctor args      Ret blocks
@@ -967,8 +970,7 @@ int main(int argc, char *argv[])
 
 #define TEST(ctorArgs, expRet, expRawBlocks) do {                            \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            testFunction<Sig>(stdAlloc, expRet, expRawBlocks, true,          \
-                              UNPAREN ctorArgs);                             \
+            testFunction<Sig>(expRet, expRawBlocks, true, UNPAREN ctorArgs); \
         } while (false)
 
         // Always allocate one block for functor but no additional blocks for
@@ -998,10 +1000,9 @@ int main(int argc, char *argv[])
         std::cout << "\nTYPE-ERASED ALLOCATOR"
                   << "\n=====================" << std::endl;
 
-#define TEST(ctorArgs, expRet, expRawBlocks) do {                            \
-            if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            testFunction<Sig>(smplAlloc, expRet, expRawBlocks, false,        \
-                              UNPAREN ctorArgs);                             \
+#define TEST(ctorArgs, expRet, expRawBlocks) do {                             \
+            if (verbose) std::cout << "    function" #ctorArgs << std::endl;  \
+            testFunction<Sig>(expRet, expRawBlocks, false, UNPAREN ctorArgs); \
         } while (false)
 
         // Always allocate one block for functor and one block for type-erased
@@ -1031,7 +1032,7 @@ int main(int argc, char *argv[])
 
 #define TEST(ctorArgs, rsrc, expRet, expRawBlocks) do {                      \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            testFunction<Sig>(&(rsrc), expRet, expRawBlocks,                 \
+            testFunction<Sig>(expRet, expRawBlocks,                          \
                               (&dfltTstRsrc == &(rsrc)), UNPAREN ctorArgs);  \
         } while (false)
 
@@ -1067,14 +1068,10 @@ int main(int argc, char *argv[])
         std::cout << "\nPOLYMORPHIC_ALLOCATOR"
                   << "\n=====================" << std::endl;
 
-#define TEST(ctorArgs, dfltRsrc, expRet, expRawBlocks) do {                  \
+#define TEST(ctorArgs, isDfltRsrc, expRet, expRawBlocks) do {                \
             if (verbose) std::cout << "    function" #ctorArgs << std::endl; \
-            if (dfltRsrc)                                                    \
-                testFunction<Sig>(dfltPolyAlloc, expRet, expRawBlocks, true, \
-                                  UNPAREN ctorArgs);                         \
-            else                                                             \
-                testFunction<Sig>(polyAlloc, expRet, expRawBlocks, false,    \
-                                  UNPAREN ctorArgs);                         \
+            testFunction<Sig>(expRet, expRawBlocks, isDfltRsrc,              \
+                              UNPAREN ctorArgs);                             \
         } while (false)
 
         // Always allocate one block for functor but no additional blocks for
