@@ -1536,13 +1536,14 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     __get_type_info,
     __get_functor_ptr,
     __clone_functor,
+    __clone_functor_old = __clone_functor,
     __destroy_functor,
 
     // PGH 2012/12/27 new _Manager_operation codes
     __get_manager_without_alloc,
     __get_manager_with_alloc,
     __get_invoker,
-    __clone_functor_with_alloc,
+    __clone_functor_new,
     __get_allocator_rsrc_ptr
   };
 
@@ -1781,7 +1782,7 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	// Clone a location-invariant function object that fits within
 	// an _Any_data structure.
 	static void
-	_M_clone(_Any_data& __dest, const _Any_data& __source, true_type)
+	_M_clone_old(_Any_data& __dest, const _Any_data& __source, true_type)
 	{
 	  new (__dest._M_access()) _Functor(__source._M_access<_Functor>());
 	}
@@ -1789,47 +1790,57 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	// Clone a function object that is not location-invariant or
 	// that cannot fit into an _Any_data structure.
 	static void
-	_M_clone(_Any_data& __dest, const _Any_data& __source, false_type)
+	_M_clone_old(_Any_data& __dest, const _Any_data& __source, false_type)
 	{
           // Ignore allocator in source
           const _Functor& __f =
             __source._M_access<_M_functor_wrapper*>()->_M_get_functor();
 
-          if (__stored_locally_without_alloc)
-            // Function object fits locally
-            new (__dest._M_access()) _Functor(__f);
-          else
-            // Return result in __dest, using new/delete allocator
-            __dest._M_access<_M_functor_wrapper*>() =
-              _M_make_functor_wrapper(__f, 
-                                   _Function_base::_M_new_delete_alloc_rsrc());
+          // Return result in __dest, using new/delete allocator
+          __dest._M_access<_M_functor_wrapper*>() =
+            _M_make_functor_wrapper(__f, 
+                                    _Function_base::_M_new_delete_alloc_rsrc());
 	}
 
 	// Clone a location-invariant function object that fits within
 	// an _Any_data structure.
 	static void
-	_M_clone_with_alloc(_Any_data& __dest, const _Any_data& __source,
-                            const _Shared_alloc_rsrc_ptr& __a, true_type)
+	_M_clone_new(_Any_data& __dest, const _Any_data& __source,
+                     const _Shared_alloc_rsrc_ptr& __a, true_type)
 	{
+          // Source functor is stored directly in __source
           const _Functor& __f = __source._M_access<_Functor>();
 
           // Return result in __dest
-	  __dest._M_access<_M_functor_wrapper*>() =
-            _M_make_functor_wrapper(__f, __a);
+          if (*__a.get() == *polyalloc::new_delete_resource_singleton() &&
+              __stored_locally_without_alloc)
+            // Cloned functor fits locally and doesn't need an allocator
+            new (__dest._M_access()) _Functor(__f);
+          else
+            // Cloned functor doesn't fit locally or needs an allocator
+            __dest._M_access<_M_functor_wrapper*>() =
+              _M_make_functor_wrapper(__f, __a);
 	}
 
 	// Clone a function object that is not location-invariant or
 	// that cannot fit into an _Any_data structure.
 	static void
-	_M_clone_with_alloc(_Any_data& __dest, const _Any_data& __source,
-                            const _Shared_alloc_rsrc_ptr& __a, false_type)
+	_M_clone_new(_Any_data& __dest, const _Any_data& __source,
+                     const _Shared_alloc_rsrc_ptr& __a, false_type)
 	{
+          // Source functor is stored indirectly through a pointer to a wrapper
           const _Functor& __f =
             __source._M_access<_M_functor_wrapper*>()->_M_get_functor();
 
           // Return result in __dest
-	  __dest._M_access<_M_functor_wrapper*>() =
-            _M_make_functor_wrapper(__f, __a);
+          if (*__a.get() == *polyalloc::new_delete_resource_singleton() &&
+              __stored_locally_without_alloc)
+            // Cloned functor fits locally and doesn't need an allocator
+            new (__dest._M_access()) _Functor(__f);
+          else
+            // Cloned functor doesn't fit locally or needs an allocator
+            __dest._M_access<_M_functor_wrapper*>() =
+              _M_make_functor_wrapper(__f, __a);
 	}
 
 	// Destroying a location-invariant object may still require
@@ -1888,8 +1899,8 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
 	      __dest._M_access<_Functor*>() = _M_get_pointer(__source);
 	      break;
 
-	    case __clone_functor:
-	      _M_clone(__dest, __source, _Local_storage());
+	    case __clone_functor_old:
+	      _M_clone_old(__dest, __source, _Local_storage());
 	      break;
 
 	    case __destroy_functor:
@@ -1922,12 +1933,11 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
               __dest._M_access<void*>() = nullptr;
               break;
 
-            case __clone_functor_with_alloc:
+            case __clone_functor_new:
               {
                 _Functor_and_alloc *__fa =
                   __source._M_access<_Functor_and_alloc *>();
-                _M_clone_with_alloc(__dest, __fa->_M_f, __fa->_M_a,
-                                    _Local_storage());
+                _M_clone_new(__dest, __fa->_M_f, __fa->_M_a, _Local_storage());
               }
 	      break;
 
@@ -2097,6 +2107,13 @@ _GLIBCXX_HAS_NESTED_TYPE(result_type)
     const polyalloc::polymorphic_allocator<__T>& __alloc)
     {
       return _M_make_shared_alloc(__alloc.resource());
+    }
+
+  template <typename __T>
+  static const _Shared_alloc_rsrc_ptr& _M_make_shared_alloc(
+    const std::allocator<__T>& __alloc)
+    {
+      return _Function_base::_M_new_delete_alloc_rsrc();
     }
 
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Shared_alloc_rsrc_ptr __p)
@@ -2637,6 +2654,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
   {
     // Store the default allocator resource only if it is different from the
     // new/delete allocator resource.
+    _M_manager = nullptr;
+    _M_invoker = nullptr;
     if (polyalloc::allocator_resource::default_resource() !=
         polyalloc::new_delete_resource_singleton())
       _M_make_empty(_Function_base::_M_default_alloc_rsrc());
@@ -2678,6 +2697,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
         const std::allocator<__T>& __alloc)
     {
       // No need to store std::allocator
+      _M_manager = nullptr;
+      _M_invoker = nullptr;
     }
 
   template<typename _Res, typename... _ArgTypes>
@@ -2714,7 +2735,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
               // is not implemented
               _M_invoker = __x._M_invoker;
               _M_manager = __x._M_manager;
-              __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
+              __x._M_manager(_M_functor, __x._M_functor, __clone_functor_old);
             }
               
             // Get a variant of __x._M_invoker that uses an allocator.
@@ -2724,18 +2745,16 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
           
             // Construct clone of __x._M_functor with allocator
             _Shared_alloc_rsrc_ptr __x_rsrc = __x._M_get_shared_alloc_rsrc_ptr();
-            if (__no_alloc)
-              __x._M_manager(_M_functor, __x._M_functor, __clone_functor);
-            else if (_M_is_same_alloc_rsrc(__x_rsrc.get(), __alloc))
+            if (_M_is_same_alloc_rsrc(__x_rsrc.get(), __alloc))
               __x._M_manager(_M_functor,
                              _Functor_and_alloc(__x._M_functor,
                                          std::move(__x_rsrc))._M_as_any_data(),
-                             __clone_functor_with_alloc);
+                             __clone_functor_new);
             else
               __x._M_manager(_M_functor,
                              _Functor_and_alloc(__x._M_functor,
                                                 __alloc)._M_as_any_data(),
-                             __clone_functor_with_alloc);
+                             __clone_functor_new);
           }
           else if (_M_null_invoker_with_alloc == __x._M_invoker)
           {

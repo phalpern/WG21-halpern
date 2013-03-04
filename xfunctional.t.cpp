@@ -734,23 +734,119 @@ void testHeteroAssign(const A& alloc, Rhs&& rhs, int expRet, int expRawBlocks)
 
     int expBlocks = calcBlocks(expRawBlocks, expRet != 0, isNewDelRsrc);
 
-#define FWD_RHS std::forward<Rhs>(rhs)
-
     // Test assignment with initial lhs having each possible functor type.
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc);
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, nullptr);
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, nullFuncPtr);
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, &std::atoi);
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, lambda);
-    testAssignment<F>(alloc, FWD_RHS, expRet, expBlocks, expBlocks,
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, functor);
+}
 
-#undef FWD_RHS
+// Test ABI compatibility with pre-allocator implementation of gnu
+// std::function.
+template <class F, class A, class... CtorArgs>
+void testABICompatibility(const A& alloc, int expRet, CtorArgs&&... ctorArgs)
+{
+    // Known fails:
+    // - Copying from legacy to new function will ignore new allocator.
+    // - Constructing a new *empty* function with type-erased allocator and
+    //   destructing it in legacy code will result in a small memory leak.
+    //   Similarly, moving an empty function with allocator to within legacy
+    //   code and destroying it in legacy code will result in a small memory
+    //   leak.
+
+    typedef XSTD::function<F> Obj;
+    typedef std::function<F>  LegacyObj;
+
+    static_assert(sizeof(Obj) == sizeof(LegacyObj),
+                  "ABI incompatibility: size of std::function has changed");
+
+    const AllocCounters *const counters = getCounters(alloc);
+    const int startBlocks = counters->blocks_outstanding();
+    const int startNewDelBlocks = newDelCounters.blocks_outstanding();
+
+    bool isNewDelAlloc = (counters == &newDelCounters);
+
+    {
+        // Construct new function object and test invocability through legacy
+        // view.
+        Obj fnew(std::forward<CtorArgs>(ctorArgs)...);
+        LegacyObj& fleg = reinterpret_cast<LegacyObj&>(fnew);
+
+        // Test invocability
+        if (expRet)
+        {
+            ASSERT(static_cast<bool>(fleg));
+            ASSERT(false == ! fleg);
+            ASSERT(fleg);
+            ASSERT(expRet == fleg("74"));
+        }
+        else
+        {
+            ASSERT(! static_cast<bool>(fleg));
+            ASSERT(! fleg);
+        }
+
+        // Test copy construction
+        int preCopyBlocks = counters->blocks_outstanding();
+        LegacyObj fleg2(fleg);
+        if (! isNewDelAlloc)
+            ASSERT(counters->blocks_outstanding() == preCopyBlocks);
+
+        // Test invocability of copy
+        if (expRet)
+        {
+            ASSERT(static_cast<bool>(fleg2));
+            ASSERT(false == ! fleg2);
+            ASSERT(fleg2);
+            ASSERT(expRet == fleg2("74"));
+        }
+        else
+        {
+            ASSERT(! static_cast<bool>(fleg2));
+            ASSERT(! fleg2);
+        }
+
+        // Test move construction
+        LegacyObj fleg3(std::move(fleg));
+        if (! isNewDelAlloc)
+            ASSERT(counters->blocks_outstanding() == preCopyBlocks);
+
+        // Test invocability of move
+        if (expRet)
+        {
+            ASSERT(static_cast<bool>(fleg3));
+            ASSERT(false == ! fleg3);
+            ASSERT(fleg3);
+            ASSERT(expRet == fleg3("74"));
+        }
+        else
+        {
+            ASSERT(! static_cast<bool>(fleg3));
+            ASSERT(! fleg3);
+        }
+
+        if (! expRet && ! isNewDelAlloc)
+        {
+            // Moving an empty function that uses a non-new/delete allocator
+            // into a legacy function causes a known memory leak.  Fix it
+            // by destroying the legacy function using the new destructor then
+            // rebuilding an empty legacy function.
+            reinterpret_cast<Obj&>(fleg3).~Obj();
+            new (&fleg3) LegacyObj;
+        }
+    }
+
+    // Assert that all memory was freed
+    ASSERT(counters->blocks_outstanding() == startBlocks);
+    ASSERT(newDelCounters.blocks_outstanding() == startNewDelBlocks);
 }
 
 // Test construction, copy construction, and move construction of
@@ -761,15 +857,21 @@ void testFunction(int expRet, int expRawBlocks, bool isNewDelRsrc,
 {
     typedef XSTD::function<F> Obj;
 
-    auto alloc = allocatorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);
-    auto rhsFunc = functorFromCtorArgs(std::forward<CtorArgs>(ctorArgs)...);
+    // NOTE: Cannot use std::forward<CtorArgs>(ctorArgs)... because the
+    // arguments are being passed multiple times.  A function must forward its
+    // arguments only once or else rvalues will get destroyed.
+    auto alloc = allocatorFromCtorArgs(ctorArgs...);
+    auto rhsFunc = functorFromCtorArgs(ctorArgs...);
 
     // Compute expected blocks needed to construct function.
     int expObjBlocks = calcBlocks(expRawBlocks, expRet != 0, isNewDelRsrc);
 
     // Test function constructor
-    testCtor<F>(alloc, expRet, expObjBlocks, expObjBlocks,
-                std::forward<CtorArgs>(ctorArgs)...);
+    testCtor<F>(alloc, expRet, expObjBlocks, expObjBlocks, ctorArgs...);
+
+    if (veryVerbose)
+        std::cout << "        ABI compatibility check" << std::endl;
+    testABICompatibility<F>(alloc, expRet, ctorArgs...);
 
     TestResource testRsrc;
     typedef POLYALLOC<char> PolyAllocTp;
@@ -806,7 +908,7 @@ void testFunction(int expRet, int expRawBlocks, bool isNewDelRsrc,
     allocator_resource *saveRsrc = allocator_resource::default_resource();
 
     {
-    Obj f(std::forward<CtorArgs>(ctorArgs)...);
+    Obj f(ctorArgs...);
 
     // fNDR is true if alloc uses the new_delete_resource
     const bool fNDR = (FRSRC == new_delete_resource_singleton());
@@ -852,7 +954,7 @@ void testFunction(int expRet, int expRawBlocks, bool isNewDelRsrc,
             std::cout << "        move function" #mArgs " "                   \
                       << defaultIsNewDelStr() << std::endl;                   \
         pushDefaultResource(saveRsrc);                                        \
-        Obj f(std::forward<CtorArgs>(ctorArgs)...);                           \
+        Obj f(ctorArgs...);                           \
         popDefaultResource();                                                 \
         int expAllocBlocks, expDeallocBlocks;                                 \
         if (getCounters(alloc) == getCounters(mAlloc)) {                      \
@@ -900,7 +1002,7 @@ void testFunction(int expRet, int expRawBlocks, bool isNewDelRsrc,
     } while (false)
 
     {
-    Obj f(std::forward<CtorArgs>(ctorArgs)...);
+    Obj f(ctorArgs...);
 
     ASSIGN_TEST(Copy, &dfltTstRsrc );
     ASSIGN_TEST(Copy, stdAlloc     );
@@ -979,6 +1081,11 @@ int main(int argc, char *argv[])
     // Null function pointer
     int (*const nullFuncPtr)(const char*) = nullptr;
 
+    // Prime the pump by making sure all singletons are allocated.
+    // This step makes future allocation counts predictable.
+    (void) XSTD::function<void()>().get_allocator_resource();
+    newDelCounters.clear();
+
     switch (test) {
       case 0: // Do all cases for test-case 0
       case 1: {
@@ -995,13 +1102,6 @@ int main(int argc, char *argv[])
 
         std::cout << "\nBREATHING TEST"
                   << "\n==============" << std::endl;
-
-        {
-            // Prime the pump by making sure all singletons are allocated.
-            // The step makes future allocation counts predictable.
-            XSTD::function<int()> tmp([=]{ return verbose; });
-        }
-        newDelCounters.clear();
 
         if (verbose)
             std::cout << "    construct with no allocator" << std::endl;
