@@ -1,6 +1,6 @@
-// xfunctional.t.cpp                  -*-C++-*-
+// xfunction.t.cpp                  -*-C++-*-
 
-#include "xfunctional.h"
+#include "xfunction.h"
 
 #include <iostream>
 #include <cstdlib>

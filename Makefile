@@ -8,7 +8,7 @@ TESTARGS +=
 CXX=g++ -m32 -std=c++0x
 CXXFLAGS=-I. -Wall
 
-all : polymorphic_allocator.test uses_allocator_wrapper.test xfunctional.test
+all : polymorphic_allocator.test uses_allocator_wrapper.test xfunction.test
 
 .SECONDARY :
 

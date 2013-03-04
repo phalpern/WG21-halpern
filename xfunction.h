@@ -1,4 +1,4 @@
-// <functional> -*- C++ -*-
+// <xfunction.h> -*- C++ -*-
 
 // Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
 // 2011 Free Software Foundation, Inc.
@@ -37,12 +37,14 @@
  *
  */
 
-/** @file include/functional
- *  This is a Standard C++ Library header.
+/** @file xfunction.h
+ *  This is a Standard C++ Library header, modified by Pablo Halpern to
+ *  demonstrate the implementation and use of type-erased allocator idioms
+ *  described in N3525.
  */
 
-#ifndef _XFUNCTIONAL
-#define _XFUNCTIONAL 1
+#ifndef _XFUNCTION
+#define _XFUNCTION 1
 
 #include <utility>
 #include <memory>
@@ -1621,7 +1623,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 _GLIBCXX_END_NAMESPACE_VERSION
 END_NAMESPACE_XSTD
 
-#endif // _XFUNCTIONAL
+#endif // _XFUNCTION
 
 // Local Variables:
 // c-basic-offset: 2
