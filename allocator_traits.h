@@ -33,22 +33,28 @@ struct __uses_allocator_imp
   private:
     template <typename _Up>
     static char __test(int, typename _Up::allocator_type);
-        // Match this function if _TypeT::allocator_type exists and is
-        // implicitly convertible from _Alloc
+        // __test is called twice, once with a second argument of type _Alloc
+        // and once with a second argument of type erased_type.  Match this
+        // overload if _TypeT::allocator_type exists and is implicitly
+        // convertible from the second argument.
 
     template <typename _Up>
     static int __test(_LowPriorityConversion<int>,
 		      _LowPriorityConversion<_Alloc>);
-        // Match this function if called with a second argument of type _Alloc
-        // but _TypeT::allocator_type does not exist or is not convertible
-        // from _Alloc.
+        // __test is called twice, once with a second argument of type _Alloc
+        // and once with a second argument of type erased_type.  Match this
+        // overload if called with a second argument of type _Alloc but
+        // _TypeT::allocator_type does not exist or is not convertible from
+        // _Alloc.
 
     template <typename _Up>
     static int __test(_LowPriorityConversion<int>,
 		      _LowPriorityConversion<erased_type>);
-        // Match this function if called with a second argument of type
-        // erased_type but _TypeT::allocator_type does not exist or is not
-        // convertible from erased_type.
+        // __test is called twice, once with a second argument of type _Alloc
+        // and once with a second argument of type erased_type.  Match this
+        // overload if called with a second argument of type erased_type but
+        // _TypeT::allocator_type does not exist or is not convertible from
+        // erased_type.
 
   public:
     enum { value = (sizeof(__test<_Tp>(0, declval<_Alloc>())) == 1 ||
