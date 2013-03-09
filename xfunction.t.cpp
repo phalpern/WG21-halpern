@@ -849,6 +849,17 @@ void testABICompatibility(const A& alloc, int expRet, CtorArgs&&... ctorArgs)
     ASSERT(newDelCounters.blocks_outstanding() == startNewDelBlocks);
 }
 
+// Do a compile-time check that 'uses_allocator<Obj, Alloc>::value' is true.
+// Encapsulating this static-assert in a function produces more detailed
+// error messages when the assertion fails.
+template <class Obj, class Alloc>
+inline
+void check_uses_allocator(const Alloc&)
+{
+    static_assert(XSTD::uses_allocator<Obj, Alloc>::value,
+                  "uses_allocator should be true for any allocator");
+}
+
 // Test construction, copy construction, and move construction of
 // XSTD::function
 template <class F, class... CtorArgs>
@@ -862,6 +873,8 @@ void testFunction(int expRet, int expRawBlocks, bool isNewDelRsrc,
     // arguments only once or else rvalues will get destroyed.
     auto alloc = allocatorFromCtorArgs(ctorArgs...);
     auto rhsFunc = functorFromCtorArgs(ctorArgs...);
+
+    check_uses_allocator<Obj>(alloc);
 
     // Compute expected blocks needed to construct function.
     int expObjBlocks = calcBlocks(expRawBlocks, expRet != 0, isNewDelRsrc);

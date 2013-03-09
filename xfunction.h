@@ -914,6 +914,9 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     public:
       typedef _Res result_type;
 
+      // PGH: New type-erased allocator typedef
+      typedef erased_type allocator_type;
+
       // [3.7.2.1] construct/copy/destroy
 
       /**
