@@ -193,6 +193,7 @@ void countedDeallocate(void *p, AllocCounters *counters)
 
 // Abbreviations for names in 'XSTD::polyalloc' namespace.
 using XSTD::polyalloc::allocator_resource;
+using XSTD::polyalloc::polymorphic_allocator;
 using XSTD::polyalloc::new_delete_resource;
 using XSTD::polyalloc::new_delete_resource_singleton;
 
@@ -340,6 +341,27 @@ public:
         return *m_offset_p + std::atoi(s);
     }
 };
+
+static_assert(uses_allocator<Functor, allocator_resource*>::value,
+              "uses_allocator<Functor, allocator_resource*> should be true");
+static_assert(uses_allocator<Functor, polymorphic_allocator<char> >::value,
+              "uses_allocator<Functor, polymorphic_allocator<char>> should be true");
+
+// Version of Functor that directly uses allocator_resource* instead of
+// wrapping it in a polymorphic_allocator.
+class Functor2 : public Functor
+{
+public:
+    typedef allocator_resource* allocator_type;
+
+    Functor2(int offset, allocator_resource* alloc) : Functor(offset, alloc) {}
+    Functor2(const Functor2& other) : Functor(other) { }
+    Functor2(const Functor2& other, allocator_resource* alloc)
+        : Functor(other, alloc) { }
+};
+
+static_assert(uses_allocator<Functor2, allocator_resource*>::value,
+              "uses_allocator<Functor2, allocator_resource*> should be true");
 
 // Return the address of the 'AllocCounters' object managed by the specified
 // 'alloc'.  All (possibly rebound) copies of 'alloc' will use the same
@@ -639,6 +661,7 @@ void testCopyAssign(const A& alloc, const XSTD::function<F>& rhs,
     // Stateful functor that uses an allocator
     TestResource tmpRsrc;  // Ignore this allocator resource
     Functor functor(1, &tmpRsrc);
+    Functor2 functor2(1, &tmpRsrc);
 
     // Null function pointer
     int (*const nullFuncPtr)(const char*) = nullptr;
@@ -663,6 +686,8 @@ void testCopyAssign(const A& alloc, const XSTD::function<F>& rhs,
                       allocator_arg, alloc, lambda);
     testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
                       allocator_arg, alloc, functor);
+    testAssignment<F>(alloc, rhs, expRet, expCopyBlocks, expCopyBlocks,
+                      allocator_arg, alloc, functor2);
 }
 
 // Test move assignment of XSTD::function
@@ -678,6 +703,7 @@ void testMoveAssign(const A& alloc, const XSTD::function<F>& rhs,
     // Stateful functor that uses an allocator
     TestResource tmpRsrc;  // Ignore this allocator resource
     Functor functor(1, &tmpRsrc);
+    Functor2 functor2(1, &tmpRsrc);
 
     // Null function pointer
     int (*const nullFuncPtr)(const char*) = nullptr;
@@ -711,6 +737,8 @@ void testMoveAssign(const A& alloc, const XSTD::function<F>& rhs,
                       allocator_arg, alloc, lambda);
     testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
                       allocator_arg, alloc, functor);
+    testAssignment<F>(alloc, RHS_RV, expRet, expAllocBlocks, expDeallocBlocks,
+                      allocator_arg, alloc, functor2);
 
 #undef RHS_RV
 }
@@ -725,6 +753,7 @@ void testHeteroAssign(const A& alloc, Rhs&& rhs, int expRet, int expRawBlocks)
     // Stateful functor that uses an allocator
     TestResource tmpRsrc;  // Ignore this allocator resource
     Functor functor(1, &tmpRsrc);
+    Functor2 functor2(1, &tmpRsrc);
 
     // Null function pointer
     int (*const nullFuncPtr)(const char*) = nullptr;
@@ -747,6 +776,8 @@ void testHeteroAssign(const A& alloc, Rhs&& rhs, int expRet, int expRawBlocks)
                       allocator_arg, alloc, lambda);
     testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
                       allocator_arg, alloc, functor);
+    testAssignment<F>(alloc, rhs, expRet, expBlocks, expBlocks,
+                      allocator_arg, alloc, functor2);
 }
 
 // Test ABI compatibility with pre-allocator implementation of gnu
@@ -1090,6 +1121,7 @@ int main(int argc, char *argv[])
     // Stateful functor that uses an allocator
     TestResource tmpRsrc;  // Ignore this allocator resource
     Functor functor(1, &tmpRsrc);
+    Functor2 functor2(1, &tmpRsrc);
 
     // Null function pointer
     int (*const nullFuncPtr)(const char*) = nullptr;
@@ -1193,6 +1225,7 @@ int main(int argc, char *argv[])
         TEST((&std::atoi) ,  1, 74, 0     );
         TEST((lambda)     ,  1, 74, 1     );
         TEST((functor)    ,  1, 75, 2     );
+        TEST((functor2)   ,  1, 75, 2     );
         pushDefaultResource(&dfltTstRsrc);
         TEST((NO_ARGS)    ,  0,  0, 0     );
         TEST((nullptr)    ,  0,  0, 0     );
@@ -1200,6 +1233,7 @@ int main(int argc, char *argv[])
         TEST((&std::atoi) ,  0, 74, 0     );
         TEST((lambda)     ,  0, 74, 1     );
         TEST((functor)    ,  0, 75, 2     );
+        TEST((functor2)   ,  0, 75, 2     );
         popDefaultResource();
 
 #undef TEST
@@ -1231,6 +1265,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, stdAlloc, &std::atoi) , 74, 0    );
         TEST((allocator_arg, stdAlloc, lambda)     , 74, 1    );
         TEST((allocator_arg, stdAlloc, functor)    , 75, 2    );
+        TEST((allocator_arg, stdAlloc, functor2)   , 75, 2    );
 
 #undef TEST
 
@@ -1261,6 +1296,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, smplAlloc, &std::atoi) , 74, 0    );
         TEST((allocator_arg, smplAlloc, lambda)     , 74, 1    );
         TEST((allocator_arg, smplAlloc, functor)    , 75, 2    );
+        TEST((allocator_arg, smplAlloc, functor2)   , 75, 2    );
 
 #undef TEST
 
@@ -1292,6 +1328,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, &dfltTstRsrc, &std::atoi) , dfltTstRsrc, 74, 0 );
         TEST((allocator_arg, &dfltTstRsrc, lambda)     , dfltTstRsrc, 74, 1 );
         TEST((allocator_arg, &dfltTstRsrc, functor)    , dfltTstRsrc, 75, 2 );
+        TEST((allocator_arg, &dfltTstRsrc, functor2)   , dfltTstRsrc, 75, 2 );
 
         TEST((allocator_arg, &testRsrc)                , testRsrc   ,  0, 0 );
         TEST((allocator_arg, &testRsrc, nullptr)       , testRsrc   ,  0, 0 );
@@ -1299,6 +1336,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, &testRsrc, &std::atoi)    , testRsrc   , 74, 0 );
         TEST((allocator_arg, &testRsrc, lambda)        , testRsrc   , 74, 1 );
         TEST((allocator_arg, &testRsrc, functor)       , testRsrc   , 75, 2 );
+        TEST((allocator_arg, &testRsrc, functor2)      , testRsrc   , 75, 2 );
 
 #undef TEST
 
@@ -1331,6 +1369,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, PolyAllocTp(), &std::atoi) ,   1, 74, 0    );
         TEST((allocator_arg, PolyAllocTp(), lambda)     ,   1, 74, 1    );
         TEST((allocator_arg, PolyAllocTp(), functor)    ,   1, 75, 2    );
+        TEST((allocator_arg, PolyAllocTp(), functor2)   ,   1, 75, 2    );
 
         TEST((allocator_arg, polyAlloc)                 ,   0,  0, 0    );
         TEST((allocator_arg, polyAlloc, nullptr)        ,   0,  0, 0    );
@@ -1338,6 +1377,7 @@ int main(int argc, char *argv[])
         TEST((allocator_arg, polyAlloc, &std::atoi)     ,   0, 74, 0    );
         TEST((allocator_arg, polyAlloc, lambda)         ,   0, 74, 1    );
         TEST((allocator_arg, polyAlloc, functor)        ,   0, 75, 2    );
+        TEST((allocator_arg, polyAlloc, functor2)       ,   0, 75, 2    );
 
 #undef TEST
 
