@@ -610,12 +610,28 @@ int main(int argc, char *argv[])
         allocator_resource::set_default_resource(&dfltTestRsrc);
         ASSERT(allocator_resource::default_resource() == &dfltTestRsrc);
 
+        // Test polymorphic allocator constructors
         {
-            // Test conversion constructor
+            // Test construction with resource
             TestResource ar;
             const POLYALLOC<double> a1(&ar);
+            ASSERT(a1.resource() == &ar);
+
+            // Test conversion constructor
             POLYALLOC<char> a2(a1);
             ASSERT(a2.resource() == &ar);
+
+            // Test default construction
+            POLYALLOC<char> a3;
+            ASSERT(a3.resource() == &dfltTestRsrc);
+
+            // Test construction with null pointer
+            POLYALLOC<char> a4(nullptr);
+            ASSERT(a4.resource() == &dfltTestRsrc);
+
+            // Test copy constructoin
+            POLYALLOC<char> a5(a2);
+            ASSERT(a5.resource() == &ar);
         }
 
         TestResource x, y, z;

@@ -145,7 +145,7 @@ class polymorphic_allocator
     template <typename T, typename... Args>
       void construct(T* p, Args&&... args);
 
-    // Specializations to pass inner_allocator to pair::first and pair::second
+    // Specializations for pair using piecewise constructionw
     template <class T1, class T2>
       void construct(std::pair<T1,T2>* p);
     template <class T1, class T2, class U, class V>
@@ -369,7 +369,7 @@ template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
     polyalloc::allocator_resource *r)
-    : m_resource(r)
+    : m_resource(r ? r : allocator_resource::default_resource())
 {
 }
 
