@@ -79,7 +79,7 @@ class resource_adaptor_imp : public allocator_resource
   public:
     typedef Allocator allocator_type;
 
-    resource_adaptor_imp();
+    resource_adaptor_imp() = default;
 
     resource_adaptor_imp(const resource_adaptor_imp&) = default;
 
@@ -230,12 +230,6 @@ void polyalloc::allocator_resource::set_default_resource(
     polyalloc::allocator_resource *r)
 {
     s_default_resource.store(r);
-}
-
-template <class Allocator>
-inline
-polyalloc::resource_adaptor_imp<Allocator>::resource_adaptor_imp()
-{
 }
 
 template <class Allocator>
