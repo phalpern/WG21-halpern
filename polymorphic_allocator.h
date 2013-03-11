@@ -49,6 +49,10 @@ class allocator_resource
 inline
 bool operator==(const allocator_resource& a, const allocator_resource& b)
 {
+    // The call 'is_equal' because some polymorphic allocators are produced as
+    // a result of type erasure.  In that case, 'a' and 'b' may contain
+    // 'allocator_resource's with different addresses which, nevertheless,
+    // should compare equal.
     return &a == &b || a.is_equal(b);
 }
 
@@ -498,14 +502,13 @@ inline
 bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
                            const polyalloc::polymorphic_allocator<T2>& b)
 {
-    if (a.resource() == b.resource())
-        return true;
-    else
-        // This test is needed because some polymorphic allocators are
-        // produced as a result of type erasure.  In that case, 'a' and 'b'
-        // may contain 'allocator_resource's with different
-        // addresses which, nevertheless, should compare equal.
-        return a.resource()->is_equal(*b.resource());
+    // 'operator==' for 'allocator_resource' first checks for equality of
+    // addresses and calls 'is_equal' only if the addresses differ.  The call
+    // 'is_equal' because some polymorphic allocators are produced as a result
+    // of type erasure.  In that case, 'a' and 'b' may contain
+    // 'allocator_resource's with different addresses which, nevertheless,
+    // should compare equal.
+    return *a.resource() == *b.resource();
 }
 
 template <class T1, class T2>
@@ -513,7 +516,7 @@ inline
 bool polyalloc::operator!=(const polyalloc::polymorphic_allocator<T1>& a,
                            const polyalloc::polymorphic_allocator<T2>& b)
 {
-    return ! (a == b);
+    return *a.resource() != *b.resource();
 }
 
 END_NAMESPACE_XSTD
