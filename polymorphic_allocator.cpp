@@ -10,8 +10,8 @@
 
 BEGIN_NAMESPACE_XSTD
 
-atomic<polyalloc::allocator_resource *>
-polyalloc::allocator_resource::s_default_resource(nullptr);
+atomic<polyalloc::memory_resource *>
+polyalloc::memory_resource::s_default_resource(nullptr);
 
 polyalloc::new_delete_resource *polyalloc::new_delete_resource_singleton()
 {

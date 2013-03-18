@@ -26,38 +26,38 @@ typedef double max_align_t;
 namespace polyalloc {
 
 // Abstract base class for allocator resources.
-class allocator_resource
+class memory_resource
 {
-    static atomic<allocator_resource *> s_default_resource;
+    static atomic<memory_resource *> s_default_resource;
+
+    friend memory_resource *set_default_resource(memory_resource *);
+    friend memory_resource *get_default_resource();
 
   public:
-    virtual ~allocator_resource();
+    virtual ~memory_resource();
     virtual void* allocate(size_t bytes, size_t alignment = 0) = 0;
     virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0) = 0;
 
     // 'is_equal' is needed because polymorphic allocators are sometimes
     // produced as a result of type erasure.  In that case, two different
-    // instances of a polymorphic_allocator_resource may actually represent
+    // instances of a polymorphic_memory_resource may actually represent
     // the same underlying allocator and should compare equal, even though
     // their addresses are different.
-    virtual bool is_equal(const allocator_resource& other) const = 0;
-
-    static allocator_resource *default_resource();
-    static void set_default_resource(allocator_resource *r);
+    virtual bool is_equal(const memory_resource& other) const = 0;
 };
 
 inline
-bool operator==(const allocator_resource& a, const allocator_resource& b)
+bool operator==(const memory_resource& a, const memory_resource& b)
 {
     // The call 'is_equal' because some polymorphic allocators are produced as
     // a result of type erasure.  In that case, 'a' and 'b' may contain
-    // 'allocator_resource's with different addresses which, nevertheless,
+    // 'memory_resource's with different addresses which, nevertheless,
     // should compare equal.
     return &a == &b || a.is_equal(b);
 }
 
 inline
-bool operator!=(const allocator_resource& a, const allocator_resource& b)
+bool operator!=(const memory_resource& a, const memory_resource& b)
 {
     return ! (a == b);
 }
@@ -65,7 +65,7 @@ bool operator!=(const allocator_resource& a, const allocator_resource& b)
 // Adaptor make a polymorphic allocator resource type from an STL allocator
 // type.
 template <class Allocator>
-class resource_adaptor_imp : public allocator_resource
+class resource_adaptor_imp : public memory_resource
 {
     typename allocator_traits<Allocator>::
         template rebind_alloc<max_align_t>::_Base m_alloc;
@@ -91,7 +91,7 @@ class resource_adaptor_imp : public allocator_resource
     virtual void *allocate(size_t bytes, size_t alignment = 0);
     virtual void deallocate(void *p, size_t bytes, size_t alignment = 0);
 
-    virtual bool is_equal(const allocator_resource& other) const;
+    virtual bool is_equal(const memory_resource& other) const;
 
     allocator_type get_allocator() const { return m_alloc; }
 };
@@ -123,11 +123,17 @@ typedef POLYALLOC_RESOURCE_ADAPTOR(std::allocator<char>) new_delete_resource;
 // Return a pointer to a global instance of 'new_delete_resource'.
 new_delete_resource *new_delete_resource_singleton();
 
+// Get the current default resource
+memory_resource *get_default_resource();
+
+// Set the default resource
+memory_resource *set_default_resource(memory_resource *r);
+
 // STL allocator that holds a pointer to a polymorphic allocator resource.
 template <class Tp>
 class polymorphic_allocator
 {
-    allocator_resource* m_resource;
+    memory_resource* m_resource;
 
   public:
     typedef Tp value_type;
@@ -138,7 +144,7 @@ class polymorphic_allocator
     struct rebind { typedef polymorphic_allocator<U> other; };
 
     polymorphic_allocator();
-    polymorphic_allocator(allocator_resource *r);
+    polymorphic_allocator(memory_resource *r);
 
     template <class U>
     polymorphic_allocator(const polymorphic_allocator<U>& other);
@@ -165,7 +171,7 @@ class polymorphic_allocator
     // Return a default-constructed allocator
     polymorphic_allocator select_on_container_copy_construction() const;
 
-    allocator_resource *resource() const;
+    memory_resource *resource() const;
 };
 
 template <class T1, class T2>
@@ -211,25 +217,32 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 inline
-polyalloc::allocator_resource::~allocator_resource()
+polyalloc::memory_resource::~memory_resource()
 {
 }
 
 inline
-polyalloc::allocator_resource *
-polyalloc::allocator_resource::default_resource()
+polyalloc::memory_resource *
+polyalloc::get_default_resource()
 {
-    allocator_resource *ret = s_default_resource.load();
+    memory_resource *ret =
+        polyalloc::memory_resource::s_default_resource.load();
     if (nullptr == ret)
         ret = new_delete_resource_singleton();
     return ret;
 }
 
 inline
-void polyalloc::allocator_resource::set_default_resource(
-    polyalloc::allocator_resource *r)
+polyalloc::memory_resource *
+polyalloc::set_default_resource(polyalloc::memory_resource *r)
 {
-    s_default_resource.store(r);
+    if (nullptr == r)
+        r = new_delete_resource_singleton();
+
+    // TBD, should use an atomic swap
+    polyalloc::memory_resource *prev = get_default_resource();
+    polyalloc::memory_resource::s_default_resource.store(r);
+    return prev;
 }
 
 template <class Allocator>
@@ -344,7 +357,7 @@ void polyalloc::resource_adaptor_imp<Allocator>::deallocate(void   *p,
 
 template <class Allocator>
 bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
-    const allocator_resource& other) const
+    const memory_resource& other) const
 {
     const resource_adaptor_imp *other_p =
         dynamic_cast<const resource_adaptor_imp*>(&other);
@@ -359,15 +372,15 @@ bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
 template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator()
-    : m_resource(allocator_resource::default_resource())
+    : m_resource(get_default_resource())
 {
 }
 
 template <class Tp>
 inline
 polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
-    polyalloc::allocator_resource *r)
-    : m_resource(r ? r : allocator_resource::default_resource())
+    polyalloc::memory_resource *r)
+    : m_resource(r ? r : get_default_resource())
 {
 }
 
@@ -485,7 +498,7 @@ polyalloc::polymorphic_allocator<Tp>::select_on_container_copy_construction()
 
 template <class Tp>
 inline
-polyalloc::allocator_resource *
+polyalloc::memory_resource *
 polyalloc::polymorphic_allocator<Tp>::resource() const
 {
     return m_resource;
@@ -496,11 +509,11 @@ inline
 bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
                            const polyalloc::polymorphic_allocator<T2>& b)
 {
-    // 'operator==' for 'allocator_resource' first checks for equality of
+    // 'operator==' for 'memory_resource' first checks for equality of
     // addresses and calls 'is_equal' only if the addresses differ.  The call
     // 'is_equal' because some polymorphic allocators are produced as a result
     // of type erasure.  In that case, 'a' and 'b' may contain
-    // 'allocator_resource's with different addresses which, nevertheless,
+    // 'memory_resource's with different addresses which, nevertheless,
     // should compare equal.
     return *a.resource() == *b.resource();
 }

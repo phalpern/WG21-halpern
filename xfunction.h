@@ -157,10 +157,10 @@ BEGIN_NAMESPACE_XSTD
     { return mem_fn(__p); }
 
   // PGH Shared pointer to allocator resource
-  typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+  typedef shared_ptr<polyalloc::memory_resource> _Shared_alloc_rsrc_ptr;
 
   template <typename __A>
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p,
+  static bool _M_is_same_alloc_rsrc(polyalloc::memory_resource *__rsrca_p,
                                     const __A& __b)
   {
     typedef POLYALLOC_RESOURCE_ADAPTOR(__A) _Adaptor;
@@ -172,7 +172,7 @@ BEGIN_NAMESPACE_XSTD
   }
 
   template <typename _Rsrc>
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p,
+  static bool _M_is_same_alloc_rsrc(polyalloc::memory_resource *__rsrca_p,
                                     _Rsrc*                         __rsrcb_p)
     {
       return (__rsrca_p == __rsrcb_p ||
@@ -180,23 +180,23 @@ BEGIN_NAMESPACE_XSTD
     }
 
   template <typename __T>
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
+  static bool _M_is_same_alloc_rsrc(polyalloc::memory_resource *__rsrca_p, 
                           const polyalloc::polymorphic_allocator<__T>& __b)
     {
-      polyalloc::allocator_resource *__rsrcb_p = __b.resource();
+      polyalloc::memory_resource *__rsrcb_p = __b.resource();
       return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p);
     }
 
   template <typename __T>
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
+  static bool _M_is_same_alloc_rsrc(polyalloc::memory_resource *__rsrca_p, 
                                     const std::allocator<__T>& __b)
     {
-      polyalloc::allocator_resource *__rsrcb_p =
+      polyalloc::memory_resource *__rsrcb_p =
         polyalloc::new_delete_resource_singleton();
       return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p);
     }
 
-  static bool _M_is_same_alloc_rsrc(polyalloc::allocator_resource *__rsrca_p, 
+  static bool _M_is_same_alloc_rsrc(polyalloc::memory_resource *__rsrca_p, 
                                     const _Shared_alloc_rsrc_ptr&  __rsrcb_p)
     {
       return _M_is_same_alloc_rsrc(__rsrca_p, __rsrcb_p.get());
@@ -206,7 +206,7 @@ BEGIN_NAMESPACE_XSTD
     class function;
 
   struct _Noop_alloc_rsrc_deleter {
-    void operator()(polyalloc::allocator_resource*) { }
+    void operator()(polyalloc::memory_resource*) { }
   };
 
   /// Base class of all polymorphic function object wrappers.
@@ -229,8 +229,7 @@ BEGIN_NAMESPACE_XSTD
 
     static _Shared_alloc_rsrc_ptr _M_default_alloc_rsrc()
     {
-      polyalloc::allocator_resource *__rsrc =
-        polyalloc::allocator_resource::default_resource();
+      polyalloc::memory_resource *__rsrc = polyalloc::get_default_resource();
 
       if (*__rsrc == *polyalloc::new_delete_resource_singleton())
         return _M_new_delete_alloc_rsrc();
@@ -438,7 +437,7 @@ BEGIN_NAMESPACE_XSTD
 
         // Return the new/delete allocator if __uses_allocator is false
         static void
-        _M_get_allocator_resource(_Any_data&       __resource,
+        _M_get_memory_resource(_Any_data&       __resource,
                                   const _Any_data& __source,
                                   false_type)
         {
@@ -448,7 +447,7 @@ BEGIN_NAMESPACE_XSTD
 
         // Return custom allocator if __uses_allocator is true
         static void
-        _M_get_allocator_resource(_Any_data&       __resource,
+        _M_get_memory_resource(_Any_data&       __resource,
                                   const _Any_data& __source,
                                   true_type)
         {
@@ -521,7 +520,7 @@ BEGIN_NAMESPACE_XSTD
             case __get_allocator_rsrc_ptr:
               typedef integral_constant<bool,
                                         __uses_custom_alloc> _Custom_allocator;
-              _M_get_allocator_resource(__dest, __source, _Custom_allocator());
+              _M_get_memory_resource(__dest, __source, _Custom_allocator());
               break;
             }
 	  return false;
@@ -668,7 +667,7 @@ BEGIN_NAMESPACE_XSTD
   template <typename _Rsrc>
   static _Shared_alloc_rsrc_ptr _M_make_shared_alloc(_Rsrc* __p)
     {
-      // Compiler failure if __Rsrc is not derived from allocator_resource
+      // Compiler failure if __Rsrc is not derived from memory_resource
       if (*__p == *polyalloc::new_delete_resource_singleton())
         return _Function_base::_M_new_delete_alloc_rsrc();
       else
@@ -907,7 +906,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       typedef _Res _Signature_type(_ArgTypes...);
 
       // PGH Shared pointer to allocator resource
-      typedef shared_ptr<polyalloc::allocator_resource> _Shared_alloc_rsrc_ptr;
+      typedef shared_ptr<polyalloc::memory_resource> _Shared_alloc_rsrc_ptr;
 
       struct _Useless { };
 
@@ -1095,8 +1094,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       void swap(function& __x)
       {
         // Assert *this and __x have equal allocators
-        assert(_M_is_same_alloc_rsrc(this->get_allocator_resource(),
-                                     __x.get_allocator_resource()));
+        assert(_M_is_same_alloc_rsrc(this->get_memory_resource(),
+                                     __x.get_memory_resource()));
         this->_M_do_swap(__x);
       }
 
@@ -1153,7 +1152,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
       template<typename _Functor> const _Functor* target() const;
 #endif
 
-      polyalloc::allocator_resource* get_allocator_resource() const;
+      polyalloc::memory_resource* get_memory_resource() const;
 
     private:
       typedef _Res (*_Invoker_type)(const _Any_data&, _ArgTypes...);
@@ -1236,7 +1235,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     // new/delete allocator resource.
     _M_manager = nullptr;
     _M_invoker = nullptr;
-    if (polyalloc::allocator_resource::default_resource() !=
+    if (polyalloc::get_default_resource() !=
         polyalloc::new_delete_resource_singleton())
       _M_make_empty(_Function_base::_M_default_alloc_rsrc());
   }
@@ -1370,7 +1369,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
     function(const function& __x)
     : _Function_base()
     {
-      _M_make_copy(polyalloc::allocator_resource::default_resource(), __x);
+      _M_make_copy(polyalloc::get_default_resource(), __x);
     }
 
   template<typename _Res, typename... _ArgTypes>
@@ -1391,7 +1390,7 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 			!is_integral<_Functor>::value, _Useless>::type)
       : _Function_base()
       {
-        if (polyalloc::allocator_resource::default_resource() ==
+        if (polyalloc::get_default_resource() ==
             polyalloc::new_delete_resource_singleton())
           {
             // new/delete allocator
@@ -1566,8 +1565,8 @@ template<typename _Class, typename _Member, bool __uses_custom_alloc,
 
   template<typename _Res, typename... _Args>
     inline
-    polyalloc::allocator_resource*
-    function<_Res(_Args...)>::get_allocator_resource() const
+    polyalloc::memory_resource*
+    function<_Res(_Args...)>::get_memory_resource() const
       {
         return _M_get_shared_alloc_rsrc_ptr().get();
       }

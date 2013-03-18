@@ -41,17 +41,16 @@ enum { VERBOSE_ARG_NUM = 2, VERY_VERBOSE_ARG_NUM, VERY_VERY_VERBOSE_ARG_NUM };
 //-----------------------------------------------------------------------------
 
 // To avoid circular dependencies, we cannot use polymorphic_allocator.h, but
-// all we really need is a stub type for allocator_resource.
+// all we really need is a stub type for memory_resource.
 BEGIN_NAMESPACE_XSTD
 namespace polyalloc {
-    struct allocator_resource
+    struct memory_resource
     {
-        static allocator_resource *default_resource();
     };
 
-    allocator_resource *allocator_resource::default_resource()
+    memory_resource *get_default_resource()
     {
-        static allocator_resource x;
+        static memory_resource x;
         return &x;
     }
 }
@@ -139,42 +138,42 @@ public:
 
 class UsesResourcePrefix
 {
-    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+    typedef XSTD::polyalloc::memory_resource memory_resource;
 
-    allocator_resource *m_alloc;
+    memory_resource *m_alloc;
     int                 m_value;
 
 public:
-    typedef allocator_resource *allocator_type;
+    typedef memory_resource *allocator_type;
 
     UsesResourcePrefix(int v = 0)
-        : m_alloc(allocator_resource::default_resource())
+        : m_alloc(XSTD::polyalloc::get_default_resource())
         , m_value(v) { }
-    UsesResourcePrefix(XSTD::allocator_arg_t, allocator_resource *a, int v = 0)
+    UsesResourcePrefix(XSTD::allocator_arg_t, memory_resource *a, int v = 0)
         : m_alloc(a), m_value(v) { }
 
-    allocator_resource *get_allocator_resource() const { return m_alloc; }
+    memory_resource *get_memory_resource() const { return m_alloc; }
     int value() const { return m_value; }
 };
 
 class UsesResourceSuffix
 {
-    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+    typedef XSTD::polyalloc::memory_resource memory_resource;
 
-    allocator_resource *m_alloc;
+    memory_resource *m_alloc;
     int                 m_value;
 
 public:
-    typedef allocator_resource *allocator_type;
+    typedef memory_resource *allocator_type;
 
-    UsesResourceSuffix(allocator_resource *a =
-                       allocator_resource::default_resource())
+    UsesResourceSuffix(memory_resource *a =
+                       XSTD::polyalloc::get_default_resource())
         : m_alloc(a), m_value(0) { }
-    UsesResourceSuffix(int v, allocator_resource *a =
-                       allocator_resource::default_resource())
+    UsesResourceSuffix(int v, memory_resource *a =
+                       XSTD::polyalloc::get_default_resource())
         : m_alloc(a), m_value(v) { }
 
-    allocator_resource *get_allocator_resource() const { return m_alloc; }
+    memory_resource *get_memory_resource() const { return m_alloc; }
     int value() const { return m_value; }
 };
 
@@ -213,10 +212,10 @@ bool operator!=(const StubAllocator<T>& a, const StubAllocator<T>& b)
     return a.id() != b.id();
 }
 
-// allocator_resource stub. No allocations are actually done with this
+// memory_resource stub. No allocations are actually done with this
 // resource, so the allocation and deallocation functions can be omitted.
 // What is important is to be able to identify the allocator instance.
-struct StubResource : XSTD::polyalloc::allocator_resource
+struct StubResource : XSTD::polyalloc::memory_resource
 {
 };
 
@@ -226,7 +225,7 @@ struct StubResource : XSTD::polyalloc::allocator_resource
 
 int main(int argc, char *argv[])
 {
-    typedef XSTD::polyalloc::allocator_resource allocator_resource;
+    typedef XSTD::polyalloc::memory_resource memory_resource;
 
     int test = argc > 1 ? atoi(argv[1]) : 0;
     // verbose = argc > 2;
@@ -393,9 +392,9 @@ int main(int argc, char *argv[])
 
       case 5: {
         // --------------------------------------------------------------------
-        // Test allocator_resource at front of argument list
+        // Test memory_resource at front of argument list
         //
-        // Concerns: Can construct a wrapper where allocator_resource pointer
+        // Concerns: Can construct a wrapper where memory_resource pointer
         //     is automatically prepended to wrapped type's constructor
         //     argument list.
         //
@@ -405,38 +404,38 @@ int main(int argc, char *argv[])
         //
         // --------------------------------------------------------------------
 
-        std::cout << "\nallocator_resource at front of argument list"
+        std::cout << "\nmemory_resource at front of argument list"
                   << "\n============================================\n";
 
         typedef UsesResourcePrefix Obj;
         typedef XSTD::uses_allocator_construction_wrapper<Obj> Wrapper;
         StubResource myRsrc;
-        allocator_resource *pDfltRsrc = allocator_resource::default_resource();
-        allocator_resource *pMyRsrc   = &myRsrc;
+        memory_resource *pDfltRsrc = XSTD::polyalloc::get_default_resource();
+        memory_resource *pMyRsrc   = &myRsrc;
 
         Wrapper w1;
         ASSERT(w1.value().value() == 0);
-        ASSERT(w1.value().get_allocator_resource() == pDfltRsrc);
+        ASSERT(w1.value().get_memory_resource() == pDfltRsrc);
 
         Wrapper w2(99);
         ASSERT(w2.value().value() == 99);
-        ASSERT(w2.value().get_allocator_resource() == pDfltRsrc);
+        ASSERT(w2.value().get_memory_resource() == pDfltRsrc);
 
         Wrapper w3(XSTD::allocator_arg, pMyRsrc);
         ASSERT(w3.value().value() == 0);
-        ASSERT(w3.value().get_allocator_resource() == pMyRsrc);
+        ASSERT(w3.value().get_memory_resource() == pMyRsrc);
 
         Wrapper w4(XSTD::allocator_arg, pMyRsrc, 99);
         ASSERT(w4.value().value() == 99);
-        ASSERT(w4.value().get_allocator_resource() == pMyRsrc);
+        ASSERT(w4.value().get_memory_resource() == pMyRsrc);
 
       } if (test != 0) break;
 
       case 6: {
         // --------------------------------------------------------------------
-        // Test allocator_resource at end of argument list
+        // Test memory_resource at end of argument list
         //
-        // Concerns: Can construct a wrapper where allocator_resource is
+        // Concerns: Can construct a wrapper where memory_resource is
         //     automatically appended to wrapped type's constructor argument
         //     list.
         //
@@ -446,30 +445,30 @@ int main(int argc, char *argv[])
         //
         // --------------------------------------------------------------------
 
-        std::cout << "\nallocator_resource at end of argument list"
-                  << "\n==========================================\n";
+        std::cout << "\nmemory_resource at end of argument list"
+                  << "\n=======================================\n";
 
         typedef UsesResourceSuffix Obj;
         typedef XSTD::uses_allocator_construction_wrapper<Obj> Wrapper;
         StubResource myRsrc;
-        allocator_resource *pDfltRsrc = allocator_resource::default_resource();
-        allocator_resource *pMyRsrc   = &myRsrc;
+        memory_resource *pDfltRsrc = XSTD::polyalloc::get_default_resource();
+        memory_resource *pMyRsrc   = &myRsrc;
 
         Wrapper w1;
         ASSERT(w1.value().value() == 0);
-        ASSERT(w1.value().get_allocator_resource() == pDfltRsrc);
+        ASSERT(w1.value().get_memory_resource() == pDfltRsrc);
 
         Wrapper w2(99);
         ASSERT(w2.value().value() == 99);
-        ASSERT(w2.value().get_allocator_resource() == pDfltRsrc);
+        ASSERT(w2.value().get_memory_resource() == pDfltRsrc);
 
         Wrapper w3(XSTD::allocator_arg, pMyRsrc);
         ASSERT(w3.value().value() == 0);
-        ASSERT(w3.value().get_allocator_resource() == pMyRsrc);
+        ASSERT(w3.value().get_memory_resource() == pMyRsrc);
 
         Wrapper w4(XSTD::allocator_arg, pMyRsrc, 99);
         ASSERT(w4.value().value() == 99);
-        ASSERT(w4.value().get_allocator_resource() == pMyRsrc);
+        ASSERT(w4.value().get_memory_resource() == pMyRsrc);
 
       } if (test != 0) break;
 

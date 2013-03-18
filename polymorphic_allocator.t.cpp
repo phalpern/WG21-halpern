@@ -188,7 +188,7 @@ void operator delete(void *p)
     countedDeallocate(p, &newDeleteCounters);
 }
 
-class TestResource : public XSTD::polyalloc::allocator_resource
+class TestResource : public XSTD::polyalloc::memory_resource
 {
     AllocCounters m_counters;
 
@@ -202,7 +202,7 @@ public:
     virtual ~TestResource();
     virtual void* allocate(size_t bytes, size_t alignment = 0);
     virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
-    virtual bool is_equal(const allocator_resource& other) const;
+    virtual bool is_equal(const memory_resource& other) const;
 
     AllocCounters      & counters()       { return m_counters; }
     AllocCounters const& counters() const { return m_counters; }
@@ -225,7 +225,7 @@ void  TestResource::deallocate(void *p, size_t bytes, size_t alignment)
     countedDeallocate(p, bytes, &m_counters);
 }
 
-bool TestResource::is_equal(const allocator_resource& other) const
+bool TestResource::is_equal(const memory_resource& other) const
 {
     // Two TestResource objects are equal only if they are the same object
     return this == &other;
@@ -595,8 +595,8 @@ int main(int argc, char *argv[])
             int expBlocks = newDeleteCounters.blocks_outstanding();
             int expBytes = newDeleteCounters.bytes_outstanding();
 
-            allocator_resource *r = new_delete_resource_singleton();
-            ASSERT(allocator_resource::default_resource() == r);
+            memory_resource *r = new_delete_resource_singleton();
+            ASSERT(XSTD::polyalloc::get_default_resource() == r);
 
             void *p = r->allocate(5);
             ++expBlocks;
@@ -607,8 +607,8 @@ int main(int argc, char *argv[])
             ASSERT(newDeleteCounters.bytes_outstanding() == expBytes);
         }
 
-        allocator_resource::set_default_resource(&dfltTestRsrc);
-        ASSERT(allocator_resource::default_resource() == &dfltTestRsrc);
+        XSTD::polyalloc::set_default_resource(&dfltTestRsrc);
+        ASSERT(XSTD::polyalloc::get_default_resource() == &dfltTestRsrc);
 
         // Test polymorphic allocator constructors
         {
@@ -883,9 +883,9 @@ int main(int argc, char *argv[])
         ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
         ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
-        allocator_resource::set_default_resource(nullptr);
+        XSTD::polyalloc::set_default_resource(nullptr);
         ASSERT(XSTD::polyalloc::new_delete_resource_singleton() ==
-               allocator_resource::default_resource());
+               XSTD::polyalloc::get_default_resource());
 
       } if (test != 0) break;
 
