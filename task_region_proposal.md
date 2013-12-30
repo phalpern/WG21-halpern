@@ -1,8 +1,11 @@
 % Task Region | Nxxxx
-% Pablo Halpern; Arch Robison
+% TBD
+<!-- Will add authors later
+  Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Artur Laksberg; Herb Sutter
   {arturl, hsutter}@microsoft.com
+-->
 % 2013-12-29
 
 # Abstract
