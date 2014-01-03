@@ -1,11 +1,8 @@
 % Task Region | N3832
-% TBD
-<!-- Will add authors later
-  Pablo Halpern; Arch Robison
+% Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
-  Artur Laksberg; Herb Sutter
-  {arturl, hsutter}@microsoft.com
--->
+  Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
+  {honghong, arturl, gorn, hsutter}@microsoft.com
 % 2013-12-29
 
 # Abstract
