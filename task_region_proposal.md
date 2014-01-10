@@ -44,8 +44,8 @@ example, refer to <https://goldenrod.codeplex.com>)
 
 # Introduction
 
-Consider an example of a parallel traversal of a graph, where a user-provided function
-`f` is applied to each node of the graph, returning the sum of the results:
+Consider an example of a parallel traversal of a tree, where a user-provided function
+`f` is applied to each node of the tree, returning the sum of the results:
 
 ```
 template<typename Func>
@@ -74,7 +74,7 @@ in parallel with respect to the caller.
 
 # Interface
 
-The interface of the proposed API is as follows:
+The proposed interface is as follows:
 
 ```
 template<typename F>
