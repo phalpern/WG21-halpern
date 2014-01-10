@@ -36,6 +36,8 @@ new approach enables compile-time enforcement of strict fork-join parallelism.
 The proposal also aims to converge with the language-based proposal for low-level parallelism 
 described in N3409 and related documents.
 
+TODO: now also supports parent stealing, with a keyword `placeholder` for that.
+
 While the proposed syntax differs from PPL/TBB, it can still be implemented trivially,
 for instance using PPL/TBB or a thread pool. A couple of reference implementations exist (for
 example, refer to <https://goldenrod.codeplex.com>)
@@ -102,8 +104,6 @@ _Effects_: starts the user-provided function, potentially on another thread.
 
 _Notes_: the function may or not return before the user-provided function completes.
 
-TODO: note about thread switching.
-
 TODO: do we need `task_wait`?
 
 # Exception Handling
@@ -151,8 +151,44 @@ private:
 };
 ```
 
-# Open Issues
+# Scheduling Strategies
 
-TODO: thread switching
+A possible implementation of the `task_run` is to spawn individual tasks 
+and immediately return to the caller. These _child_ tasks are then executed (or _stolen_) by a scheduler 
+based on the availability of hardware resources and other factors. The parent thread 
+may participate in the execution of tasks when it reaches the join point (i.e. at the 
+end of the execution of the function object passed to the `task_region`). This approach
+to scheduling is known as the _child stealing_.
+
+Other approaches to scheduling exist. In the approach pioneered by Cilk (TODO: reference), the parent
+thread proceeds executing the task at the spawn point. The execution of the rest of the function 
+-- i.e. the _continuation_ -- is left to a scheduler. This approach to scheduling is known 
+as the _continuation stealing_ <!-- I like the term better than 'parent stealing' because it describes what is being stolen -->
+(or _parent stealing_).
+
+Both approaches have advantages and disadvantages. It has been shown that the _continuation stealing_ 
+approach provides lower asymptotic space guarantees in addition to other benefits. 
+
+It is the intent of the proposal to enable both scheduling approaches.
+
+# Thread Switching
+
+One of the properties of the continuation stealing is that a part of the user function may
+execute on a thread different from the one that invoked the `task_run` or the `task_region` methods.
+This phenomenon is not allowed by C++ today. For this reason, this behavior can be surprising 
+to programmers and break programs that rely on the thread remaining the same throughout the
+execution of the function (for example, in programs accessing GUI objects, mutexes, thread-local storage and thread id).
+
+Additionally, programmers writing structured parallel code need to be put on notice when a function 
+invoked in their program spawns parallel tasks and returns before joining them. 
+
+We propose a new keyword, the `placholder` to be applied on the declaration of functions that are allowed
+to return on a different thread and with unjoined parallel tasks.
+
+TODO: explain transitive calls
+
+TODO: rules for lambdas.
+
+# Open Issues
 
 TODO: consider renaming task_region, task_run to parallel_region, parallel_spawn.
