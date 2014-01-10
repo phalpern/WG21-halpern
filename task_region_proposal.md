@@ -156,7 +156,7 @@ private:
 A possible implementation of the `task_run` is to spawn individual tasks 
 and immediately return to the caller. These _child_ tasks are then executed (or _stolen_) by a scheduler 
 based on the availability of hardware resources and other factors. The parent thread 
-may participate in the execution of tasks when it reaches the join point (i.e. at the 
+may participate in the execution of the tasks when it reaches the join point (i.e. at the 
 end of the execution of the function object passed to the `task_region`). This approach
 to scheduling is known as the _child stealing_.
 
@@ -166,7 +166,7 @@ thread proceeds executing the task at the spawn point. The execution of the rest
 as the _continuation stealing_ <!-- I like the term better than 'parent stealing' because it describes what is being stolen -->
 (or _parent stealing_).
 
-Both approaches have advantages and disadvantages. It has been shown that the _continuation stealing_ 
+Both approaches have advantages and disadvantages. It has been shown that the continuation stealing 
 approach provides lower asymptotic space guarantees in addition to other benefits. 
 
 It is the intent of the proposal to enable both scheduling approaches.
