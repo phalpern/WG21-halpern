@@ -42,9 +42,9 @@ modifications to improve the exception safety.
 This proposal adopts a simpler syntax that eschews a named object in favor of
 the two static functions.  It improves N3711 in the following ways:
 
-* The exception handling model is simplified. Strict fork-join parallelism is
-* now enforced at compile time. The scheduling approach is no longer limited to
-* child stealing.
+* The exception handling model is simplified. 
+* Strict fork-join parallelism is now enforced at compile time. 
+* The scheduling approach is no longer limited to child stealing.
 
 We aim to converge with the language-based proposal for low-level parallelism
 described  in N3409 and related documents.
