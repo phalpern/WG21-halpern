@@ -156,7 +156,7 @@ task_region([] {
 ```
 
 The nested task started in such manner is guaranteed to finish with rest of
-the tasks started in the closest enclosing `task_group` [*Note:* This provision
+the tasks started in the closest enclosing `task_region` [*Note:* This provision
 allows an implementation to join such tasks earlier, for example at the end of
 the enclosing `task_run`. -- *end note*.]
 
