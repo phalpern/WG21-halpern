@@ -1,0 +1,204 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Pablo Halpern" />
+  <meta name="author" content="Arch Robison" />
+  <meta name="author" content="{pablo.g.halpern, arch.robison}@intel.com" />
+  <meta name="author" content="Hong Hong" />
+  <meta name="author" content="Artur Laksberg" />
+  <meta name="author" content="Gor Nishanov" />
+  <meta name="author" content="Herb Sutter" />
+  <meta name="author" content="{honghong, arturl, gorn, hsutter}@microsoft.com" />
+  <title>Task Region | N3832</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  \usepackage[top=1in, bottom=1in, left=1.0in, right=1.0in]{geometry}
+  \usepackage{fancyhdr}
+  \usepackage{multicol}
+  \pagestyle{fancy}
+  \lhead{}
+  \rhead{}
+  \chead{}
+  \lfoot{\footnotesize{N3832}}
+  \cfoot{\thepage}
+  
+</head>
+<body>
+<div id="header">
+<h1 class="title">Task Region | N3832</h1>
+<h2 class="author">Pablo Halpern</h2>
+<h2 class="author">Arch Robison</h2>
+<h2 class="author">{pablo.g.halpern, arch.robison}@intel.com</h2>
+<h2 class="author">Hong Hong</h2>
+<h2 class="author">Artur Laksberg</h2>
+<h2 class="author">Gor Nishanov</h2>
+<h2 class="author">Herb Sutter</h2>
+<h2 class="author">{honghong, arturl, gorn, hsutter}@microsoft.com</h2>
+<h3 class="date">2014-1-12</h3>
+</div>
+<h1 id="abstract"><span class="header-section-number">1</span> Abstract</h1>
+<p>This paper introduces C++ library functions <code>task_region</code>, <code>task_run</code> and <code>task_wait</code> that enable developers to write expressive and portable parallel code.</p>
+<p>This proposal subsumes and improves the previous proposal, N3711.</p>
+<h1 id="motivation-and-related-proposals"><span class="header-section-number">2</span> Motivation and Related Proposals</h1>
+<p>The Parallel STL proposal N3724 augments the STL algorithms with the inclusion of parallel execution policies. Programmers use these as a basis to write additional high-level algorithms that can be implemented in terms of the provided parallel algorithms. However, the scope of N3724 does not include lower-level mechanisms to express arbitrary fork-join parallelism.</p>
+<p>Over the last several years, Microsoft and Intel have collaborated to produce a set of common libraries known as the Parallel Patterns Library (PPL) by Microsoft and the Threading Building Blocks (TBB) by Intel. The two libraries have been a part of the commercial products shipped by Microsoft and Intel. Additionally, the paper is informed by Intel's experience with Cilk Plus, an extension to C++ included in the Intel C++ compiler in the Intel Composer XE product.</p>
+<p>The <code>task_region</code>, <code>task_run</code> and the <code>task_wait</code> methods proposed in this document are based on the <code>task_group</code> concept that is a part of the common subset of the PPL and the TBB libraries. The paper also enables approaches to fork-join parallelism that are not limited to library solutions, by proposing a small addition to the C++ language.</p>
+<p>The previous proposal, N3711, was presented to the Committee at the Chicago meeting in 2013. N3711 closely follows the design of the PPL/TBB with slight modifications to improve the exception safety.</p>
+<p>This proposal adopts a simpler syntax that eschews a named object in favor of the two static functions. It improves N3711 in the following ways:</p>
+<ul>
+<li>The exception handling model is simplified. Strict fork-join parallelism is</li>
+<li>now enforced at compile time. The scheduling approach is no longer limited to</li>
+<li>child stealing.</li>
+</ul>
+<p>We aim to converge with the language-based proposal for low-level parallelism described in N3409 and related documents.</p>
+<h1 id="introduction"><span class="header-section-number">3</span> Introduction</h1>
+<p>Consider an example of a parallel traversal of a tree, where a user-provided function <code>f</code> is applied to each node of the tree, returning the sum of the results:</p>
+<pre><code>template&lt;typename Func&gt;
+int traverse(node*n, Func &amp;&amp; f)
+{
+    int left = 0, right = 0;
+
+    task_region([&amp;] {
+        if (n-&gt;left)
+            task_run([&amp;] { left = traverse(n-&gt;left, f); });
+        if (n-&gt;right)
+            task_run([&amp;] { right = traverse(n-&gt;right, f); });
+    });
+
+    return f(n) + left + right;
+}</code></pre>
+<p>The example above demonstrates the use of the two proposed functions.</p>
+<p>The <code>task_region</code> function delineates a region in a program code potentially containing invocations of tasks spawned by the <code>task_run</code> function.</p>
+<p>The <code>task_run</code> function spawns a <em>task</em>, a unit of work that is allowed to execute in parallel with respect to the caller.</p>
+<h1 id="interface"><span class="header-section-number">4</span> Interface</h1>
+<p>The proposed interface is as follows.</p>
+<h2 id="task_region"><span class="header-section-number">4.1</span> task_region</h2>
+<pre><code>template&lt;typename F&gt;
+void task_region(F &amp;&amp; f) placeholder;</code></pre>
+<p><em>Effects</em>: Applies the user-provided function object.</p>
+<p><em>Throws</em>: <code>exception_list</code>, as defined in <a href="#Exception_Handling">Exception Handling</a>.</p>
+<p><em>Postcondition</em>: All tasks spawned from <code>f</code> have finished execution.</p>
+<p><em>Notes</em>: It is expected (but not mandated) that the user-provided function object can (directly or indirectly) call <code>task_run</code>. The function is declared with the <em>thread-switching-specification</em>, as described in <a href="#Scheduling_Strategies">Scheduling Strategies</a>.</p>
+<h2 id="task_run"><span class="header-section-number">4.2</span> task_run</h2>
+<pre><code>template&lt;typename F&gt;
+void task_run(F &amp;&amp; f) placeholder noexcept;
+</code></pre>
+<p><em>Requires</em>: Invocation of the function must be inside the <code>task_region</code> context.</p>
+<p><em>Effects</em>: Starts the user-provided function, potentially on another thread.</p>
+<p><em>Notes</em>: The function may or not return before the user-provided function completes. The function is declared with the <em>thread-switching-specification</em>, as described in <a href="#Scheduling_Strategies">Scheduling Strategies</a>.</p>
+<p>The function takes a user-provided function object and starts it asynchronously -- i.e. it may return before the execution of <code>f</code> completes.</p>
+<p>The function <code>task_run</code> can only be invoked (directly or indirectly) from a user-provided function passed to <code>task_region</code>, otherwise the behavior is undefined:</p>
+<pre><code>void f() placeholder
+{
+    task_run(g);
+}
+
+void h() placeholder
+{
+    task_region(f);
+}
+
+int main()
+{
+    task_run(g);     // the behavior is undefined
+    return 0;
+}
+</code></pre>
+<p>It is allowed to invoke <code>task_run</code> directly or indirectly from a function object passed to <code>task_run</code>:</p>
+<pre><code>task_region([] {
+    task_run([] {
+        task_run([] {
+            f();
+        });
+    });
+});</code></pre>
+<p>The nested task started in such manner is guaranteed to finish with rest of the tasks started in the closest enclosing <code>task_group</code> [<em>Note:</em> This provision allows an implementation to join such tasks earlier, for example at the end of the enclosing <code>task_run</code>. -- <em>end note</em>.]</p>
+<h2 id="task_wait"><span class="header-section-number">4.3</span> task_wait</h2>
+<pre><code>void task_wait() placeholder;</code></pre>
+<p><em>Effects</em>: Blocks until the tasks spawned by the closest enclosing <code>task_region</code> have finished.</p>
+<p><em>Throws</em>: <code>exception_list</code>, as defined in <a href="#Exception_Handling">Exception Handling</a>.</p>
+<p><em>Postcondition</em>: All tasks spawned by the closest enclosing <code>task_region</code> have finished.</p>
+<p><em>Notes</em>: <code>task_wait</code> has no effect when it is invoked outside of a <code>task_region</code>.</p>
+<h1 id="exception-handling"><span class="header-section-number">5</span> Exception Handling</h1>
+<p>Every <code>task_region</code> has an exception list associated with it. When the <code>task_region</code> starts, the exception list associated with it is empty.</p>
+<p>When an exception is thrown during the execution of the user-provided function object passed to <code>task_region</code>, it is added to the exception list for that <code>task_region</code>.</p>
+<p>Similarly, when an exception happens during the execution of the user-provided function object passed into <code>task_run</code>, the exception object is added to the exception list associated with the closest enclosing <code>task_region</code>.</p>
+<p>When <code>task_region</code> finishes with a non-empty exception list, the exceptions are aggregated into an <code>exception_list</code> object (defined below), which is then thrown from the <code>task_region</code>.</p>
+<p>The order of the exceptions in the <code>exception_list</code> object is unspecified.</p>
+<p>The <code>exception_list</code> class was first introduced in N3724 and is defined as follows:</p>
+<pre><code>class exception_list : public exception
+{
+public:
+    typedef exception_ptr value_type;
+    typedef const value_type&amp; reference;
+    typedef const value_type&amp; const_reference;
+    typedef size_t size_type;
+    typedef vector&lt;exception_ptr&gt;::iterator iterator;
+    typedef vector&lt;exception_ptr&gt;::const_iterator const_iterator;
+
+    exception_list(vector&lt;exception_ptr&gt; exceptions);
+
+    size_t size() const;
+    const_iterator begin();
+    const_iterator end();
+private:
+    // ...
+};</code></pre>
+<h1 id="scheduling-strategies"><span class="header-section-number">6</span> Scheduling Strategies</h1>
+<p>A possible implementation of the <code>task_run</code> is to spawn individual tasks and immediately return to the caller. These <em>child</em> tasks are then executed (or <em>stolen</em>) by a scheduler based on the availability of hardware resources and other factors. The parent thread may participate in the execution of the tasks when it reaches the join point (i.e. at the end of the execution of the function object passed to the <code>task_region</code>). This approach to scheduling is known as the <em>child stealing</em>.</p>
+<p>Other approaches to scheduling exist. In the approach pioneered by Cilk, the parent thread proceeds executing the task at the spawn point. The execution of the rest of the function -- i.e. the <em>continuation</em> -- is left to a scheduler. This approach to scheduling is known as the <em>continuation stealing</em> <!-- I like
+the term better than 'parent stealing' because it describes what is being stolen
+--> (or <em>parent stealing</em>).</p>
+<p>Both approaches have advantages and disadvantages. It has been shown that the continuation stealing approach provides lower asymptotic space guarantees in addition to other benefits.</p>
+<p>It is the intent of the proposal to enable both scheduling approaches.</p>
+<h1 id="thread-switching"><span class="header-section-number">7</span> Thread Switching</h1>
+<p>One of the properties of the continuation stealing is that a part of the user function may execute on a thread different from the one that invoked the <code>task_run</code> or the <code>task_region</code> methods. This phenomenon is not allowed by C++ today. For this reason, this behavior can be surprising to programmers and break programs that rely on the thread remaining the same throughout the execution of the function (for example, in programs accessing GUI objects, mutexes, thread-local storage and thread id).</p>
+<p>Additionally, programmers writing structured parallel code need to be put on notice when a function invoked in their program spawns parallel tasks and returns before joining them.</p>
+<p>We propose a new keyword, the <code>placholder</code> to be applied on the declaration of functions that are allowed to return on a different thread and with unjoined parallel tasks.</p>
+<p>A function declaration specifies whether it can return on another thread or with unjoined tasks by using a <em>thread-switching-specification</em> as a suffix of its declarator:</p>
+<pre><code>void f() placeholder;</code></pre>
+<h2 id="semantics---alternative-a"><span class="header-section-number">7.1</span> Semantics - Alternative A</h2>
+<p>When a function declared with the <em>thread-switching-specification</em> is directly invoked in a function declared without the <em>thread-switching-specification</em>, the compiler injects a synchronization point that enables the caller to proceed on the original thread:</p>
+<pre><code>void f() placeholder;
+
+int main() {
+    auto thread_id_begin = std::this_thread::get_id();
+    f();
+    auto thread_id_end = std::this_thread::get_id();
+    assert(thread_id_end = thread_id_begin);
+    return 0;
+}</code></pre>
+<h2 id="semantics---alternative-b"><span class="header-section-number">7.2</span> Semantics - Alternative B</h2>
+<p>A function declared with the <em>thread-switching-specification</em> can only be directly invoked in functions declared with the <em>thread-switching- specification</em>:</p>
+<pre><code>void f() placeholder;
+
+void g() placeholder {
+    f();                // OK
+}
+
+void h() {
+    f();                // ill-formed
+}</code></pre>
+<p>A lambda expression that directly calls a function with the <em>thread-switching-specification</em> is considered to inherit the <em>thread-switching-specification</em>:</p>
+<pre><code>void f() placeholder;
+auto l1 = [] placeholder { f(); };  // OK
+auto l2 = [] { f(); };              // OK</code></pre>
+<p>This makes it possible for a lambda expression passed into <code>task_region</code> to not have an explicit <em>thread-switching-specification</em> while still invoking a function with the <em>thread-switching-specification</em>:</p>
+<pre><code>void f() placeholder;
+task_region([] {
+    f();            // OK
+});</code></pre>
+<p>The programmer is not required to decorate the entire call chain of the program starting from the entry point to use the parallelism constructs introduced in this proposal. We therefore introduce the function <code>task_region_final</code>, declared without the <em>thread-switching-specification</em>, which acts as <code>task_region</code> but blocks until the calling thread becomes available.</p>
+<p>In implementations that do not support continuation stealing, the behavior of <code>task_region_final</code> is identical to <code>task_region</code>.</p>
+<h1 id="open-issues"><span class="header-section-number">8</span> Open Issues</h1>
+<ul>
+<li>Pick between Alternative A and B for Thread Switching semantics</li>
+<li>rename <code>placeholder</code></li>
+<li>revisit the term <em>thread-switching-specification</em></li>
+<li>The order of the exceptions in the <code>exception_list</code> object is unspecified. Is this fine?</li>
+<li>consider renaming task_region, task_run to parallel_region, parallel_spawn.</li>
+</ul>
+</body>
+</html>
