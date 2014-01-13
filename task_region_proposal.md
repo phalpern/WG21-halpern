@@ -281,7 +281,7 @@ int main() {
     auto thread_id_begin = std::this_thread::get_id();
     f();
     auto thread_id_end = std::this_thread::get_id();
-    assert(thread_id_end = thread_id_begin);
+    assert(thread_id_end == thread_id_begin);
     return 0;
 }
 ```
