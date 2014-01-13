@@ -78,7 +78,7 @@ The proposed interface is as follows:
 
 ```
 template<typename F>
-void task_region(F && f);
+void task_region(F && f) placeholder;
 ```
 _Effects_: applies the user-provided function object.
 
@@ -95,7 +95,7 @@ asynchronously -- i.e. it may return before the execution of `f` completes.
 
 ```
 template<typename F>
-void task_run(F && f) noexcept;
+void task_run(F && f) placeholder noexcept;
 
 ```
 _Requires_: invocation of the function must be inside the `task_region` context.
@@ -185,9 +185,46 @@ invoked in their program spawns parallel tasks and returns before joining them.
 We propose a new keyword, the `placholder` to be applied on the declaration of functions that are allowed
 to return on a different thread and with unjoined parallel tasks.
 
-TODO: explain transitive calls
+A function declaration specifies whether it can return on another thread or with unjoined tasks
+by using a _thread-switching-specification_ as a suffix of its declarator:
 
-TODO: rules for lambdas.
+```
+void f() placeholder;
+```
+
+A function declared with the _thread-switching-specification_ can only be directly invoked in functions
+declared with the _thread-switching-specification_:
+
+```
+void f() placeholder;
+
+void g() placeholder {
+    f();                // OK
+}
+
+void h() {
+    f();                // ill-formed
+}
+```
+
+A lambda expression that directly calls a function with the _thread-switching-specification_ is considered
+to inherit the _thread-switching-specification_:
+
+```
+void f() placeholder;
+auto l1 = [] placeholder { f(); };  // OK
+auto l2 = [] { f(); };              // OK
+```
+
+This makes it possible for a lambda expression passed into `task_region` to not have an
+explicit _thread-switching-specification_ while still invoking function with the _thread-switching-specification_:
+
+```
+void f() placeholder;
+task_region([] {
+    f();            // OK
+});
+```
 
 # Open Issues
 
