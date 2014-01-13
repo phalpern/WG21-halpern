@@ -40,7 +40,7 @@ meeting in 2013. N3711 closely follows the design of the PPL/TBB with slight
 modifications to improve the exception safety.
 
 This proposal adopts a simpler syntax that eschews a named object in favor of
-the two static functions.  It improves N3711 in the following ways:
+three static functions.  It improves N3711 in the following ways:
 
 * The exception handling model is simplified. 
 * Strict fork-join parallelism is now enforced at compile time. 
