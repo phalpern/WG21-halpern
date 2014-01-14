@@ -3,7 +3,7 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-1-12
+% 2014-1-13
 
 # Abstract
 
@@ -88,7 +88,7 @@ The proposed interface is as follows.
 
 ```
 template<typename F>
-void task_region(F && f) placeholder;
+void task_region(F && f) thread_switching;
 ```
 _Effects_: Applies the user-provided function object.
 
@@ -105,7 +105,7 @@ in [Scheduling Strategies](#Scheduling_Strategies).
 
 ```
 template<typename F>
-void task_run(F && f) placeholder noexcept;
+void task_run(F && f) thread_switching noexcept;
 
 ```
 _Requires_: Invocation of the function must be inside the `task_region` context.
@@ -116,27 +116,26 @@ _Notes_: The function may or not return before the user-provided function comple
 The function is declared with the _thread-switching-specification_, as described
 in [Scheduling Strategies](#Scheduling_Strategies).
 
-The function takes a user-provided function object and starts it asynchronously
--- i.e. it may return before the execution of `f` completes.
+`task_run` takes a user-provided function object `f` and starts it
+asynchronously -- i.e. it may return before the execution of `f` completes.
 
-The function `task_run` can only be invoked (directly or indirectly) from a
-user-provided function passed to `task_region`, otherwise the behavior is 
-undefined:
+`task_run` can only be invoked (directly or indirectly) from a user-provided
+function passed to `task_region`, otherwise the behavior is  undefined:
 
 ```
-void f() placeholder
+void f() thread_switching
 {
-    task_run(g);
+    task_run(g);    // OK, invoked from task_region in h
 }
 
-void h() placeholder
+void h() thread_switching
 {
     task_region(f);
 }
 
 int main()
 {
-    task_run(g);     // the behavior is undefined
+    task_run(g);    // the behavior is undefined
     return 0;
 }
 
@@ -163,7 +162,7 @@ the enclosing `task_run`. -- *end note*.]
 ## task_wait
 
 ```
-void task_wait() placeholder;
+void task_wait() thread_switching;
 ```
 _Effects_: Blocks until the tasks spawned by the closest enclosing `task_region`
 have finished.
@@ -174,6 +173,16 @@ _Postcondition_: All tasks spawned by the closest enclosing `task_region`
 have finished.
 
 _Notes_: `task_wait` has no effect when it is invoked outside of a `task_region`.
+
+Example:
+
+```
+task_region([&]{
+    task_run([&]{ process(a, w, x); }); // Process a[w] through a[x]
+    if (y < x) task_wait();             // Wait if overlap between [w,x) and [y,z)
+    process(a, y, z);                   // Process a[y] through a[z]
+});
+```
 
 # Exception Handling
 
@@ -231,9 +240,8 @@ known as the _child stealing_.
 Other approaches to scheduling exist. In the approach pioneered by Cilk, the
 parent thread proceeds executing the task at the spawn point. The execution of
 the rest of the function  -- i.e. the _continuation_ -- is left to a scheduler.
-This approach to scheduling is known  as the _continuation stealing_ <!-- I like
-the term better than 'parent stealing' because it describes what is being stolen
---> (or _parent stealing_).
+This approach to scheduling is known  as the _continuation stealing_ (or 
+_parent stealing_).
 
 Both approaches have advantages and disadvantages. It has been shown that the
 continuation stealing  approach provides lower asymptotic space guarantees in
@@ -255,7 +263,7 @@ Additionally, programmers writing structured parallel code need to be put on
 notice when a function  invoked in their program spawns parallel tasks and
 returns before joining them.
 
-We propose a new keyword, the `placholder` to be applied on the declaration of
+We propose a new keyword, the `thread_switching` to be applied on the declaration of
 functions that are allowed to return on a different thread and with unjoined
 parallel tasks.
 
@@ -264,18 +272,21 @@ unjoined tasks by using a _thread-switching-specification_ as a suffix of its
 declarator:
 
 ```
-void f() placeholder;
+void f() thread_switching;
 ```
 
-## Semantics - Alternative A
+We have considered several alternative semantics for the 
+_thread-switching-specification_. The following is a couple of alternative
+solutions. We seek the Committee's guidance as to the best approach.
 
-When a function declared with the _thread-switching-specification_ is directly
-invoked in a function  declared without the _thread-switching-specification_,
-the compiler injects a synchronization point  that enables the caller to proceed
-on the original thread:
+One of the simplest alternatives is as follows. When a function declared with
+the _thread-switching-specification_ is directly invoked in a function declared
+without the _thread-switching-specification_, the compiler injects a
+synchronization point  that enables the caller to proceed on the original
+thread:
 
 ```
-void f() placeholder;
+void f() thread_switching;
 
 int main() {
     auto thread_id_begin = std::this_thread::get_id();
@@ -286,16 +297,15 @@ int main() {
 }
 ```
 
-## Semantics - Alternative B
-
-A function declared with the _thread-switching-specification_ can only be
-directly invoked in functions declared with the _thread-switching-
-specification_:
+Another alternative that was considered calls for disallowing invocations of
+thread-switching functions in regular functions. In other words, a function
+declared with the _thread-switching-specification_ can only be directly invoked
+in functions declared with the _thread-switching-specification_:
 
 ```
-void f() placeholder;
+void f() thread_switching;
 
-void g() placeholder {
+void g() thread_switching {
     f();                // OK
 }
 
@@ -309,9 +319,9 @@ _thread-switching-specification_ is considered to inherit the
 _thread-switching-specification_:
 
 ```
-void f() placeholder;
-auto l1 = [] placeholder { f(); };  // OK
-auto l2 = [] { f(); };              // OK
+void f() thread_switching;
+auto l1 = [] thread_switching { f(); };  // OK
+auto l2 = [] { f(); };                   // OK
 ```
 
 This makes it possible for a lambda expression passed into `task_region` to not
@@ -319,7 +329,7 @@ have an explicit _thread-switching-specification_ while still invoking a functio
 with the _thread-switching-specification_:
 
 ```
-void f() placeholder;
+void f() thread_switching;
 task_region([] {
     f();            // OK
 });
@@ -334,11 +344,3 @@ blocks until the calling thread becomes available.
 In implementations that do not support continuation stealing, the behavior of
 `task_region_final`  is identical to `task_region`.
 
-# Open Issues
-
-* Pick between Alternative A and B for Thread Switching semantics
-* rename `placeholder`
-* revisit the term _thread-switching-specification_
-* The order of the exceptions in the `exception_list` object is unspecified.
-    Is this fine?
-* consider renaming task_region, task_run to parallel_region, parallel_spawn.
