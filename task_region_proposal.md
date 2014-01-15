@@ -130,6 +130,8 @@ The proposed interface is as follows.
 
         void task_wait() thread_switching;
 
+        class task_cancelled_exception;
+
     }
     }
     }
@@ -156,7 +158,7 @@ will (directly or indirectly) call `task_run`.
 ## Function template `task_run`
 
     template<typename F>
-    void task_run(F&& f) thread_switching noexcept;
+    void task_run(F&& f) thread_switching;
 
 _Requires_: The invocation of `task_run` shall be directly or indirectly
 nested within an invocation of `task_region`.  `F` shall be
@@ -169,6 +171,8 @@ the nearest enclosing `task_region`, where "nearest enclosing" means the
 [_Note:_ the relationship between a `task_run` and its nearest enclosing
 `task_region` is similar to the relationship between a `throw` statement and
 its nearest `try` block. -- _end note_]
+
+_Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
 
 _Notes_: The invocation of the user-supplied invocable, `f`, may be immediate
 or may be delayed until compute resources are available.  `task_run` might or
@@ -202,7 +206,7 @@ nested within an invocation of `task_region`.
 _Effects_: Blocks until the tasks spawned by the nearest enclosing `task_region`
 have finished.
 
-_Throws_: `exception_list`, as defined in [Exception Handling][].
+_Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
 
 _Postcondition_: All tasks spawned by the nearest enclosing `task_region`
 have finished.
@@ -224,16 +228,36 @@ have finished.
 Every `task_region` has an associated exception list. When the
 `task_region` starts, its associated exception list is empty.
 
-When an exception is thrown from the user-provided function
-object passed to `task_region`, it is added to the exception list for that
-`task_region`. Similarly, when an exception is thrown from the user-provided
-function object passed into `task_run`, the exception object is added to the
-exception list associated with the nearest enclosing `task_region`. In neither
-case are other spawned tasks aborted.
+When an exception is thrown from the user-provided function object passed to
+`task_region`, it is added to the exception list for that `task_region`.
+Similarly, when an exception is thrown from the user-provided function object
+passed into `task_run`, the exception object is added to the exception list
+associated with the nearest enclosing `task_region`. In both cases, an
+implementation may discard any pending tasks that have not yet been invoked.
+Tasks that are already in progress are not interrupted except at a call to
+task_run or task_wait, as described above.
+
+If the implementation is able to detect that an exception has been thrown by
+another task within the same nearest enclosing `task_region`, then `task_run` or
+`task_wait` may throw `task_cancelled_exception`.
+
+The class `task_cancelled_exception` is defined as follows:
+
+    class task_cancelled_exception : public exception {
+    public:
+        task_cancelled_exception() noexcept;
+        task_cancelled_exception(const task_cancelled_exception&) noexcept;
+        task_cancelled_exception& operator=(const task_cancelled_exception&) noexcept;
+        virtual const char* what() const noexcept;
+    };
 
 When `task_region` finishes with a non-empty exception list, the exceptions are
 aggregated into an `exception_list` object (defined below), which is then thrown
 from the `task_region`.
+
+Instances of the `task_cancelled_exception` exception thrown from `task_run` or
+`task_wait` are not added to the exception list of the corresponding
+`task_group`.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
