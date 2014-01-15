@@ -1,8 +1,9 @@
 % Task Region | N3832
-% Pablo Halpern; Arch Robison {pablo.g.halpern, arch.robison}@intel.com  
-% Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter {honghong, arturl, gorn, hsutter}@microsoft.com
+% Pablo Halpern; Arch Robison
+  {pablo.g.halpern, arch.robison}@intel.com
+  Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
+  {honghong, arturl, gorn, hsutter}@microsoft.com
 % 2014-01-13
-
 
 # Abstract
 
@@ -217,6 +218,7 @@ have finished.
 -- _end example_]
 
 <a id="Exception_Handling"></a>
+
 # Exception Handling
 
 Every `task_region` has an associated exception list. When the
@@ -288,6 +290,7 @@ general, to be as open as possible to additional scheduling approaches.
 
 
 <a id="Thread_Switching"></a>
+
 # Unresolved issues: Thread Switching and Returning with Unjoined Children
 
 One of the properties of continuation stealing and greedy scheduling is that a
