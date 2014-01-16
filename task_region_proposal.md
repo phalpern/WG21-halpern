@@ -11,7 +11,7 @@ This paper introduces C++ library functions `task_region`, `task_run` and
 `task_wait` that enable developers to write expressive and portable parallel
 code.
 
-This proposal subsumes and improves the previous proposal, N3711.
+This proposal subsumes and improves the previous proposal, [N3711][].
 
 
 # Motivation and Related Proposals
@@ -95,12 +95,12 @@ function passed to `task_region`, otherwise the behavior is undefined:
 
     void g();
 
-    void f() thread_switching
+    void f()
     {
         task_run(g);    // OK, invoked from within task_region in h
     }
 
-    void h() thread_switching
+    void h()
     {
         task_region(f);
     }
@@ -114,7 +114,11 @@ function passed to `task_region`, otherwise the behavior is undefined:
 
 # Interface
 
-The proposed interface is as follows.
+The proposed interface is as follows.  With the exception of
+`task_region_final`, the implementation of each of the functions defined
+herein is permitted to return on a different native thread than that from
+which it was invoked.  See [Thread Switching][] in the issues section for an
+explanation of when this matters and how surprises can be mitigated.
 
 ## Header `<experimental/parallel_task>` synopsis
 
@@ -123,12 +127,14 @@ The proposed interface is as follows.
     namespace parallel {
 
         template<typename F>
-        void task_region(F&& f) thread_switching;
+          void task_region(F&& f);
+        template<typename F>
+          void task_region_final(F&& f);
 
         template<typename F>
-        void task_run(F&& f) thread_switching noexcept;
+          void task_run(F&& f);
 
-        void task_wait() thread_switching;
+        void task_wait();
 
         class task_cancelled_exception;
 
@@ -139,11 +145,11 @@ The proposed interface is as follows.
 ## Function template `task_region`
 
     template<typename F>
-    void task_region(F&& f) thread_switching;
+      void task_region(F&& f);
+    template<typename F>
+      void task_region_final(F&& f);
 
-_Requires_: The invocation operator for `F` shall be declared with the
-_thread-switching-specification_, as described in
-[Thread Switching][]. `F` shall be `MoveConstructible`. The expression,
+_Requires_: `F` shall be `MoveConstructible`. The expression,
 `(void) f()`, shall be well-formed.
 
 _Effects_: Invokes the expression `f()` on the user-provided object, `f`.
@@ -151,6 +157,8 @@ _Effects_: Invokes the expression `f()` on the user-provided object, `f`.
 _Throws_: `exception_list`, as specified in [Exception Handling][].
 
 _Postcondition_: All tasks spawned from `f` have finished execution.
+`task_region_final` always returns on the same native thread as that on which
+it was invoked. (See [Thread Switching][] in the Issues section.)
 
 _Notes_: It is expected (but not mandated) that `f`
 will (directly or indirectly) call `task_run`.
@@ -158,7 +166,7 @@ will (directly or indirectly) call `task_run`.
 ## Function template `task_run`
 
     template<typename F>
-    void task_run(F&& f) thread_switching;
+      void task_run(F&& f);
 
 _Requires_: The invocation of `task_run` shall be directly or indirectly
 nested within an invocation of `task_region`.  `F` shall be
@@ -174,9 +182,9 @@ its nearest `try` block. -- _end note_]
 
 _Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
 
-_Notes_: The invocation of the user-supplied invocable, `f`, may be immediate
-or may be delayed until compute resources are available.  `task_run` might or
-might not return before invocation of `f` completes.
+_Remarks_: The invocation of the user-supplied invocable, `f`, may be
+immediate or may be delayed until compute resources are available.  `task_run`
+might or might not return before invocation of `f` completes.
 
 `task_run` may be called directly or indirectly from a function object passed
 to `task_run`.  The nested task started in such manner is guaranteed to finish
@@ -198,7 +206,7 @@ end of the enclosing `task_run`. -- *end note*]
 
 ## Function `task_wait`
 
-    void task_wait() thread_switching;
+    void task_wait();
 
 _Requires_: The invocation of `task_wait` shall be directly or indirectly
 nested within an invocation of `task_region`.
@@ -303,8 +311,9 @@ normal function call instead of a spawn.  This approach to scheduling is known
 as _continuation stealing_ (or _parent stealing_).
 
 Both approaches have advantages and disadvantages. It has been shown that the
-continuation stealing approach provides lower asymptotic space guarantees in
-addition to other benefits. Child stealing is generally easier to implement
+continuation stealing approach provides lower asymptotic space guarantees and
+prevents threads from stalling at a join point.
+Child stealing is generally easier to implement
 without compiler involvement.  [N3872][] provides a worthwhile primer that
 addresses the differences between, and respective benefits of, these scheduling
 approaches.
@@ -312,10 +321,23 @@ approaches.
 It is the intent of this proposal to enable both scheduling approaches and, in
 general, to be as open as possible to additional scheduling approaches.
 
+# Issues
+
+The constructs proposed in this paper have a strong theoretical foundation
+from previous work on language-based parallelism such as Cilk, X10, and
+Habanero.  However, there are some practical issues that arise from trying to
+harmonize these constructs with the existing C++ threading model.  For
+example, the terminal strictness of X10 and Habanero is more difficult to
+achieve in C++ because the strict scoping of C++ function variables is less
+forgiving than the garbage collected variables in the other two languages.
+
+This section describes a couple if important issues along with some discussion
+of how they might be addressed.
+
 
 <a id="Thread_Switching"></a>
 
-# Unresolved issues: Thread Switching and Returning with Unjoined Children
+## Thread Switching
 
 One of the properties of continuation stealing and greedy scheduling is that a
 `task_region` or `task_run` call might return on a different thread than that
@@ -323,41 +345,52 @@ from which it was invoked, assuming scheduler threads are mapped 1:1 to standard
 threads. This phenomenon, which is new to C++, can be surprising to
 programmers and break programs that rely on the OS thread remaining the same
 throughout the serial portions of the function (for example, in programs
-accessing GUI objects, mutexes, thread-local storage and thread id).
+accessing GUI objects, mutexes, thread-local storage and thread ID).
 
-Additionally, the _terminally strict_ semantics of the constructs proposed in
-this paper allow a function to return to the caller while its child tasks are
-still running.  Again, this behavior can be surprising to programmers and
-break programs that rely on functions finishing their work before they
-return. Although unstructured concurrency constructs such fire-and-forget
-threads already violate these assumptions, we are attempting, in this paper,
-to define much more structured constructs that operate at a much finer
-granularity of work. Programmers writing _structured_ parallel code need to be
-put on notice when a function invoked in their program might spawn parallel
-tasks and return without joining them first.  Additionally, the compiler's
-optimizer may be impaired in doing its job if it needs to defensively assume
-that any function might return with child tasks still running.
+There are a number of possible approaches to mitigate the problems caused by
+thread switching. In considering mitigation proposals, it is important to
+avoid overly-constraining future implementations in order to support today's
+limited view of threads.  For example, this proposal does not require that
+parallelism be implemented using OS threads at all -- it could be implemented
+using specialized hardware such as GPUs or using other OS facilities such as
+special light-weight threads.
 
-In order to address these two concerns, we propose a new keyword,
-`thread_switching` (bike shed TBD), to be applied on the declaration of
-functions that are allowed to return on a different thread and/or with
-unjoined child tasks.
+Additionally, the solution to problems caused by thread switching may be
+different for mutexes than for thread-local storage (TLS) and thread ID.  For
+example, a prototype mutex exists that works well with thread switching and
+has nice theoretical properties that allow it to be used for both parallelism
+and for traditional concurrency.  The desired behavior for thread-local
+storage varies depending on its intended use, even in the absence of thread
+switching.  For example, the handle to a GUI object might need to be shared
+among all of the tasks executing on behalf of a single original thread.
+Conversely, thread-local caches should not be shared between
+concurrently-executing tasks.  With or without thread switching, we will
+certainly need new TLS-like facilities.
 
-A function declaration specifies whether it can return on another thread or with
-unjoined tasks by using a _thread-switching-specification_ as a suffix of its
-declarator:
+In this proposal, the `task_region_final` function template provides a minimal
+but powerful approach for addressing thread switching.  Using this facility, a
+user can be sure that both thread-local variables and mutexes are in a
+consistant state before and after the execution of a parallel computation.
+This is expected to solve most of the issues that a user may run into
+in well-structured parallel code. Because `task_region_final` requires
+stalling at a join point, it can potentially reduce parallel speed-up.  For
+this reason, our advice to users would be to use `task_region` except in
+circumstances where thread identity is important.  In implementations that do
+not support gready scheduling, the behavior of `task_region_final` would
+probably be identical to `task_region`.
+
+We have also discussed the possibility of language or library constructs to
+mark a function as potentially returning on a different thread than that on
+which it was called.  A straw-man proposal involves a `thread_switching`
+keyword that would be applied as a suffix in the declarator for such
+functions:
 
     void f() thread_switching;
 
-We have considered several alternative semantics for the 
-_thread-switching-specification_. The following is a couple of alternative
-solutions. We seek the Committee's guidance as to the best approach.
-
-The first alternative is as follows: When a function declared with
-the _thread-switching-specification_ is directly invoked in a function declared
-without the _thread-switching-specification_, the compiler injects a
-synchronization point that joins with the (inherited) child tasks and resumes
-on the original thread:
+If function decorated with the `thread_switching` modifier were called from a
+function that did not have the modifier, the compiler would inject code at the
+call site that would, on return from the decorated function, stall the caller
+until the original thread became available to resume execution:
 
     void f() thread_switching;
 
@@ -369,53 +402,90 @@ on the original thread:
         return 0;
     }
 
-Another alternative calls for disallowing invocations of
-thread-switching functions in regular functions. In other words, a function
-declared with the _thread-switching-specification_ can be directly invoked only
-in functions declared with the _thread-switching-specification_:
+Alternatively, calling a decorated function from an undecorated function could
+simply be ill formed, requiring the programmer to call `task_region_final`
+explicitly to avoid an error:
 
     void f() thread_switching;
 
-    void g() thread_switching {
-        f();                // OK
-    }
-
-    void h() {
+    void g() {
         f();                // ill-formed
     }
 
-In both alternatives, a lambda expression that directly calls a function with the 
-_thread-switching-specification_ is considered to inherit the 
-_thread-switching-specification_:
+    void h() {
+        task_region_final([&]{
+            f();            // OK
+        });
+    }
 
-    void f() thread_switching;
-    auto l1 = [] thread_switching { f(); };  // OK
-    auto l2 = [] { f(); };                   // OK
+Other approaches are also being considered, including making a theoretical
+distinction between a "thread" as defined in C++11 and a "worker" as the agent
+that executes tasks.  Making this distinction would solve certain problems
+with parallelism and thread identity, including issues of object and thread
+lifetimes that the `thread_switching` keyword does not address.
 
-This makes it possible to avoid the explicit _thread-switching-specification_
+Final resolution of issues related to thread-switching may need to wait until
+a thorough discussion of "execution agents."
+
+
+## Returning with Unjoined Children
+
+The _terminally strict_ semantics of the constructs proposed in this paper
+allow a function to return to the caller while some of its child tasks are
+still running.  As in the case of thread switching, this behavior can be
+surprising to programmers and break programs that rely on functions finishing
+their work before they return. Although unstructured concurrency constructs
+such fire-and-forget threads already violate these assumptions, we are
+attempting, in this paper, to define much more structured constructs that
+operate at a finer granularity of work. Programmers writing _structured_
+parallel code need to be put on notice when a function invoked in their
+program might spawn parallel tasks and return without joining them first.
+The compiler may need to generate stack-allocated stack frames for such
+functions and/or its optimizer might be impaired in doing its job if it
+needs to defensively assume that any function might return with child tasks
+still running.
+
+One approach to address this issue is to add a keyword similar to the
+`thread_switching` keyword described above.  As in the case of the `noexcept`
+keyword, both the progammer and the compiler know what to expect of the
+function and can take appropriate action.  If an undecorated function were to
+call a decorated function, the compiler could insert a join point on return
+from the decorated function.  Alternatively, the program could be ill-formed
+unless the call to the decorated function is nested in a `task_region`.
+
+As a special case, a lambda expression that directly calls a decorated
+function could be considered to inherit the decoration.
+This special rule would make it possible to avoid the explicit decoration
 for a lambda expression passed into `task_region` while still invoking a
-function with the _thread-switching-specification_:
+decorated function:
 
-    void f() thread_switching;
+    void f() unjoined_children;
     task_region([] {
-        f();            // OK
+        f(); // OK, surrounding lambda implicitly has unjoined_children
     });
 
-The programmer is not required to decorate the entire call chain of the
-program starting from the entry point to use the parallelism constructs
-introduced in this proposal. We therefore introduce the function
-`task_region_final` (more bike-shed discussion needed), declared without the
-_thread-switching-specification_.  This function is the same as `task_region`
-except it is guaranteed to return on the same thread on which it was called.
+It has also been suggested that a single keyword like `thread_switching` could
+serve _both_ purposes: to indicate that a function might return on a different
+thread _and_ that it might have outstanding children.  Unifying these keywords
+minimizes language changes but also limits the expressiveness of the
+interface.  For example, while many functions in a parallel call hierarchy may
+want to return on a different thread (to avoid stalling overhead), most would
+probably not need to return with children still running.  If both concepts
+were expressed with a single keyword, neither the user nor the compiler would
+be able to take advantage of this distinction.
 
-In implementations that do not support gready scheduling, the behavior of
-`task_region_final` is identical to `task_region`.
 
-The `thread_switching` keyword is not the only possible way to address the
-issues of thread switching and unjoined children.  The authors continue to
-research other alternatives, both with and without language support.  We
-believe, however, that the core library interfaces described in this paper are
-unlikely to change significantly as we work through these issues.
+## Moving Forward with Unresolved Issues
+
+The straw-man proposals described briefly above are not the only possible ways
+to address the issues of thread switching and unjoined children.  The authors
+continue to research a number of alternatives, both with and without language
+support, and we seek committee guidance in the form of feedback on the ideas
+we've presented as well as additional ideas.  We believe, however, that
+working through these issues will have only a modest impact on the library
+interfaces described in this paper and that these interfaces should therefore
+be used as the basis for adding strict fork-join library constructs to the
+parallelism TS.
 
 
 [TBB]: https://www.threadingbuildingblocks.org/
