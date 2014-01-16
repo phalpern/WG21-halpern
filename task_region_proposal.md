@@ -112,6 +112,92 @@ function passed to `task_region`, otherwise the behavior is undefined:
     }
 
 
+# Task parallelism Model
+
+## Strict fork-join task parallelism
+
+The model of parallelism supported by the constructs in this paper is called
+_strict fork-join task parallelism_, which has decades of research behind it
+and is the form of structured parallelism supported by all of the prominent
+parallel languages, including [Cilk][], [X10][], [Habanero][], and [OpenMP][].
+These languages can be subdivided into two groups: those with _fully-strict_
+semantics and those with _terminally-strict_ semantics.
+
+In a fully-strict computation (Cilk and Cilk Plus), a task cannot complete
+until it has joined with all of its immediate child tasks.  This form of
+fork-join parallelism provides strong guarantees and make a program easy to
+reason about.  A child task can be written with the assumption that its parent
+will still be running, just as if it were called synchronously. Fully-strict
+semantics diverge less from serial computation than probably any other
+parallel semantics while admitting powerful parallelism.
+
+In a terminally-strict computation (X10, Habanero, and OpenMP), parallelism is
+expressed as a set of nested regions (`finish` blocks in X10) which delimit
+the scope of parallel work. A task will join with an ancestor task at the end
+the nearest enclosing parallel region (i.e., the `finish` block that has been
+most recently entered and not yet exited).  Unlike the case of fully-strict
+semantics, a task can exit without joining with its children.
+Terminally-strict semantics are sometimes more convenient for programmers
+because they allow arbitrary refactoring of code without concern for
+parent-child task boundaries. On the other hand, the relaxed nesting compared
+to fully-strict languages makes the code harder to reason about, since a
+function can effectively return before it is finished (i.e., while sub-tasks
+are still running).
+
+The constructs in this paper have terminally-strict semantics for two reasons:
+1) It is easier than fully-strict semantics to express using a library syntax
+and 2) some of the authors felt that it added important convenience for the
+programmer.  In the Issues section, however, we describe some ways in which we
+might mitigate the disadvantages of terminally-strict semantics, possibly
+getting the best of both worlds.
+
+It is important to note that strict semantics is not a given in parallelism
+proposals. Coming from a background in concurrency, many people look to
+unstructured constructs such as `std::async`, citing their flexibility vs. the
+comparative rigidity of strict parallelism.  While these constructs have their
+place, the research has shown that fine-grain, large-scale parallelism
+benefits from a highly-structured approach.  Just as a compiler can implement
+much more efficient memory allocation for local variables, which are highly
+structured, than for (unstructured) heap-allocated variables, so, too, can a
+compiler and scheduler take advantage of the structure of strict fork-join
+parallelism to implement efficient queuing and scheduling of parallel tasks.
+The algorithms described in [N3724][] and successor proposals neither require
+nor benefit from unstructured parallelism.
+
+
+## Non-mandatory parallelism
+
+Whereas concurrency constructs such as threads, producer-consumer queues, and
+the like are primarily about program _structure_, parallelism constructs of
+the kind presented in this paper are primarily about maximum exploitation of
+available hardware resources to achieve  _performance_.  Critical to this
+distinction is that, while separate threads are independently expected to make
+forward progress, parallel tasks are not.
+
+The most common scheduling technique for fork-join parallelism is called
+work-stealing.  In a work-stealing scheduler, each hardware resource (usually
+a CPU core) maintains a queue (which may or may not be FIFO) of tasks that are
+ready to run.  If a CPU's queue becomes empty, it "steals" a task from the
+queue of some other CPU.  In this way, the CPUs stay busy and munch through
+the work as quickly as possible.  Conversely, if all of the CPUs are busy
+working on their own tasks, then those tasks will be executed serially until
+the queues are empty. In fact, if the operating system allocates only one CPU
+to a process, then the entire parallel computation would be completed on a
+single core. This quality allows a program to scale efficiently from one core
+to many cores without recompilation.
+
+The constructs in this paper allow a programmer to indicate tasks that are
+_permitted_ to run in parallel, but does not _mandate_ that they actually
+_run_ concurrently.  An important consequence of this approach, known as
+"serial semantics," is that a task in the queue will not make any forward
+progress until another task (on the same or different core) completes, whether
+or not there is a dependency relationship between them. Thus, using
+concurrency constructs such as producer-consumer queues between parallel tasks
+(including between parent and child tasks or between sibling tasks) is a sure
+way to achieve deadlock.  If the program is not valid as a serial program,
+then it is not valid as a parallel program, either.
+
+
 # Interface
 
 The proposed interface is as follows.  With the exception of
@@ -376,7 +462,7 @@ in well-structured parallel code. Because `task_region_final` requires
 stalling at a join point, it can potentially reduce parallel speed-up.  For
 this reason, our advice to users would be to use `task_region` except in
 circumstances where thread identity is important.  In implementations that do
-not support gready scheduling, the behavior of `task_region_final` would
+not support greedy scheduling, the behavior of `task_region_final` would
 probably be identical to `task_region`.
 
 We have also discussed the possibility of language or library constructs to
@@ -489,13 +575,25 @@ parallelism TS.
 
 
 [TBB]: https://www.threadingbuildingblocks.org/
-    "Treading Building Blocks (TBB)"
+    "Threading Building Blocks (TBB)"
 
 [PPL]: http://msdn.microsoft.com/en-us/library/dd492418.aspx
     "Parallel Patterns Library (PPL)"
 
 [Cilk Plus]: http://cilkplus.org
     "Cilk Plus"
+
+[Cilk]: http://supertech.csail.mit.edu/cilk/
+    "The Cilk Project"
+
+[X10]: http://x10-lang.org/
+    "X10"
+
+[Habanero]: https://wiki.rice.edu/confluence/display/HABANERO/Habanero+Extreme+Scale+Software+Research+Project
+    "Habanero Extreme Scale Software Research Project"
+
+[OpenMP]: http://openmp.org/wp/
+    "OpenMP"
 
 [N3724]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2013/n3724.pdf
     "A Parallel Algorithms Library"
