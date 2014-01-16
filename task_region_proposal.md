@@ -3,7 +3,7 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-01-13
+% 2014-01-16
 
 # Abstract
 
@@ -129,7 +129,8 @@ fork-join parallelism provides strong guarantees and make a program easy to
 reason about.  A child task can be written with the assumption that its parent
 will still be running, just as if it were called synchronously. Fully-strict
 semantics diverge less from serial computation than probably any other
-parallel semantics while admitting powerful parallelism.
+parallel semantics while admitting powerful parallelism.  The `traverse`
+example above is a fully-strict computation.
 
 In a terminally-strict computation (X10, Habanero, and OpenMP), parallelism is
 expressed as a set of nested regions (`finish` blocks in X10) which delimit
@@ -142,7 +143,29 @@ because they allow arbitrary refactoring of code without concern for
 parent-child task boundaries. On the other hand, the relaxed nesting compared
 to fully-strict languages makes the code harder to reason about, since a
 function can effectively return before it is finished (i.e., while sub-tasks
-are still running).
+are still running).  The following variation of the `traverse` example is a
+terminally-strict computation.  Note that, since none of the sub-computations is
+known to complete until the top-level `task_region` completes, none of the
+intermediate computations can depend on the results of child-computations:
+
+    template<typename Func>
+    void traverse(node*n, Func&& compute)
+    {
+        if (n->left)
+            task_run([&] { traverse(n->left, compute); });
+        if (n->right)
+            task_run([&] { traverse(n->right, compute); });
+
+        n->value = compute(n->value);
+
+        // left and right traverse() calls are NOT joined on return.
+    }
+
+    template<typename Func>
+    void do_traverse(node*n, Func&& compute)
+    {
+        task_region([&]{ traverse(n, compute); });
+    }
 
 The constructs in this paper have terminally-strict semantics for two reasons:
 1) It is easier than fully-strict semantics to express using a library syntax
