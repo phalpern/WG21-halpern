@@ -60,7 +60,7 @@ function `compute` is applied to each node of the tree, returning the sum of the
 results:
 
     template<typename Func>
-    int traverse(node*n, Func&& compute)
+    int traverse(node *n, Func&& compute)
     {
         int left = 0, right = 0;
 
@@ -149,7 +149,7 @@ known to complete until the top-level `task_region` completes, none of the
 intermediate computations can depend on the results of child-computations:
 
     template<typename Func>
-    void traverse(node*n, Func&& compute)
+    void traverse(node *n, Func&& compute)
     {
         if (n->left)
             task_run([&] { traverse(n->left, compute); });
@@ -162,7 +162,7 @@ intermediate computations can depend on the results of child-computations:
     }
 
     template<typename Func>
-    void do_traverse(node*n, Func&& compute)
+    void do_traverse(node *n, Func&& compute)
     {
         task_region([&]{ traverse(n, compute); });
     }
@@ -235,6 +235,8 @@ explanation of when this matters and how surprises can be mitigated.
     namespace experimental {
     namespace parallel {
 
+        class task_cancelled_exception;
+
         template<typename F>
           void task_region(F&& f);
         template<typename F>
@@ -245,11 +247,23 @@ explanation of when this matters and how surprises can be mitigated.
 
         void task_wait();
 
-        class task_cancelled_exception;
+    }
+    }
+    }
 
-    }
-    }
-    }
+## Class `task_cancelled_exception`
+
+    class task_cancelled_exception : public exception {
+    public:
+        task_cancelled_exception() noexcept;
+        task_cancelled_exception(const task_cancelled_exception&) noexcept;
+        task_cancelled_exception& operator=(const task_cancelled_exception&) noexcept;
+        virtual const char* what() const noexcept;
+    };
+
+The class `task_cancelled_exception` defines the type of objects thrown by
+`task_run` or `task_wait` if they detect that an exception is pending within
+the current parallel region.  See [Exception Handling][], below.
 
 ## Function template `task_region`
 
@@ -357,16 +371,6 @@ task_run or task_wait, as described above.
 If the implementation is able to detect that an exception has been thrown by
 another task within the same nearest enclosing `task_region`, then `task_run` or
 `task_wait` may throw `task_cancelled_exception`.
-
-The class `task_cancelled_exception` is defined as follows:
-
-    class task_cancelled_exception : public exception {
-    public:
-        task_cancelled_exception() noexcept;
-        task_cancelled_exception(const task_cancelled_exception&) noexcept;
-        task_cancelled_exception& operator=(const task_cancelled_exception&) noexcept;
-        virtual const char* what() const noexcept;
-    };
 
 When `task_region` finishes with a non-empty exception list, the exceptions are
 aggregated into an `exception_list` object (defined below), which is then thrown
