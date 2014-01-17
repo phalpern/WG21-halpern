@@ -201,8 +201,8 @@ The most common scheduling technique for fork-join parallelism is called
 work-stealing.  In a work-stealing scheduler, each hardware resource (usually
 a CPU core) maintains a queue (which may or may not be FIFO) of tasks that are
 ready to run.  If a CPU's queue becomes empty, it "steals" a task from the
-queue of some other CPU.  In this way, the CPUs stay busy and munch through
-the work as quickly as possible.  Conversely, if all of the CPUs are busy
+queue of some other CPU.  In this way, the CPUs stay busy and process their work
+as quickly as possible.  Conversely, if all of the CPUs are busy
 working on their own tasks, then those tasks will be executed serially until
 the queues are empty. In fact, if the operating system allocates only one CPU
 to a process, then the entire parallel computation would be completed on a
