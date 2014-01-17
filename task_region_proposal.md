@@ -3,7 +3,7 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-01-16
+% 2014-01-17
 
 # Abstract
 
@@ -112,9 +112,9 @@ function passed to `task_region`, otherwise the behavior is undefined:
     }
 
 
-# Task parallelism Model
+# Task Parallelism Model
 
-## Strict fork-join task parallelism
+## Strict Fork-join Task Parallelism
 
 The model of parallelism supported by the constructs in this paper is called
 _strict fork-join task parallelism_, which has decades of research behind it
@@ -188,7 +188,7 @@ The algorithms described in [N3724][] and successor proposals neither require
 nor benefit from unstructured parallelism.
 
 
-## Non-mandatory parallelism
+## Non-mandatory Parallelism
 
 Whereas concurrency constructs such as threads, producer-consumer queues, and
 the like are primarily about program _structure_, parallelism constructs of
@@ -577,6 +577,8 @@ decorated function:
         f(); // OK, surrounding lambda implicitly has unjoined_children
     });
 
+This special case would apply to the `thread_switching` keyword, as well.
+
 It has also been suggested that a single keyword like `thread_switching` could
 serve _both_ purposes: to indicate that a function might return on a different
 thread _and_ that it might have outstanding children.  Unifying these keywords
@@ -585,7 +587,10 @@ interface.  For example, while many functions in a parallel call hierarchy may
 want to return on a different thread (to avoid stalling overhead), most would
 probably not need to return with children still running.  If both concepts
 were expressed with a single keyword, neither the user nor the compiler would
-be able to take advantage of this distinction.
+be able to take advantage of this distinction.  It has also been suggested
+that these concepts could somehow be combined with the `resumable` keyword
+being proposed for resumable functions, though it is not yet clear how this
+combination would work.
 
 
 ## Moving Forward with Unresolved Issues
@@ -600,39 +605,45 @@ interfaces described in this paper and that these interfaces should therefore
 be used as the basis for adding strict fork-join library constructs to the
 parallelism TS.
 
+# References
 
 [TBB]: https://www.threadingbuildingblocks.org/
-    "Threading Building Blocks (TBB)"
+[TBB][] Threading Building Blocks (TBB)
 
 [PPL]: http://msdn.microsoft.com/en-us/library/dd492418.aspx
-    "Parallel Patterns Library (PPL)"
-
-[Cilk Plus]: http://cilkplus.org
-    "Cilk Plus"
+[PPL][] Parallel Patterns Library (PPL)
 
 [Cilk]: http://supertech.csail.mit.edu/cilk/
-    "The Cilk Project"
+[Cilk][] The Cilk Project
+
+[Cilk Plus]: http://cilkplus.org
+[Cilk Plus][] cilkplus.org home page
 
 [X10]: http://x10-lang.org/
-    "X10"
+[X10][] X10 Home Page
 
 [Habanero]: https://wiki.rice.edu/confluence/display/HABANERO/Habanero+Extreme+Scale+Software+Research+Project
-    "Habanero Extreme Scale Software Research Project"
+[Habanero][] Habanero Extreme Scale Software Research Project
 
 [OpenMP]: http://openmp.org/wp/
-    "OpenMP"
+[OpenMP][] openmp.org home page
 
 [N3724]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2013/n3724.pdf
-    "A Parallel Algorithms Library"
+[N3724][] _A Parallel Algorithms Library_, J. Hoberock, O. Giroux, V. Grover,
+H. Sutter, et al., 2013-08-30
 
 [N3711]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2013/n3711.pdf
-    "Task Groups As a Lower Level C++ Library Solution To Fork-Join Parallelism"
+[N3711][] _Task Groups As a Lower Level C++ Library Solution To Fork-Join
+Parallelism_, A. Laksberg, H. Sutter, 2013-08-15
 
-[3409]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2012/n3409.pdf
-    "Strict Fork-Join Parallelism"
+[N3409]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2012/n3409.pdf
+[N3409][] _Strict Fork-Join Parallelism_, Pablo Halpern, 2012-09-24
 
 [N3872]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3872.pdf
-    "A Primer on Scheduling Fork-Join Parallelism with Work Stealing"
+[N3872][] _A Primer on Scheduling Fork-Join Parallelism with Work Stealing_,
+Arch Robison, 2014-01
+
+<!-- The following references are internal to this document -->
 
 [Exception Handling]: #Exception_Handling
 
