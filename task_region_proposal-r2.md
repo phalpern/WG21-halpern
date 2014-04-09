@@ -1,4 +1,4 @@
-% Task Region, r2 | DXXXX
+% Task Region R2 | DXXXX
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
@@ -346,14 +346,15 @@ its nearest `try` block. -- _end note_]
 _Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
 
 _Remarks_: The invocation of the user-supplied invocable, `f`, may be
-immediate or may be delayed until compute resources are available.  `task_run`
+immediate or may be delayed until compute resources are available.  `run`
 might or might not return before invocation of `f` completes.
 
-`task_run` may be called directly or indirectly from a function object passed
-to `task_run`.  The nested task started in such manner is guaranteed to finish
+`run` may be called directly or indirectly from a function object passed
+to an enclosing `run`.  The nested task started in such manner is guaranteed to
+finish
 with the rest of the tasks started using the same `task_region_handle` [_Note:_
 An implementation is allowed to join tasks at any point, for example at the
-end of the enclosing `task_run`. -- _end note_]
+end of the enclosing `run`. -- _end note_]
 
 [_Example_:
 
