@@ -5,34 +5,11 @@
 #include <ppl.h>
 #include <windows.h>
 
+#include "exception_list.h"
+
 #ifdef _DEBUG
 #define TRACE_ALLOCATIONS
 #endif
-
-class exception_list : public std::exception
-{
-public:
-    typedef std::exception_ptr value_type;
-    typedef const value_type& reference;
-    typedef const value_type& const_reference;
-    typedef size_t size_type;
-    typedef std::vector<std::exception_ptr>::iterator iterator;
-    typedef std::vector<std::exception_ptr>::const_iterator const_iterator;
-
-    exception_list(std::vector<std::exception_ptr> exceptions) : exceptions_(std::move(exceptions)) {}
-
-    size_t size() const {
-        return exceptions_.size();
-    }
-    const_iterator begin() const {
-        return exceptions_.begin();
-    }
-    const_iterator end() const {
-        return exceptions_.end();
-    }
-private:
-    std::vector<std::exception_ptr> exceptions_;
-};
 
 struct task_handler_node_base
 {
@@ -156,27 +133,86 @@ public:
     }
 };
 
-extern __declspec(thread) structured_task_groupEx* tls_current_task_group;
+class task_region_handle
+{
+private:
+    structured_task_groupEx * pstg_;
+    int this_task_group_depth_;
+
+    template<typename F>
+    friend void task_region(F&& f);
+
+    template<typename F>
+    friend void task_region_final(F&& f);
+
+    task_region_handle(structured_task_groupEx *pstg, int this_task_group_depth) 
+        : pstg_(pstg), this_task_group_depth_(this_task_group_depth){}
+
+    ~task_region_handle() {}
+
+public:
+    task_region_handle(const task_region_handle&) = delete;
+    task_region_handle& operator=(const task_region_handle&) = delete;
+    task_region_handle* operator&() const = delete;
+
+    template<typename F>
+    void run(F&& f)
+    {
+        if (tls_current_task_group_depth != this_task_group_depth_)
+        {
+            printf("incorrect task_region_handle used for given task_region\n");
+            std::terminate();
+        }
+
+        auto current_stg = pstg_;
+        auto f_wrapped = [f, current_stg] {
+            try
+            {
+                f();
+            }
+            catch (...)
+            {
+                assert(current_stg != nullptr);
+                current_stg->add_exception(current_exception());
+            }
+        };
+
+        typedef decltype(f_wrapped) F_wrapped;
+
+        auto ptask_handler_node = pstg_->alloc<F_wrapped>();
+
+        // create a task handle in-place
+        new(&ptask_handler_node->data)task_handle<F_wrapped>(make_task(f_wrapped));
+
+        // Now run the task on the task group
+        pstg_->run(ptask_handler_node->data);
+    }
+
+    void wait()
+    {
+        pstg_->wait();
+    }
+};
+
+extern __declspec(thread) int tls_current_task_group_depth;
 
 template<typename F>
 void task_region(F && f)
 {
-    // this must be the last object to be destroyed
+    tls_current_task_group_depth++;
     struct restore_tls {
-        structured_task_groupEx* m_old_state = tls_current_task_group;
         ~restore_tls()
         {
-            tls_current_task_group = m_old_state;
+            tls_current_task_group_depth--;
         }
     }_;
 
     structured_task_groupEx stg;
-
-    tls_current_task_group = &stg;
+    task_region_handle trh(&stg, tls_current_task_group_depth);
 
     try
     {
-        f();
+        f(trh);
     }
     catch (...)
     {
@@ -192,32 +228,4 @@ void task_region(F && f)
     }
 }
 
-template<typename F>
-void task_run(F&& f) noexcept
-{
-    assert(tls_current_task_group != nullptr);
 
-    auto current_task_group = tls_current_task_group;
-
-    auto f_wrapped = [f, current_task_group] {
-        try
-        {
-            f();
-        }
-        catch (...)
-        {
-            assert(current_task_group != nullptr);
-            current_task_group->add_exception(current_exception());
-        }
-    };
-
-    typedef decltype(f_wrapped) F_wrapped;
-
-    auto ptask_handler_node = tls_current_task_group->alloc<F_wrapped>();
-
-    // create a task handle in-place
-    new(&ptask_handler_node->data)task_handle<F_wrapped>(make_task(f_wrapped));
-
-    // Now run the task on the task group
-    tls_current_task_group->run(ptask_handler_node->data);
-}
