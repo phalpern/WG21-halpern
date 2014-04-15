@@ -133,11 +133,12 @@ public:
     }
 };
 
+extern __declspec(thread) structured_task_groupEx* tls_current_task_group;
+
 class task_region_handle
 {
 private:
     structured_task_groupEx * pstg_;
-    int this_task_group_depth_;
 
     template<typename F>
     friend void task_region(F&& f);
@@ -145,8 +146,8 @@ private:
     template<typename F>
     friend void task_region_final(F&& f);
 
-    task_region_handle(structured_task_groupEx *pstg, int this_task_group_depth) 
-        : pstg_(pstg), this_task_group_depth_(this_task_group_depth){}
+    task_region_handle(structured_task_groupEx *pstg)
+        : pstg_(pstg){}
 
     ~task_region_handle() {}
 
@@ -158,57 +159,54 @@ public:
     template<typename F>
     void run(F&& f)
     {
-        if (tls_current_task_group_depth != this_task_group_depth_)
-        {
-            printf("incorrect task_region_handle used for given task_region\n");
-            std::terminate();
-        }
+        // User error:
+        assert(tls_current_task_group == pstg_);
 
-        auto current_stg = pstg_;
-        auto f_wrapped = [f, current_stg] {
+        auto current_task_group = tls_current_task_group;
+
+        auto f_wrapped = [f, current_task_group] {
             try
             {
                 f();
             }
             catch (...)
             {
-                assert(current_stg != nullptr);
-                current_stg->add_exception(current_exception());
+                assert(current_task_group != nullptr);
+                current_task_group->add_exception(current_exception());
             }
         };
 
         typedef decltype(f_wrapped) F_wrapped;
 
-        auto ptask_handler_node = pstg_->alloc<F_wrapped>();
+        auto ptask_handler_node = current_task_group->alloc<F_wrapped>();
 
         // create a task handle in-place
         new(&ptask_handler_node->data)task_handle<F_wrapped>(make_task(f_wrapped));
 
         // Now run the task on the task group
-        pstg_->run(ptask_handler_node->data);
+        current_task_group->run(ptask_handler_node->data);
     }
 
     void wait()
     {
-        pstg_->wait();
+        tls_current_task_group->wait();
     }
 };
-
-extern __declspec(thread) int tls_current_task_group_depth;
 
 template<typename F>
 void task_region(F && f)
 {
-    tls_current_task_group_depth++;
     struct restore_tls {
+        structured_task_groupEx* m_old_state = tls_current_task_group;
         ~restore_tls()
         {
-            tls_current_task_group_depth--;
+            tls_current_task_group = m_old_state;
         }
     }_;
 
     structured_task_groupEx stg;
-    task_region_handle trh(&stg, tls_current_task_group_depth);
+    tls_current_task_group = &stg;
+    task_region_handle trh(&stg);
 
     try
     {
@@ -227,5 +225,3 @@ void task_region(F && f)
         stg.throw_exception_list();
     }
 }
-
-
