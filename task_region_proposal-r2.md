@@ -3,7 +3,7 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-05-21
+% 2014-05-22
 
 # Abstract
 
@@ -71,7 +71,8 @@ in the following ways:
 
 * The exception handling model is simplified and more consistent with normal
   C++ exceptions.
-* Strict fork-join parallelism is enforceable at compile time.
+* Most violations of strict fork-join parallelism can be enforced at compile
+  time (with compiler assistance, in some cases).
 * The syntax allows scheduling approaches other than child stealing.
 
 We aim to converge with the language-based proposal for low-level parallelism
@@ -173,9 +174,7 @@ from a (synchronously-called) function.  That is, a called function can spawn
 child tasks and return without joining with those tasks.  This (useful)
 feature is not directly related to parallel strictness because a called
 function does not create a new task, but it does make the program less
-structured in two ways: 1) An asynchronous child function cannot reference a
-variable in its caller's frame because the caller can return before the child
-is finished and 2) a function may return to its caller before it has
+structured in that a function may return to its caller before it has
 completely finished (i.e., while sub-tasks are still running).  The dangers of
 this relaxation of structured function-call semantics are mitigated by the
 `task_region_handle`, which, when passed from caller to callee, gives both the
@@ -185,8 +184,8 @@ special.
 This design choice means is that a `task_region_handle` can be passed to a
 _synchronous_ function call (or captured by synchronously-called lambda
 function), but not to an _asynchronous_ function call.  Thus the following
-code would have undefined behavior (which can be diagnosed by a savvy
-compiler):
+code would have undefined behavior. This violation and most such innocent
+violations can be diagnosed by a savvy compiler:
 
     task_region([&](auto& tr) {
         tr.run([&]{ g(tr); }); // Error, tr captured by asynchronous lambda
@@ -313,7 +312,7 @@ exception is pending within the current parallel region.  See
 The class `task_region_handle` defines an interface for forking and joining
 parallel tasks. The `task_region` and `task_region_final` function templates
 create an object of type `task_region_handle` and pass a reference to that
-object to a user-provided invocable.
+object to a user-provided callable object.
 
 An object of class `task_region_handle` cannot be constructed, destroyed,
 copied, or moved except by the implementation of the task region library.
@@ -322,9 +321,14 @@ Taking the address of a `task_region_handle` object via `operator&` or
 means is unspecified.
 
 A `task_region_handle` is _active_ if it was created by the nearest enclosing
-`task_region`, where "nearest enclosing" means the `task_region` that was most
-recently invoked and which has not yet returned.  Performing any operation on
-a `task_region_handle` that is not active results in undefined behavior.
+task region, where "task region" refers to an invocation of `task_region` or
+`task_region_final` and "nearest enclosing" means the most recent invocation
+that has not yet completed. Code designated for execution in another thread by
+means other than the facilities in this section (e.g., using `thread` or
+`async`) are not enclosed in the task region and a `task_region_handle` passed
+to (or captured by) such code is not active within that code. Performing any
+operation on a `task_region_handle` that is not active results in undefined
+behavior.
 
 The `task_region_handle` that is active before a specific call to the `run`
 member function is not active within the asynchronous function that invoked
@@ -332,7 +336,7 @@ member function is not active within the asynchronous function that invoked
 `task_region_handle` from the surrounding block.)
 [_Example:_
 
-    task_region([](auto& tr) {
+    task_region([&](auto& tr) {
         tr.run([&]{
             tr.run([] { f(); });        // Error: tr is not active
             task_region([&](auto& tr) { // Nested task region
@@ -357,16 +361,14 @@ shall be well-formed.
 _Precondition_: `this` shall be the active `task_region_handle`.
 
 _Effects_: Causes the expression `f()` to be invoked asynchronously at an
-unspecified time prior to the next invocation of `wait` or completion of the
-nearest enclosing `task_region` (i.e., the `task_region` that created this
-`task_region_handle`).
-[_Note:_ the relationship between a call to `run` and its nearest enclosing
-`task_region` is similar to the relationship between a `throw` statement and
-its nearest `try` block. -- _end note_]
+unspecified time prior to completion of the next invocation of `wait` or
+completion of the 
+nearest enclosing task region (i.e., the `task_region` or `task_region_final`
+that created this `task_region_handle`).
 
 _Throws_: `task_canceled_exception`, as defined in [Exception Handling][]. 
 
-_Remarks_: The invocation of the user-supplied invocable, `f`, may be
+_Remarks_: The invocation of the user-supplied callable object, `f`, may be
 immediate or may be delayed until compute resources are available.  `run`
 might or might not return before invocation of `f` completes.
 
@@ -381,7 +383,7 @@ have finished.
 
 _Throws_: `task_canceled_exception`, as defined in [Exception Handling][].
 
-_Postcondition_: All tasks spawned by the nearest enclosing `task_region`
+_Postcondition_: All tasks spawned by the nearest enclosing task region
 have finished.
 
 [_Example:_
@@ -394,7 +396,7 @@ have finished.
 
 -- _end example_]
 
-## Function template `task_region`
+## Function templates `task_region` and  `task_region_final`
 
     template<typename F>
       void task_region(F&& f);
@@ -414,34 +416,34 @@ _Postcondition_: All tasks spawned from `f` have finished execution.
 it was invoked. (See [Thread Switching][] in the Issues section.)
 
 _Notes_: It is expected (but not mandated) that `f`
-will (directly or indirectly) call `tr.run(_invocable_)`.
+will (directly or indirectly) call `tr.run(_callable_object_)`.
 
 <a id="Exception_Handling"></a>
 
 # Exception Handling
 
-Every `task_region` has an associated exception list. When the
-`task_region` starts, its associated exception list is empty.
+Every task region has an associated exception list. When the
+task region starts, its associated exception list is empty.
 
-When an exception is thrown from the user-provided function object passed to
-`task_region`, it is added to the exception list for that `task_region`.
+When an exception is thrown from the user-provided callable object passed to
+`task_region` or `task_region_final`, it is added to the exception list for that task region.
 Similarly, when an exception is thrown from the user-provided function object
 passed into `task_region_handle::run`, the exception object is added to the
 exception list
-associated with the nearest enclosing `task_region`. In both cases, an
+associated with the nearest enclosing task region. In both cases, an
 implementation may discard any pending tasks that have not yet been invoked.
 Tasks that are already in progress are not interrupted except at a call to
 `task_region_handle::run` or `task_region_handle::wait`, as described above.
 
 If the implementation is able to detect that an exception has been thrown by
-another task within the same nearest enclosing `task_region`, then
+another task within the same nearest enclosing task region, then
 `task_region_handle::run` or `task_region_handle::wait` may throw
 `task_canceled_exception`; these instances of `task_canceled_exception` are
 not added to the exception list of the corresponding `task_group`.
 
-When `task_region` finishes with a non-empty exception list, the exceptions are
+When a task region finishes with a non-empty exception list, the exceptions are
 aggregated into an `exception_list` object (defined below), which is then thrown
-from the `task_region`.
+from the task region.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
@@ -476,7 +478,8 @@ then executed (or _stolen_) by a scheduler using a different (native) thread,
 based on the availability of hardware resources and other factors. The
 original _parent_ thread may participate in the execution of the tasks
 when it reaches the join point (i.e. at the  end of the execution of the
-function object passed to the `task_region`). This approach to scheduling is
+callable object passed to the `task_region` or `task_region_final`). This
+approach to scheduling is 
 known as _child stealing_.
 
 Other approaches to scheduling exist. In the approach pioneered by Cilk, the
