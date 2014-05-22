@@ -1,15 +1,16 @@
-% Task Region R2 | DXXXX
+% Task Region R2 | D3991
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-04-09
+% 2014-05-19
 
 # Abstract
 
 This paper introduces C++ a library function template `task_region` and a
 library class `task_region_handle` with member functions `run` and `wait` that
-together enable developers to write expressive and portable parallel code.
+together enable developers to write expressive and portable fork-join parallel
+code.
 
 This proposal is a revision of [N3832][].
 
@@ -17,25 +18,40 @@ This proposal is a revision of [N3832][].
 
 The main change from the previous revision of this paper is the addition of the
 `task_region_handle` class as an explicit means of communicating from a
-`task_region` to the spawn point of a child task.  This change in this vein was
+`task_region` to the spawn point of a child task.  A change in this vein was
 requested at the February 2014 Issaquah meeting as a way to avoid "magic" or
-"out-of-band communication".  It was also suggested that requiring an explicit
+"out-of-band communication."  It was also suggested that requiring an explicit
 handshake between these parts of a task region would make it easier for
 compilers and linkers to avoid combining disparate implementations of the
 library proposed herein.
 
-This change brought up an issue not present in the original paper: potential
-violations of strict fork-join parallelism.  A few sentences in the formal
-wording wording and a new issie in the issues section was added to the paper in
+An additional change is that the type of parallelism described in N3832 was
+"terminally strict" whereas the type of parallelism described in this paper
+can best be described as "fully strict with refactoring".  See
+[Strict Fork-join Parallelism][], below, for a description of these terms.
+The change was made because terminal strictness was deemed to present
+implementation difficulties for little gain in expressiveness. The main
+benefit of terminally strict languages -- ease of refactoring code -- is
+preserved.  Moreover, terminally-strict semantics is a pure relaxation of
+fully-strict semantics, so it should be possible to change our mind in the
+future without breaking code written to this specification.
+
+These changes created an issue not present in the original paper: potential
+violations of fully-strict fork-join parallelism.  A few sentences in the formal
+wording and a new issue in the issues section was added to the paper in
 response.
+
+Finally `task_cancelled_exception` was renamed to `task_canceled_exception`
+(one el instead of two).
 
 
 # Motivation and Related Proposals
 
-The Parallel STL proposal [N3724][] augments the STL algorithms with the
+The working draft for the Parallelism TS [N3960][] augments the STL algorithms
+with the 
 inclusion of parallel execution policies. Programmers use these as a basis to
 write additional high-level algorithms that can be implemented in terms of the
-provided parallel algorithms. However, the scope of N3724 does not include
+provided parallel algorithms. However, the scope of N3960 does not include
 lower-level mechanisms to express arbitrary fork-join parallelism.
 
 Over the last several years, Microsoft and Intel have collaborated to produce
@@ -44,25 +60,23 @@ Microsoft and the Threading Building Blocks ([TBB][]) by Intel.  The two
 libraries have been a part of the commercial products shipped by Microsoft and
 Intel.  Additionally, the paper is informed by Intel's experience with
 [Cilk Plus][], an extension to C++ included in the Intel C++ compiler in the
-Intel Composer XE product.
+Intel Composer XE product and also in gcc 4.9.
 
 The `task_region`, `run` and the `wait` functions proposed in this
 document are  based on the `task_group` concept that is a part of the common
-subset of the PPL and the TBB  libraries. The paper also enables approaches to
-fork-join parallelism that are not limited to  library solutions, by proposing a
-small addition to the C++ language.
-
-A previous proposal, [N3711][], was presented to the Committee at the Chicago
+subset of the PPL and the TBB  libraries. A previous proposal, [N3711][], was
+presented to the Committee at the Chicago 
 meeting in 2013. N3711 closely follows the design of the PPL/TBB with slight
 modifications to improve exception safety.
 
-This proposal adopts a simpler syntax than [N3711][] -- one that eschews a
-named object in favor of three namespace-scoped functions.  It improves N3711
+This proposal adopts a simpler syntax than [N3711][] -- one that is influenced
+by language-based concepts such as `spawn` and `sync` from [Cilk][] and
+`async` and `finish` from [X10][].  It improves on N3711
 in the following ways:
 
-* The exception handling model is simplified and more consistent with normal 
+* The exception handling model is simplified and more consistent with normal
   C++ exceptions.
-* Strict fork-join parallelism is now enforced at compile time. 
+* Strict fork-join parallelism is now enforceable at compile time.
 * The syntax allows scheduling approaches other than child stealing.
 
 We aim to converge with the language-based proposal for low-level parallelism
@@ -133,6 +147,8 @@ only from a user-provided function passed to `task_region`:
 
 # Task Parallelism Model
 
+<a id="Strict_Fork_Join"></a>
+
 ## Strict Fork-join Task Parallelism
 
 The model of parallelism supported by the constructs in this paper is called
@@ -142,58 +158,91 @@ parallel languages, including [Cilk][], [X10][], [Habanero][], and [OpenMP][].
 These languages can be subdivided into two groups: those with _fully-strict_
 semantics and those with _terminally-strict_ semantics.
 
-In a fully-strict computation (Cilk and Cilk Plus), a task cannot complete
-until it has joined with all of its immediate child tasks.  This form of
-fork-join parallelism provides strong guarantees and make a program easy to
+In both the fully-strict and terminally-strict models, there is a notion of a
+_task region_ that "owns" all of the tasks spawned within it.  A _child_ task
+spawned within a task region is automatically joined when the task region ends
+(i.e., the program waits for it to finish before continuing).
+
+In the fully-strict model (Cilk and Cilk Plus), every function body is
+implicitly a task region; a function cannot return until it has joined with
+all child tasks spawned within it.  This form of
+fork-join parallelism provides strong guarantees and makes a program easy to
 reason about.  A child task can be written with the assumption that its parent
 will still be running, just as if it were called synchronously. Fully-strict
 semantics diverge less from serial computation than probably any other
 parallel semantics while admitting powerful parallelism.  The `traverse`
 example above is a fully-strict computation.
 
-In a terminally-strict computation (X10, Habanero, and OpenMP), parallelism is
-expressed as a set of nested regions (`finish` blocks in X10) which delimit
-the scope of parallel work. A task will join with an ancestor task at the end
-the nearest enclosing parallel region (i.e., the `finish` block that has been
-most recently entered and not yet exited).  Unlike the case of fully-strict
-semantics, a task can exit without joining with its children.
-Terminally-strict semantics are sometimes more convenient for programmers
-because they allow arbitrary refactoring of code without concern for
-parent-child task boundaries. On the other hand, the relaxed nesting compared
-to fully-strict languages makes the code harder to reason about, since a
-function can effectively return before it is finished (i.e., while sub-tasks
-are still running).  The following variation of the `traverse` example is a
-terminally-strict computation.  Note that, since none of the sub-computations is
-known to complete until the top-level `task_region` completes, none of the
-intermediate computations can depend on the results of child-computations:
+In the terminally-strict model (X10, Habanero, and OpenMP), there are no
+implicit task regions -- a task region is an explicit construct (a `finish`
+block in X10).  Terminally-strict languages allow functions to create child
+tasks and return while those tasks are still running.  The child task will be
+joined on completion of the nearest enclosing `finish` (i.e., the `finish`
+block that has been most recently entered and not yet exited).  Those
+sub-tasks are actually children of the nearest enclosing task region, rather
+than children of the function that spawned it.
 
-    template<typename Func>
-    void traverse(task_region_handle& tr, node *n, Func&& compute)
-    {
-        if (n->left)
-            tr.run([&] { traverse(tr, n->left, compute); });
-        if (n->right)
-            tr.run([&] { traverse(tr, n->right, compute); });
+The following variation of the `traverse` example is a terminally-strict
+computation written in X10. (Disclaimer: this code was never compiled with an
+X10 compiler and is likely to contain errors.)  Note that, since none of the
+sub-computations is known to complete until the top-level `finish` completes,
+none of the intermediate computations can depend on the results of
+child-computations:
 
-        n->value = compute(n->value);
+    // DISCLAIMER: Approximate X10 syntax.  Not verified by compiler.
+    class Tree[T] {
+        ...
+        public static def traverse(n:Node, compute:(v:T) => T)
+        {
+            if (n.left)
+                async { traverse(n.left, compute); }
+            if (n.right)
+                async { traverse(n.right, compute); }
 
-        // left and right traverse() calls are NOT joined on return.
+            n.value = compute(n.value);
+        }
+
+        public static def do_traverse(n:Node, compute:(v:T) => T)
+        {
+            finish { traverse(n, compute); }
+        }
     }
 
-    template<typename Func>
-    void do_traverse(node *n, Func&& compute)
-    {
-        task_region([&](auto& tr) { traverse(tr, n, compute); });
-    }
+Terminally-strict constructs are easier to render using a library syntax than
+are fully-strict constructs, since the latter are tied to the linguistic
+concept of lexical scope.  In addition, terminally-strict languages are
+slightly more expressive, allowing a programmer to refactor spawning code
+into a separate function.  However, terminally-strict constructs introduce
+problems as well.
 
-The constructs in this paper have terminally-strict semantics for two reasons:
-1) It is easier than fully-strict semantics to express using a library syntax
-and 2) some of the authors felt that it added important convenience for the
-programmer. [TBD] In the Issues section, however, we describe some ways in which we
-might mitigate the disadvantages of terminally-strict semantics, possibly
-getting the best of both worlds.
+One problem with terminally-strict constructs is that the structure of the
+program is altered in a way that makes the code harder to reason about, since
+a function can effectively return before it is finished (i.e., while sub-tasks
+are still running).  This problem is mitigated by the `task_region_handle`,
+which, when passed from caller to callee, gives both the programmer and the
+compiler enough information to recognize the callee as special.
 
-It is important to note that strict semantics is not a given in parallelism
+Another problem with terminally-strict constructs is that they are hard to
+implement efficiently, especially in the case of nested tasks. In order to
+support scalable code, spawning a task should be a light-weight operation so
+that a program can express much more parallelism than a specific
+implementation might actually manifest. However, if multiple tasks can
+simultaneously spawn using the same `task_region_handle`, then synchronization
+overhead could become an issue.
+
+To address the implementation difficulties, we have elected to support
+"fully-strict semantics with refactoring".  What this means is that a
+`task_region_handle` can be passed to a _synchronous_ function call (or
+captured by synchronously-called lambda function), but not an _asynchronous_
+function call.  Thus the following code would have undefined behavior:
+
+    task_region([&](auto& tr) {
+        tr.run([&]{ g(tr); }); // Error, tr captured by asynchronous lambda
+        ...
+    });
+
+It is important to note that strict semantics (whether fully strict or
+terminally strict) is not a given in parallelism
 proposals. Coming from a background in concurrency, many people look to
 unstructured constructs such as `std::async`, citing their flexibility vs. the
 comparative rigidity of strict parallelism.  While these constructs have their
@@ -203,7 +252,7 @@ much more efficient memory allocation for (highly structured) local variables
 than for (unstructured) heap-allocated variables, so, too, can a compiler and
 scheduler take advantage of the structure of strict fork-join parallelism to
 implement efficient queuing and scheduling of parallel tasks.  The algorithms
-described in [N3724][] and successor proposals neither require nor benefit
+described in [N3960][] neither require nor benefit
 from unstructured parallelism.
 
 
@@ -254,7 +303,7 @@ explanation of when this matters and how surprises can be mitigated.
       namespace experimental {
       namespace parallel {
 
-        class task_cancelled_exception;
+        class task_canceled_exception;
 
         class task_region_handle;
 
@@ -270,17 +319,17 @@ explanation of when this matters and how surprises can be mitigated.
 
     }
 
-## Class `task_cancelled_exception`
+## Class `task_canceled_exception`
 
-    class task_cancelled_exception : public exception {
+    class task_canceled_exception : public exception {
     public:
-        task_cancelled_exception() noexcept;
-        task_cancelled_exception(const task_cancelled_exception&) noexcept;
-        task_cancelled_exception& operator=(const task_cancelled_exception&) noexcept;
+        task_canceled_exception() noexcept;
+        task_canceled_exception(const task_canceled_exception&) noexcept;
+        task_canceled_exception& operator=(const task_canceled_exception&) noexcept;
         virtual const char* what() const noexcept;
     };
 
-The class `task_cancelled_exception` defines the type of objects thrown by
+The class `task_canceled_exception` defines the type of objects thrown by
 `task_region_handle::run` or `task_region_handle::wait` if they detect that an
 exception is pending within the current parallel region.  See
 [Exception Handling][], below.
@@ -312,7 +361,7 @@ exception is pending within the current parallel region.  See
 The class `task_region_handle` defines an interface for forking and joining
 parallel tasks. The `task_region` and `task_region_final` function templates
 create an object of type `task_region_handle` and pass a reference to the
-object to a user-provided invokable.
+object to a user-provided invocable.
 
 An object of class `task_region_handle` cannot be constructed, destroyed,
 copied, or moved except by the implementation of the task region library.
@@ -325,6 +374,18 @@ A `task_region_handle` is _active_ if it was created by the nearest enclosing
 recently invoked and which has not yet returned.  Performing any operation on
 a `task_region_handle` that is not active results in undefined behavior.
 
+A program shall not access a `task_region_handle` within the asynchronous
+function invoked by the `run` member function.  [_Example:_
+
+    task_region([&](auto& tr) {
+        tr.run([&]{ g(tr); }); // Error, illegal use of tr within run()
+        ...
+    });
+
+-- _end example_] [_Note:_ implementations are encouraged to diagnose the
+above misuse at translation time -- _end note_]
+
+
 ### `task_region_handle` member function template `run`
 
     template<typename F>
@@ -333,7 +394,7 @@ a `task_region_handle` that is not active results in undefined behavior.
 _Requires_: `F` shall be `MoveConstructible`. The expression, `(void) f()`,
 shall be well-formed.
 
-_Precondition_: `this` shall be the active `task_region_handle`. 
+_Precondition_: `this` shall be the active `task_region_handle`.
 
 _Effects_: Causes the expression `f()` to be invoked asynchronously at an
 unspecified time prior to the next invocation of `wait` or completion of the
@@ -343,25 +404,22 @@ nearest enclosing `task_region` (i.e., the `task_region` that created this
 `task_region` is similar to the relationship between a `throw` statement and
 its nearest `try` block. -- _end note_]
 
-_Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
+_Throws_: `task_canceled_exception`, as defined in [Exception Handling][].
 
 _Remarks_: The invocation of the user-supplied invocable, `f`, may be
 immediate or may be delayed until compute resources are available.  `run`
 might or might not return before invocation of `f` completes.
 
-`run` may be called directly or indirectly from a function object passed
-to an enclosing `run`.  The nested task started in such manner is guaranteed to
-finish
-with the rest of the tasks started using the same `task_region_handle` [_Note:_
-An implementation is allowed to join tasks at any point, for example at the
-end of the enclosing `run`. -- _end note_]
+`run` may not be called directly or indirectly from a function object passed
+to an enclosing `run` except by entering an intervening `task_region`.
 
 [_Example_:
 
     task_region([](auto& tr) {
         tr.run([&] {
-            tr.run([] {
-                f();
+            tr.run([] { f(); });  // Error: run within run
+            task_region([&](auto& tr) {
+                tr.run([] { f(); });  // OK, intervening task_region
             });
         });
     });
@@ -372,12 +430,12 @@ end of the enclosing `run`. -- _end note_]
 
     void wait();
 
-_Precondition_: `this` shall be the active `task_region_handle`. 
+_Precondition_: `this` shall be the active `task_region_handle`.
 
 _Effects_: Blocks until the tasks spawned using this `task_region_handle`
 have finished.
 
-_Throws_: `task_cancelled_exception`, as defined in [Exception Handling][].
+_Throws_: `task_canceled_exception`, as defined in [Exception Handling][].
 
 _Postcondition_: All tasks spawned by the nearest enclosing `task_region`
 have finished.
@@ -402,7 +460,7 @@ have finished.
 _Requires_: `F` shall be `MoveConstructible`. Given an lvalue `tr` of type
 `task_region_handle`, the expression, `(void) f(tr)`, shall be well-formed.
 
-_Effects_: Construts a `task_region_handle`, `tr`, and invokes the expression
+_Effects_: Constructs a `task_region_handle`, `tr`, and invokes the expression
 `f(tr)` on the user-provided object, `f`.
 
 _Throws_: `exception_list`, as specified in [Exception Handling][].
@@ -434,7 +492,7 @@ Tasks that are already in progress are not interrupted except at a call to
 If the implementation is able to detect that an exception has been thrown by
 another task within the same nearest enclosing `task_region`, then
 `task_region_handle::run` or `task_region_handle::wait` may throw
-`task_cancelled_exception`; these instances of `task_cancelled_exception` are
+`task_canceled_exception`; these instances of `task_canceled_exception` are
 not added to the exception list of the corresponding `task_group`.
 
 When `task_region` finishes with a non-empty exception list, the exceptions are
@@ -443,24 +501,24 @@ from the `task_region`.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
-The `exception_list` class was first introduced in [N3724][] and is defined as
+The `exception_list` class is described in [N3960][] and is defined as
 follows:
 
     class exception_list : public exception
     {
     public:
-        typedef exception_ptr value_type;
-        typedef const value_type& reference;
-        typedef const value_type& const_reference;
-        typedef size_t size_type;
-        typedef vector<exception_ptr>::iterator iterator;
-        typedef vector<exception_ptr>::const_iterator const_iterator;
+        typedef exception_ptr                                 value_type;
+        typedef const value_type&                             reference;
+        typedef const value_type&                             const_reference;
+        typedef _implementation-defined_                      const_iterator;
+        typedef const_iterator                                iterator;
+        typedef typename iterator_traits<const_iterator>::difference_type
+                                                              difference_type;
+        typedef size_t                                        size_type;
 
-        exception_list(vector<exception_ptr> exceptions);
-
-        size_t size() const;
-        const_iterator begin();
-        const_iterator end();
+        size_t size() const noexcept;
+        const_iterator begin() const noexcept;
+        const_iterator end() const noexcept;
     private:
         // ...
     };
@@ -546,7 +604,7 @@ certainly need new TLS-like facilities.
 In this proposal, the `task_region_final` function template provides a minimal
 but powerful approach for addressing thread switching.  Using this facility, a
 user can be sure that both thread-local variables and mutexes are in a
-consistant state before and after the execution of a parallel computation.
+consistent state before and after the execution of a parallel computation.
 This is expected to solve most of the issues that a user may run into
 in well-structured parallel code. Because `task_region_final` requires
 stalling at a join point, it can potentially reduce parallel speed-up.  For
@@ -626,10 +684,10 @@ This proposal, unlike the previous revision, requires that a
 argued that the presence of a `task_region_handle&` argument to a function is
 sufficient notice for both the compiler and the programmer to recognize that
 the called function might spawn children and return with them still running.
-Indeed, there seems to be little reasont to pass a `task_region_handle` to a
+Indeed, there seems to be little reason to pass a `task_region_handle` to a
 called function except to allow exactly this usage.
 
-We previously concidered adding an `unjoined_children` decoration, similar to
+We previously considered adding an `unjoined_children` decoration, similar to
 the `thread_switching` keyword described above.  This decoration would be
 automatically inherited by lambda functions, so that common cases would not
 require the use of this keyword.  This idea is explored in more detail in the
@@ -645,7 +703,7 @@ it was present in an early draft for task regions) in order to avoid "out of
 band" communication between `task_region` and `run`, which a number of
 committee members found to be troubling, especially during the experimentation
 phase when multiple incompatible implementations might exist and silently
-colide with one another. The addition of `task_region_handle` solves a number
+collide with one another. The addition of `task_region_handle` solves a number
 of other problems, including that of returning with unjoined children
 (above).  However, `task_region_handle` also exposes a name that can be abused
 to violate structured parallelism.  For example:
@@ -705,9 +763,9 @@ adding strict fork-join library constructs to the parallelism TS.
 [OpenMP]: http://openmp.org/wp/
 [OpenMP][] openmp.org home page
 
-[N3724]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2013/n3724.pdf
-[N3724][] _A Parallel Algorithms Library_, J. Hoberock, O. Giroux, V. Grover,
-H. Sutter, et al., 2013-08-30
+[N3960]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3960.pdf
+[N3960][] _Working Draft, Technical Specification for C++ Extensions for
+Parallelism_, J. Hoberock (editor), 2014-02-28
 
 [N3832]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3832.pdf
 [N3832][] _Task Region_, P. Halpern, A. Robison, H. Hong; A. Laksberg,
@@ -726,6 +784,11 @@ Arch Robison, 2014-01
 
 <!-- The following references are internal to this document -->
 
+[Strict Fork-join Parallelism]: #Strict_Fork_Join
+
 [Exception Handling]: #Exception_Handling
 
 [Thread Switching]: #Thread_Switching
+
+<!--  LocalWords:  callee
+ -->
