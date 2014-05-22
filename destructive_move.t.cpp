@@ -21,7 +21,12 @@ struct Pod
     double b;
 };
 
-enum throwyness { trivial, unthrowy, throwy };
+enum throwyness {
+    trivial,     // Trivially destructive movable
+    unthrowy,    // Non-throwing move constructor
+    throwy,      // Throwing move constructor, but specialized destructive_move
+    veryThrowy   // Throwing move constructor & destructive_move
+};
 
 template <throwyness E>
 class MyClass
@@ -63,6 +68,13 @@ public:
 
 template <throwyness E>
 int MyClass<E>::s_population = 0;
+
+// Specialization that doesn't call (throwing) move constructor
+void destructive_move(MyClass<throwy> *to, MyClass<throwy> *from) noexcept
+{
+    to->setVal(from->val());
+    from->setVal(0xffff);
+}
 
 namespace std {
 namespace experimental {
@@ -107,17 +119,23 @@ void testMoveMyClass()
 
     try {
         destructive_move(a, b);
-        TEST_ASSERT(0);  // Shouldn't get here
+        TEST_ASSERT(E == throwy); // Specialized noexcept destructive_move
+        TEST_ASSERT(1 == Obj::population());
+        TEST_ASSERT(0xcafe == a->val());
+        TEST_ASSERT(0xffff == b->val());
+        delete a;
+        ::operator delete(b);
     }
     catch (const char* e) {
+        TEST_ASSERT(E == veryThrowy); // throw on move
         TEST_ASSERT(0 == std::strcmp("cafe", e));
+        TEST_ASSERT(1 == Obj::population());
+        TEST_ASSERT(0xffff == a->val()); // Unchanged
+        TEST_ASSERT(0xcafe == b->val()); // Unchanged
+        ::operator delete(a);
+        delete b;
     }
-    TEST_ASSERT(1 == Obj::population());
-    TEST_ASSERT(0xffff == a->val()); // Unchanged
-    TEST_ASSERT(0xcafe == b->val()); // Unchanged
 
-    ::operator delete(a);
-    delete b;
     TEST_ASSERT(0 == Obj::population());
 }
 
@@ -132,7 +150,9 @@ int main()
     TEST_ASSERT(!exp::is_trivially_destructive_movable<MyClass<unthrowy>>());
     TEST_ASSERT( exp::is_nothrow_destructive_movable<MyClass<unthrowy>>());
     TEST_ASSERT(!exp::is_trivially_destructive_movable<MyClass<throwy>>());
-    TEST_ASSERT(!exp::is_nothrow_destructive_movable<MyClass<throwy>>());
+    TEST_ASSERT( exp::is_nothrow_destructive_movable<MyClass<throwy>>());
+    TEST_ASSERT(!exp::is_trivially_destructive_movable<MyClass<veryThrowy>>());
+    TEST_ASSERT(!exp::is_nothrow_destructive_movable<MyClass<veryThrowy>>());
 
     int a = 4, b = 5;
     exp::destructive_move(&a, &b);
@@ -141,4 +161,5 @@ int main()
     testMoveMyClass<trivial>();
     testMoveMyClass<unthrowy>();
     testMoveMyClass<throwy>();
+    testMoveMyClass<veryThrowy>();
 }
