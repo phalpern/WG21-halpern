@@ -36,7 +36,7 @@ violations of fully-strict fork-join parallelism.  A few sentences in the formal
 wording and a new issue in the issues section was added to the paper in
 response.
 
-Finally `task_cancelled_exception` was renamed to `task_canceled_exception`
+Finally, `task_cancelled_exception` was renamed to `task_canceled_exception`
 (one el instead of two).
 
 
@@ -99,7 +99,7 @@ results:
         return compute(n) + left + right;
     }
 
-The example above demonstrates the use of two of functions proposed in this
+The example above demonstrates the use of two of the functions proposed in this
 paper, `task_region` and `task_region_handle::run`.
 
 The `task_region` function delineates a region in a program code potentially
@@ -174,7 +174,7 @@ child tasks and return without joining with those tasks.  This (useful)
 feature is not directly related to parallel strictness because a called
 function does not create a new task, but it does make the program less
 structured in two ways: 1) An asynchronous child function cannot reference a
-variable in it's caller's frame because the caller can return before the child
+variable in its caller's frame because the caller can return before the child
 is finished and 2) a function may return to its caller before it has
 completely finished (i.e., while sub-tasks are still running).  The dangers of
 this relaxation of structured function-call semantics are mitigated by the
@@ -327,12 +327,12 @@ recently invoked and which has not yet returned.  Performing any operation on
 a `task_region_handle` that is not active results in undefined behavior.
 
 The `task_region_handle` that is active before a specific call to the `run`
-member function is not active within the asynchronous function invoked
+member function is not active within the asynchronous function that invoked
 `run`. (The invoked function should not, therefore, capture the
 `task_region_handle` from the surrounding block.)
 [_Example:_
 
-    task_region([&](auto& tr) {
+    task_region([](auto& tr) {
         tr.run([&]{
             tr.run([] { f(); });        // Error: tr is not active
             task_region([&](auto& tr) { // Nested task region
