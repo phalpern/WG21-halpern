@@ -1,4 +1,4 @@
-% Task Region R2 | D3991
+% Task Region R2 | N3991
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
@@ -595,7 +595,7 @@ explicitly to avoid an error:
     }
 
     void h() {
-        task_region_final([&]{
+        task_region_final([]{
             f();            // OK
         });
     }
