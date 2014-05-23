@@ -93,12 +93,21 @@ namespace experimental {
 template <throwyness E>
 void testMoveMyClass()
 {
+    // Test operation of 'destructive_move'.  Whether or not
+    // 'destructive_move' can throw and whether or not it calls the move
+    // constructor for 'MyClass' depends on 'E' as follows:
+    //
+    // E          Can throw? Mechanism
+    // ---------- ---------- ---------
+    // trivial    No         memcpy instead of move ctor.
+    // unthrowy   No         (nothrow) move ctor
+    // throwy     No         specialized nothrow 'destructive_move'
+    // veryThrowy Yes        throwing move ctor
+
     using exp::destructive_move;
 
-    // If 'E' is 'unthrowy' or 'veryThrowy', then the move constructor is
-    // involved in the destructive move operation; otherwise (if 'E' is
-    // 'trivial' or 'throwy') the move constructor is not involved.
-    int newMoveCtorCalls = (E == unthrowy || E == veryThrowy) ? 1 : 0;
+    // the move constructor is called only for 'unthrowy' or 'veryThrowy':
+    int callMoveCtor = (E == unthrowy || E == veryThrowy) ? 1 : 0;
 
     typedef MyClass<E> Obj;
 
@@ -111,7 +120,7 @@ void testMoveMyClass()
 
     destructive_move(a, b);
 
-    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+newMoveCtorCalls);
+    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+callMoveCtor);
     TEST_ASSERT(1 == Obj::population());
     TEST_ASSERT(99 == a->val());
     if (E == trivial)
@@ -152,17 +161,27 @@ void testMoveMyClass()
         delete b;
     }
 
-    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+newMoveCtorCalls);
+    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+callMoveCtor);
     TEST_ASSERT(0 == Obj::population());
 }
 
 template <throwyness E>
 void testSimpleVec()
 {
-    // If 'E' is 'unthrowy' the (noexcept) move constructor is involved in the
-    // 'destructive_move_array' call; otherwise the move constructor is not
-    // involved.
-    int newMoveCtorCalls = E == unthrowy ? 1 : 0;
+    // Test operation of 'simple_vec', which uses 'destructive_move_array'.
+    //
+    // Whether or not 'destructive_move_array' can throw and whether or not it
+    // calls the move constructor for 'MyClass' depends on 'E' as follows:
+    //
+    // E          Can throw? Mechanism
+    // ---------- ---------- ---------
+    // trivial    No         memcpy instead of move ctor.
+    // unthrowy   No         (nothrow) move ctor
+    // throwy     No         specialized nothrow 'destructive_move'
+    // veryThrowy Yes        throwing copy ctor (not move ctor)
+
+    // move constructor is involved only for 'unthrowy':
+    int callMoveCtor = E == unthrowy ? 1 : 0;
 
     typedef MyClass<E>           Elem;
     typedef my::simple_vec<Elem> Obj;
@@ -195,7 +214,7 @@ void testSimpleVec()
         TEST_ASSERT(vec.size() == 5);
         TEST_ASSERT(vec.capacity() == 8);
         TEST_ASSERT(Elem::move_ctor_calls() ==
-                    moveCtorCalls + 4 * newMoveCtorCalls);
+                    moveCtorCalls + 4 * callMoveCtor);
         TEST_ASSERT(Elem::population() == 5);
 
         // Verify results
@@ -228,7 +247,7 @@ void testSimpleVec()
         TEST_ASSERT(vec.size() == 5);
         TEST_ASSERT(vec.capacity() == 8);
         TEST_ASSERT(Elem::move_ctor_calls() ==
-                    moveCtorCalls + 4 * newMoveCtorCalls);
+                    moveCtorCalls + 4 * callMoveCtor);
         TEST_ASSERT(Elem::population() == 5);
     }
     catch (const char* e) {
