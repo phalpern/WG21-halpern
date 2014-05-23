@@ -95,7 +95,7 @@ void simple_vec<T, A>::push_back(const T& v)
     if (m_length == m_capacity) {
         simple_vec temp(m_alloc);
         temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
-        temp.m_data = alloc_traits::allocate(m_alloc, m_capacity);
+        temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
 
         // Exception-safe move from this->m_data to temp.m_data
         destructive_move_array(temp.m_data, m_data, m_length);
@@ -115,7 +115,7 @@ void simple_vec<T, A>::push_back(const T& v)
     if (m_length == m_capacity) {
         simple_vec temp(m_alloc);
         temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
-        temp.m_data = alloc_traits::allocate(m_alloc, m_capacity);
+        temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
 
         T *from = m_data, *to = temp.m_data;
         for (temp.m_length = 0; temp.m_length < m_length; ++temp.m_length)
