@@ -43,7 +43,7 @@ typename enable_if<is_trivially_destructive_movable<T>::value>::type
 destructive_move_array(T* to, T* from, size_t sz) noexcept
 {
     // Bitwise move entire array
-    memmcpy(to, from, sz * sizeof(T));
+    memcpy(to, from, sz * sizeof(T));
 }
 
 template <class T>
@@ -54,7 +54,7 @@ destructive_move_array(T* to, T* from, size_t sz) noexcept
 {
     // Destructively move each element (will not throw)
     for (size_t i = 0; i < sz; ++i)
-        destructive_move(to[i], from[i]);
+        destructive_move(&to[i], &from[i]);
 }        
 
 template <class T>

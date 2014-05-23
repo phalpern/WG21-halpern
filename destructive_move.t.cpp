@@ -1,6 +1,7 @@
 // destructive_move.t.cpp                  -*-C++-*-
 
 #include "destructive_move.h"
+#include "simple_vec.h"
 #include <iostream>
 #include <utility>
 
@@ -34,6 +35,7 @@ class MyClass
     int m_val;
 
     static int s_population;
+    static int s_move_ctor_calls;
 
 public:
     MyClass(int v = 0) noexcept(E < throwy)
@@ -52,6 +54,7 @@ public:
 
     MyClass(MyClass&& other) noexcept(E < throwy)
     {
+        ++s_move_ctor_calls;
         if (E >= throwy && 0xcafe == other.m_val) throw "cafe";
         m_val = other.m_val;
         other.m_val = 0;
@@ -64,10 +67,14 @@ public:
     int val() const { return m_val; }
 
     static int population() { return s_population; }
+    static int move_ctor_calls() { return s_move_ctor_calls; }
 };
 
 template <throwyness E>
 int MyClass<E>::s_population = 0;
+
+template <throwyness E>
+int MyClass<E>::s_move_ctor_calls = 0;
 
 // Specialization that doesn't call (throwing) move constructor
 void destructive_move(MyClass<throwy> *to, MyClass<throwy> *from) noexcept
@@ -88,6 +95,11 @@ void testMoveMyClass()
 {
     using exp::destructive_move;
 
+    // If 'E' is 'unthrowy' or 'veryThrowy', then the move constructor is
+    // involved in the destructive move operation; otherwise (if 'E' is
+    // 'trivial' or 'throwy') the move constructor is not involved.
+    int newMoveCtorCalls = (E == unthrowy || E == veryThrowy) ? 1 : 0;
+
     typedef MyClass<E> Obj;
 
     Obj *a = (Obj*) ::operator new(sizeof(Obj));  // Uninitialized
@@ -95,8 +107,11 @@ void testMoveMyClass()
     a->setVal(0xffff);
     Obj *b = new Obj(99);                  // Initialized
     TEST_ASSERT(1 == Obj::population());
+    int moveCtorCallsBefore = Obj::move_ctor_calls();
 
     destructive_move(a, b);
+
+    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+newMoveCtorCalls);
     TEST_ASSERT(1 == Obj::population());
     TEST_ASSERT(99 == a->val());
     if (E == trivial)
@@ -117,6 +132,7 @@ void testMoveMyClass()
     b = new Obj(0xcafe);              // Initialized
     TEST_ASSERT(1 == Obj::population());
 
+    moveCtorCallsBefore = Obj::move_ctor_calls();
     try {
         destructive_move(a, b);
         TEST_ASSERT(E == throwy); // Specialized noexcept destructive_move
@@ -136,7 +152,100 @@ void testMoveMyClass()
         delete b;
     }
 
+    TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+newMoveCtorCalls);
     TEST_ASSERT(0 == Obj::population());
+}
+
+template <throwyness E>
+void testSimpleVec()
+{
+    // If 'E' is 'unthrowy' the (noexcept) move constructor is involved in the
+    // 'destructive_move_array' call; otherwise the move constructor is not
+    // involved.
+    int newMoveCtorCalls = E == unthrowy ? 1 : 0;
+
+    typedef MyClass<E>           Elem;
+    typedef my::simple_vec<Elem> Obj;
+
+    int data[] = {
+        1,
+        2,
+        0xcafe, // Throws on move if 'E >= throwy'
+        4,
+        5
+    };
+
+    {
+        Obj vec;
+        // Insert 4 elements
+        const int *data_p;
+        for (data_p = data; data_p != data + 4; ++data_p)
+            vec.push_back(Elem(*data_p));
+
+        TEST_ASSERT(vec.size() == 4);
+        TEST_ASSERT(vec.capacity() == 4);
+        TEST_ASSERT(Elem::population() == 4);
+
+        // The fifth insertion will cause capacity to expand to 8, forcing a
+        // move or copy of all elements, including those that might throw on
+        // move.  It will always succeed because no throwing operations are
+        // invoked (a throwing move is replaced by a copy).
+        int moveCtorCalls = Elem::move_ctor_calls();
+        vec.push_back(Elem(*data_p));
+        TEST_ASSERT(vec.size() == 5);
+        TEST_ASSERT(vec.capacity() == 8);
+        TEST_ASSERT(Elem::move_ctor_calls() ==
+                    moveCtorCalls + 4 * newMoveCtorCalls);
+        TEST_ASSERT(Elem::population() == 5);
+
+        // Verify results
+        data_p = data;
+        for (typename Obj::iterator i = vec.begin(); i != vec.end(); ++i)
+            TEST_ASSERT(*data_p++ == i->val());
+    }
+    TEST_ASSERT(Elem::population() == 0);
+
+    Obj vec;
+    // Insert 4 elements
+    const int *data_p;
+    for (data_p = data; data_p != data + 4; ++data_p)
+        vec.push_back(Elem(*data_p));
+    vec.back().setVal(0xbeaf);  // Throw on copy construction
+    data[3] = 0xbeaf;
+
+    TEST_ASSERT(vec.size() == 4);
+    TEST_ASSERT(vec.capacity() == 4);
+    TEST_ASSERT(Elem::population() == 4);
+
+    // The fifth insertion will cause capacity to expand to 8, forcing a move
+    // or copy of all elements, including those that might throw on move or
+    // copy. Only the case of 'veryThrowy' will fail because it is the only
+    // case where a copy constructor is invoked.
+    std::size_t moveCtorCalls = Elem::move_ctor_calls();
+    try {
+        vec.push_back(Elem(*data_p));
+        TEST_ASSERT(E != veryThrowy);
+        TEST_ASSERT(vec.size() == 5);
+        TEST_ASSERT(vec.capacity() == 8);
+        TEST_ASSERT(Elem::move_ctor_calls() ==
+                    moveCtorCalls + 4 * newMoveCtorCalls);
+        TEST_ASSERT(Elem::population() == 5);
+    }
+    catch (const char* e) {
+        TEST_ASSERT(E == veryThrowy);
+        TEST_ASSERT(0 == std::strcmp("beaf", e));
+        TEST_ASSERT(Elem::move_ctor_calls() == moveCtorCalls);
+        // Strong guarantee holds
+        TEST_ASSERT(vec.size() == 4);
+        TEST_ASSERT(vec.capacity() == 4);
+        TEST_ASSERT(Elem::population() == 4);
+    }
+
+    // Verify results
+    data_p = data;
+    typename Obj::iterator i = vec.begin();
+    for (std::size_t c = 0; c < vec.size(); ++c)
+        TEST_ASSERT(*data_p++ == (i++)->val());
 }
 
 int main()
@@ -162,4 +271,9 @@ int main()
     testMoveMyClass<unthrowy>();
     testMoveMyClass<throwy>();
     testMoveMyClass<veryThrowy>();
+
+    testSimpleVec<trivial>();
+    testSimpleVec<unthrowy>();
+    testSimpleVec<throwy>();
+    testSimpleVec<veryThrowy>();
 }
