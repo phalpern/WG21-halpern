@@ -3,7 +3,9 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-05-22
+% 2014-05-23
+
+<!-- Make sure that doc number in header.tex matches this one -->
 
 # Abstract
 
