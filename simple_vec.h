@@ -72,10 +72,12 @@ simple_vec<T, A>::simple_vec(simple_vec&& other) noexcept
 template <class T, class A>
 simple_vec<T, A>::~simple_vec() noexcept
 {
-    for (iterator i = begin(); i != end(); ++i)
-        alloc_traits::destroy(m_alloc, &*i);
     if (m_data)
+    {
+        for (iterator i = begin(); i != end(); ++i)
+            alloc_traits::destroy(m_alloc, &*i);
         alloc_traits::deallocate(m_alloc, m_data, m_capacity);
+    }
 }
 
 template <class T, class A>
@@ -93,6 +95,7 @@ void simple_vec<T, A>::push_back(const T& v)
     using std::experimental::destructive_move_array;
 
     if (m_length == m_capacity) {
+        // Grow the vector by creating a new one and swapping
         simple_vec temp(m_alloc);
         temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
         temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
@@ -101,7 +104,7 @@ void simple_vec<T, A>::push_back(const T& v)
         destructive_move_array(temp.m_data, m_data, m_length);
 
         temp.m_length = m_length;
-        m_length = 0;
+        m_length = 0;  // All elements of '*this' have been destroyed
         temp.swap(*this);
     }
 
@@ -113,6 +116,7 @@ template <class T, class A>
 void simple_vec<T, A>::push_back(const T& v)
 {
     if (m_length == m_capacity) {
+        // Grow the vector by creating a new one and swapping
         simple_vec temp(m_alloc);
         temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
         temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
@@ -122,6 +126,7 @@ void simple_vec<T, A>::push_back(const T& v)
             alloc_traits::construct(m_alloc, to++,
                                     std::move_if_noexcept(*from++));
         temp.swap(*this);
+        // destructor for 'temp' destroys moved-from elements
     }
 
     alloc_traits::construct(m_alloc, &m_data[m_length], v);
