@@ -86,6 +86,7 @@ void simple_vec<T, A>::swap(simple_vec& other) noexcept
     std::swap(m_length,   other.m_length);
 }
 
+#ifdef USE_DESTRUCTIVE_MOVE
 template <class T, class A>
 void simple_vec<T, A>::push_back(const T& v)
 {
@@ -107,6 +108,26 @@ void simple_vec<T, A>::push_back(const T& v)
     alloc_traits::construct(m_alloc, &m_data[m_length], v);
     ++m_length;
 }
+#else
+template <class T, class A>
+void simple_vec<T, A>::push_back(const T& v)
+{
+    if (m_length == m_capacity) {
+        simple_vec temp(m_alloc);
+        temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
+        temp.m_data = alloc_traits::allocate(m_alloc, m_capacity);
+
+        T *from = m_data, *to = temp.m_data;
+        for (temp.m_length = 0; temp.m_length < m_length; ++temp.m_length)
+            alloc_traits::construct(m_alloc, to++,
+                                    std::move_if_noexcept(*from++));
+        temp.swap(*this);
+    }
+
+    alloc_traits::construct(m_alloc, &m_data[m_length], v);
+    ++m_length;
+}
+#endif
 
 } // close namespace my
 
