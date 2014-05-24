@@ -326,4 +326,8 @@ int main()
     testSimpleVec<nothrowMove>();
     testSimpleVec<specialMove>();
     testSimpleVec<throwingMove>();
+
+    std::cout << (status ? "TEST FAILED" : "TEST PASSED") << std::endl;
+
+    return status;
 }

@@ -3,6 +3,8 @@
 CXXFLAGS = -std=c++11 -g
 CXXFLAGS += -DUSE_DESTRUCTIVE_MOVE
 
+test : destructive_move.test
+
 destructive_move.test : destructive_move.t
 	./destructive_move.t
 

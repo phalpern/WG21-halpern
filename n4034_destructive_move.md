@@ -1,18 +1,18 @@
 % Destructive Move | D4034
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2014-05-22
+% 2014-05-24
 
 Abstract
 ========
 
 This paper proposes a function template for performing _destructive move_
-operations -- a type of move construction where the moved-from object, rather
-than being left in a "valid but unspecified" state, is left instead in a
-destructed state.  I will show that this operation can be made nothrow in a
-wider range of situations than a normal move constructor and can be used to
-optimize operations such as reallocations within vectors.  An array version of
-the destructive move template is proposed specifically for moving multiple
-objects efficiently and with the strong exception guarantee.
+operations -- a type of move construction where the moved-from object, instead
+of being left in a "valid but unspecified" state, is left in a destructed
+state.  I will show that this operation can be made non-throwing in a wider
+range of situations than a normal move constructor, and can be used to
+optimize crucial operations, such as reallocations within vectors.  An array
+version of the destructive move template is proposed specifically for moving
+multiple objects efficiently and with the strong exception guarantee.
 
 The facilities described in this paper are targeted for a future library
 Technical Specification.
@@ -24,12 +24,12 @@ Motivation
 Background
 ----------
 
-The main reason that rvalue references and move operations were introduced int
+The main reason that rvalue references and move operations were introduced into
 the standard was to improve performance by reducing expensive copy operations.
 `noexcept` was added in order to support a number of important use cases where
 move operations could not otherwise be used. Because move constructors modify
 the moved-from object, an operation that moves multiple elements, e.g., in a
-container, could result both containers being in a half-moved state if one of
+container, could result in both containers being in a half-moved state if one of
 the move constructors throws an exception.  It is not possible to reliably
 reverse this half-moved situation without risking another exception being
 thrown.
@@ -37,10 +37,23 @@ thrown.
 Using `noexcept`, an implementation can detect whether it is possible that a
 move constructor might throw, and can choose copy construction, instead.  In
 fact, the standard provides the function template `move_if_noexcept`
-specifically for this purpose.  The following implementation of a simplified
-vector `push_back` uses this idiom to preserve the "strong exception
-guarantee" whereby the moved-from vector remains unchanged if an exception is
+specifically for this purpose.  The following implementation of `push_back`
+for a simplified vector uses this idiom to preserve the _strong exception
+guarantee_, whereby the moved-from vector remains unchanged if an exception is
 thrown:
+
+    template <class T, class A = std::allocator<T>>
+    class simple_vec
+    {
+        A           m_alloc;        // allocator to obtain space for elements
+        T*          m_data;         // address of allocated storage (or null)
+        std::size_t m_capacity;     // size (in elements) of allocate storage
+        std::size_t m_length;       // number of elements in container
+
+      public:
+        ...
+        void push_back(const T& v);
+    };
 
     template <class T, class A>
     void simple_vec<T, A>::push_back(const T& v)
@@ -48,7 +61,7 @@ thrown:
         typedef std::allocator_traits<A> alloc_traits;
 
         if (m_length == m_capacity) {
-            // Grow the vector by creating a new one and swapping
+            // Grow the vector by creating a new one and swapping.
             simple_vec temp(m_alloc);
             temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
             temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
@@ -58,7 +71,7 @@ thrown:
                 alloc_traits::construct(m_alloc, to++,
                                         std::move_if_noexcept(*from++));
             temp.swap(*this);
-            // destructor for 'temp' destroys moved-from elements
+            // Destructor for 'temp' destroys moved-from elements.
         }
 
         alloc_traits::construct(m_alloc, &m_data[m_length], v);
@@ -78,7 +91,7 @@ stability of the `end()` iterator when using `swap` and `splice`. A moved from
 "emptier than empty" violation of its class invariants. The default
 constructor and move constructor for such a list might look like the following:
 
-    // Default constructor for a simple list type (no allocator support)
+    // default constructor for a simple list type (no allocator support)
     template <class T>
     void simple_list<T>::simple_list()
         : m_begin(nullptr), m_end(nullptr)
@@ -87,15 +100,15 @@ constructor and move constructor for such a list might look like the following:
     }
     
 
-    // Move constructor for a simple list type (no allocator support)
-    template <class T, class A>
-    void simple_list<T, A>::simple_list(simple_list&& other)
+    // move constructor for a simple list type (no allocator support)
+    template <class T>
+    void simple_list<T>::simple_list(simple_list&& other)
     {
         simple_list temp;  // Default constructor might throw
         temp.swap(*this);
     }
 
-Since the sentinel node requires a memory allocation which might throw,
+Since the sentinel node requires a memory allocation, which might throw,
 neither the default constructor nor the move constructor can be decorated with
 `noexcept`.  Such a type cannot participate in the `move_if_noexcept`
 optimization -- it would need to be copied every time.
@@ -137,7 +150,7 @@ This proposal comprises two new function templates and two new traits.  The
 first function template is called `destructive_move` and looks like this:
 
     template <class T>
-      void destructive_move(T* to, T* from) noexcept(see below);
+      void destructive_move(T* to, T* from) noexcept( /* see below */ );
 
 The preconditions are that `from` points to a valid object and `to` points to
 raw memory.  The postconditions are that `to` points to a valid object and
@@ -159,6 +172,6 @@ However, this default can be overridden in two ways:
     new type.
 
 The `noexcept` specification for this function template is computed to be
-`true` for as many types as possible.  Only if a type as a throwing move
+`true` for as many types as possible.  Only if a type has a throwing move
 constructor and does not override the default for destructive move is the
 `noexcept` specification false.

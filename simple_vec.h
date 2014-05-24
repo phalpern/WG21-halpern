@@ -10,10 +10,10 @@ namespace my {
 template <class T, class A = std::allocator<T>>
 class simple_vec
 {
-    A           m_alloc;
-    T*          m_data;
-    std::size_t m_capacity;
-    std::size_t m_length;
+    A           m_alloc;        // allocator to obtain space for elements
+    T*          m_data;         // address of allocated storage (or null)
+    std::size_t m_capacity;     // size (in elements) of allocate storage
+    std::size_t m_length;       // number of elements in container
 
     typedef std::allocator_traits<A> alloc_traits;
 
