@@ -24,15 +24,15 @@ Motivation
 Background
 ----------
 
-The main reason that rvalue references and move operations were introduced into
-the standard was to improve performance by reducing expensive copy operations.
-`noexcept` was added in order to support a number of important use cases where
-move operations could not otherwise be used. Because move constructors modify
-the moved-from object, an operation that moves multiple elements, e.g., in a
-container, could result in both containers being in a half-moved state if one of
-the move constructors throws an exception.  It is not possible to reliably
-reverse this half-moved situation without risking another exception being
-thrown.
+The main reason that rvalue references and move operations were introduced
+into the standard was to improve performance by reducing expensive copy
+operations.  The `noexcept` keyword was added in order to support a number of
+important use cases where move operations could not otherwise be used. Because
+move constructors modify the moved-from object, an operation that moves
+multiple elements, e.g., in a container, could result in both containers being
+in a half-moved state if one of the move constructors throws an exception.  It
+is not possible to reliably reverse this half-moved situation without risking
+another exception being thrown.
 
 Using `noexcept`, an implementation can detect whether it is possible that a
 move constructor might throw, and can choose copy construction, instead.  In
@@ -89,12 +89,13 @@ implementation, use a heap-allocated sentinel node in order to preserve the
 stability of the `end()` iterator when using `swap` and `splice`. A moved from
 `list` implemented this way must have a sentinel node in order to avoid an
 "emptier than empty" violation of its class invariants. The default
-constructor and move constructor for such a list might look like the following:
+constructor and move constructor for such a list might look like the following
+(`m_begin` and `m_end` are member variables pointing to the first and
+past-the-end nodes in the list):
 
     // default constructor for a simple list type (no allocator support)
     template <class T>
     void simple_list<T>::simple_list()
-        : m_begin(nullptr), m_end(nullptr)
     {
         m_begin = m_end = new Node(nullptr, nullptr);  // might throw
     }
@@ -141,7 +142,8 @@ invented and has yielded significant performance gains. It turns out that a
 large number of classes can be _trivially destructive-movable_. Note that
 trivially destructive-movable does not require or imply trivially copyable.
 After the destructive move is complete, the moved-from object must not be
-accessed, since any pointers would be shared with the moved-to object.
+accessed, since any pointer members would point to memory shared with the
+moved-to object.
 
 Proposal summary
 ================
@@ -174,4 +176,181 @@ However, this default can be overridden in two ways:
 The `noexcept` specification for this function template is computed to be
 `true` for as many types as possible.  Only if a type has a throwing move
 constructor and does not override the default for destructive move is the
-`noexcept` specification false.
+`noexcept` specification false.  The `is_nothrow_destructive_movable<T>` trait
+is defined to be true if `destructive_move<T>` has a true `noexcept`
+specification.
+
+Destructive move cannot be used with an idiom like `move_if_noexcept`. The
+`move_if_noexcept` function guarantees that its argument remains valid whether
+an exception is thrown or not. The `destructive_move` function, in contrast
+invalidates its second argument on success and leaves it unchanged if an
+exception is thrown. A hypothetical `destructive_move_if_noexcept` function
+would have a third possible end state: both `to` and `from` could valid if the
+object `is_nothrow_destructive_movable<T>` is false and the function were
+forced to make a copy. The usage idiom for such a function would be complex
+and non-intuitive. Instead, this paper proposes a function template
+`destructive_move_array` which encapsulates the entire process of moving
+elements from one array to another and rolling back on failure. Using
+`destructive_move_array`, the implementation of `simple_vec::push_back` would
+look as follows:
+
+    template <class T, class A>
+    void simple_vec<T, A>::push_back(const T& v)
+    {
+        typedef std::allocator_traits<A> alloc_traits;
+
+        using std::experimental::destructive_move_array;
+
+        if (m_length == m_capacity) {
+            // Grow the vector by creating a new one and swapping
+            simple_vec temp(m_alloc);
+            temp.m_capacity = (m_capacity ? 2 * m_capacity : 1);
+            temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
+
+            // Exception-safe move from this->m_data to temp.m_data
+            destructive_move_array(temp.m_data, m_data, m_length);
+
+            // All elements of 'temp' have been constructed and
+            // all elements of '*this' have been destroyed.
+            temp.m_length = m_length;
+            m_length = 0;
+            temp.swap(*this);
+        }
+
+        alloc_traits::construct(m_alloc, &m_data[m_length], v);
+        ++m_length;
+    }
+
+> Note to reviewers: Should `destructive_move_array` be replaced by
+> `destructive_move_range`, the latter taking input and output iterators
+> instead of pointers?
+
+Formal wording for the TS
+=========================
+
+## Header <experimental/destructive_move> synopsis:
+
+    namespace std {
+    namespace experimental {
+    inline namespace fundamentals_vX {
+
+      template <class T> struct is_trivially_destructive_movable;
+      template <class T> struct is_nothrow_destructive_movable;
+
+      template <class T>
+        void destructive_move(T* to, T* from) noexcept( /* see below */ );
+
+      template <class T>
+        void destructive_move_array(T* to, T* from, size_t sz)
+          noexcept(is_nothrow_destructive_move<T>::value);
+
+    }
+    }
+    }
+
+## Type trait is_trivially_destructive_movable
+
+    namespace std {
+    namespace experimental {
+    inline namespace fundamentals_vX {
+
+      template <class T>
+      struct is_trivially_destructive_movable :
+          integral_constant<bool, (is_trivially_move_constructible<T>::value &&
+                                   is_trivially_destructible<T>::value)>
+      {
+      };
+
+    }
+    }
+    }
+
+A type `t` is _trivially destructive-movable_ if, given two pointers to `T`,
+`p1` and `p2`, where `p1` points to an existing object that is not a
+base-class subobject and `p2` points to allocated storage of suitable size and
+alignment for an object of type `T`, copying the underlying bytes from `*p1`
+to `*p2` has the same user-visible effect as move-constructing `*p2` from
+`*p1` then
+destroying`*p1`. [_Note:_ A type need not be trivially move-constructible nor trivially destructible in order to be trivially destructive-movable -- _end note_]
+
+The `is_trivially_destructive_movable` template shall be a UnaryTypeTrait with
+a base characteristic of `true_type` if it can be shown that `T` is _trivially
+destructive-movable_, otherwise `false_type`.  [_Note:_ False negatives are
+acceptable, but false positives would result in undefined behavior. --
+_end note_] A program may specialize `is_trivially_destructive_movable` for a
+user defined class `T`. Such a specialization shall meet all of the
+requirements for this template.
+
+## Type trait is_nothrow_destructive_movable
+
+    namespace std {
+    namespace experimental {
+    inline namespace fundamentals_vX {
+
+      template <class T> struct is_nothrow_destructive_movable;
+
+    }
+    }
+    }
+
+The `is_nothrow_destructive_movable` template shall be a UnaryTypeTrait with a
+base characteristic of `true_type` if the expression `destructive_move<T>(p1,
+p2)` is known not to throw exceptions for valid arguments, `p1` and `p2`.
+
+## Function template destructive_move
+
+    template <class T>
+      void destructive_move(T* to, T* from) noexcept( /* see below */ );
+
+_Requires_: If `is_trivially_destructive_movable<T>::value` is false, then `T`
+shall be MoveConstructible.
+
+_Preconditions_: `to` shall be a pointer to allocated memory of suitable size
+and alignment for an object of type `T`, `from` shall be a pointer to an
+existing object that is not a base-class subobject.
+
+_Effects_: If `is_trivially_destructive_movable<T>::value` is true, then
+equivalent to `memcpy(to, from, sizeof(T));` otherwise, equivalent to
+`::new(static_cast<void*>(to), move(*from)); from->~from();`.
+[_Note:_ Overloads of this function for user-defined or library types may
+achieve the same postconditions by other means. -- _end note_]
+
+_Throws:_: nothing unless the move constructor or destructor for `T` throws.
+The expression within the `noexcept` clause is equivalent to
+`is_trivially_destructive_movable<T>::value ||
+(is_nothrow_move_constructible<T>::value && is_nothrow_destructible<T>::value)`
+[_Note:_ overloads of this function for specific types may have different
+exception specifications. -- _end note_]
+
+_Postconditions_: `*to` is equivalent to the value of `*from` before the
+call. The lifetime of `*from` is ended (but `from` still points to allocated
+storage). [_Note:_ To avoid invoking the destructor on the destroyed object,
+`from` should not point to an object with automatic storage -- _end note_]
+
+## Function template destructive_move_array
+
+    template <class T>
+      void destructive_move_array(T* to, T* from, size_t sz)
+        noexcept(is_nothrow_destructive_movable<T>::value);
+
+_Requires_: `T` shall be MoveConstructible.  If
+`is_nothrow_destructive_movable<T>::value` is true, then `T` shall also be
+CopyConstructible.
+
+_Preconditions_: `to` shall be a pointer to allocated memory of suitable size
+and alignment for an array of `sz` elements of type `T`, `from` shall be a
+pointer to an existing array of `sz` elements of type `T`.
+
+_Effects_: Constructs copies of the elements in `from` into the memory pointed
+to by `to` and destroys the elements in `from`. If
+`is_nothrow_destructive_movable<T>::value` is true, the copies are constructed
+as if by `destructive_move`, otherwise by copy construction.
+
+_Throws_: Nothing unless the copy constructor for `T` throws. If an exception
+is thrown, the call shall have no effect.
+
+Implementation Experience
+=========================
+
+
+Don't forget to put Boost license on code

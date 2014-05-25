@@ -103,8 +103,10 @@ void simple_vec<T, A>::push_back(const T& v)
         // Exception-safe move from this->m_data to temp.m_data
         destructive_move_array(temp.m_data, m_data, m_length);
 
+        // All elements of 'temp' have been constructed and
+        // all elements of '*this' have been destroyed.
         temp.m_length = m_length;
-        m_length = 0;  // All elements of '*this' have been destroyed
+        m_length = 0;
         temp.swap(*this);
     }
 
