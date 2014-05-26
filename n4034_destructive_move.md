@@ -1,6 +1,6 @@
-% Destructive Move | D4034
+% Destructive Move | N4034
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2014-05-25
+% 2014-05-26
 
 Abstract
 ========
@@ -100,7 +100,6 @@ past-the-end nodes in the list):
         m_begin = m_end = new Node(nullptr, nullptr);  // might throw
     }
     
-
     // move constructor for a simple list type (no allocator support)
     template <class T>
     void simple_list<T>::simple_list(simple_list&& other)
@@ -320,10 +319,11 @@ achieve the same postconditions by other means. -- _end note_]
 
 _Throws:_: nothing unless the move constructor or destructor for `T` throws.
 The expression within the `noexcept` clause is equivalent to
-`is_trivially_destructive_movable<T>::value ||
-(is_nothrow_move_constructible<T>::value && is_nothrow_destructible<T>::value)`
-[_Note:_ Overloads of this function for specific types may have different
-exception specifications. -- _end note_]
+`is_trivially_destructive_movable<T>::value ||`  
+`(is_nothrow_move_constructible<T>::value &&`
+`is_nothrow_destructible<T>::value)`
+Overloads of this function for specific types may have different
+exception specifications.
 
 _Postconditions_: `*to` (after the call) is equivalent to (i.e., substitutable
 for) `*from` before the call except that it has a different address. The

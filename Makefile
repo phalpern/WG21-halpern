@@ -25,10 +25,13 @@ pdf: n4034_destructive_move.pdf
 %.html : %.md
 	pandoc --number-sections -s -S $< -o $@
 
-%.pdf : %.md
-	pandoc --number-sections -s -S $< -o $@
+%.pdf : %.md header.tex
+	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H header.tex $< -o $@
+
+header.tex : header.tmplt.tex n4034_destructive_move.md
+	sed -e s/DOCNUM/$$(sed -n  -e '/N[0-9][0-9][0-9][0-9]/s/.*\(N[0-9][0-9][0-9][0-9]\).*/\1/p' -e '/N[0-9][0-9][0-9][0-9]/q' n4034_destructive_move.md)/g $< > $@
 
 clean:
-	rm -f destructive_move.t n4034_destructive_move.html n4034_destructive_move.pdf
+	rm -f destructive_move.t n4034_destructive_move.html n4034_destructive_move.pdf header.tex
 
 .FORCE:
