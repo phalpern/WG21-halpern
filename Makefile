@@ -14,6 +14,7 @@ destructive_move.test : destructive_move.t
 	./destructive_move.t
 
 destructive_move.t : destructive_move.t.cpp destructive_move.h simple_vec.h
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
 html: n4034_destructive_move.html
 	:
@@ -28,6 +29,6 @@ pdf: n4034_destructive_move.pdf
 	pandoc --number-sections -s -S $< -o $@
 
 clean:
-	rm -f destructive_move.t
+	rm -f destructive_move.t n4034_destructive_move.html n4034_destructive_move.pdf
 
 .FORCE:
