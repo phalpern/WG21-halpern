@@ -1,4 +1,8 @@
 // destructive_move.h                  -*-C++-*-
+//
+// Copyright 2014 Pablo Halpern.
+// Free to use and redistribute (See accompanying file license.txt.)
+
 #ifndef INCLUDED_DESTRUCTIVE_MOVE
 #define INCLUDED_DESTRUCTIVE_MOVE
 

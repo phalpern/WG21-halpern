@@ -1,4 +1,9 @@
 // destructive_move.t.cpp                  -*-C++-*-
+//
+// Copyright 2014 Pablo Halpern.
+// Free to use and redistribute (See accompanying file license.txt.)
+
+// Test driver for 'destructive_move' and 'simple_vec'
 
 #include "destructive_move.h"
 #include "simple_vec.h"

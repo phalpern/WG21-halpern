@@ -1,4 +1,8 @@
 // simple_vec.h                  -*-C++-*-
+//
+// Copyright 2014 Pablo Halpern.
+// Free to use and redistribute (See accompanying file license.txt.)
+
 #ifndef INCLUDED_SIMPLE_VEC
 #define INCLUDED_SIMPLE_VEC
 

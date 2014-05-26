@@ -1,3 +1,8 @@
+# Makefile for destructive_move test and proposal
+#
+# Copyright 2014 Pablo Halpern.
+# Free to use and redistribute (See accompanying file license.txt.)
+
 # This code was tested with g++ 4.8
 
 CXXFLAGS = -std=c++11 -g
