@@ -1,6 +1,6 @@
 % Destructive Move | N4034
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2014-05-26
+% 2014-05-27
 
 Abstract
 ========
@@ -35,12 +35,12 @@ is not possible to reliably reverse this half-moved situation without risking
 another exception being thrown.
 
 Using `noexcept`, an implementation can detect whether it is possible that a
-move constructor might throw, and can choose copy construction, instead.  In
-fact, the standard provides the function template `move_if_noexcept`
-specifically for this purpose.  The following implementation of `push_back`
-for a simplified vector uses this idiom to preserve the _strong exception
-guarantee_, whereby the moved-from vector remains unchanged if an exception is
-thrown:
+move constructor might throw and, if so, can choose copy construction,
+instead.  In fact, the standard provides the function template
+`move_if_noexcept` specifically for this purpose.  The following
+implementation of `push_back` for a simplified vector uses this idiom to
+preserve the _strong exception guarantee_, whereby the moved-from vector
+remains unchanged if an exception is thrown:
 
     template <class T, class A = std::allocator<T>>
     class simple_vec
@@ -86,36 +86,37 @@ object in a valid (though unspecified) state results in several important
 situations where a move constructor cannot be decorated with `noexcept`. For
 example, some implementations of `list`, including at least one commercial
 implementation, use a heap-allocated sentinel node in order to preserve the
-stability of the `end()` iterator when using `swap` and `splice`. A moved from
+stability of the `end()` iterator when using `swap` and `splice`. A moved-from
 `list` implemented this way must have a sentinel node in order to avoid an
 "emptier than empty" violation of its class invariants. The default
 constructor and move constructor for such a list might look like the following
 (`m_begin` and `m_end` are member variables pointing to the first and
-past-the-end nodes in the list):
+past-the-end nodes in the list. `Node` is class representing a single list
+node.):
 
     // default constructor for a simple list type (no allocator support)
     template <class T>
-    void simple_list<T>::simple_list()
+    simple_list<T>::simple_list()
     {
         m_begin = m_end = new Node(nullptr, nullptr);  // might throw
     }
     
     // move constructor for a simple list type (no allocator support)
     template <class T>
-    void simple_list<T>::simple_list(simple_list&& other)
+    simple_list<T>::simple_list(simple_list&& other)
     {
-        simple_list temp;  // Default constructor might throw
-        temp.swap(*this);
+        simple_list temp;  // Default constructor might throw.
+        temp.swap(*this);  // 'swap' never throws.
     }
 
 Since the sentinel node requires a memory allocation, which might throw,
 neither the default constructor nor the move constructor can be decorated with
-`noexcept`.  Such a type cannot participate in the `move_if_noexcept`
+`noexcept`.  Such a type cannot benefit from the `move_if_noexcept`
 optimization -- it would need to be copied every time.
 
 As you can see from the `push_back` code for `simple_vec` in the previous
 section, after all of the elements have been moved from one place to the
-other, the moved-from elements are destroyed. It is completely unnecessary in
+other, the moved-from elements are destroyed. It is not necessary in
 this and many similar situations to leave the moved-from object in a valid
 state -- it would be sufficient to end its lifetime as part of the move
 (i.e., as if its destructor had been called).
@@ -127,21 +128,22 @@ destructive move operation would simply move the `m_begin` and `m_end`
 pointers from the list being moved from to the list being moved to. Any
 attempt to use (or destroy) the moved-from object would be undefined
 behavior.  Thus, a destructive move operation could expand the set of cases
-that could benefit from `move_if_noexcept`-like optimization.
+that could benefit from `move_if_noexcept`-like optimizations.
 
 Another benefit of destructive move is that it is often more efficient to
 perform a destructive move operation than a non-destructive move construction.
 In the case of a string, for example, a destructive move would simply copy
 pointers.  Since pointers are trivially copyable, the entire move operation
 becomes a trivial copy that can be implemented as a `memcpy`. This
-optimization is magnified when operating on entire arrays of strings: the
-entire array can be destructively moved with a single `memcpy`.  This
-optimization was implemented at Bloomberg before move constructors were even
-invented and has yielded significant performance gains.
+optimization is magnified when operating on arrays of strings: the entire
+array can be destructively moved with a single `memcpy`.  This optimization
+was implemented at Bloomberg before move constructors were even invented and
+has yielded significant performance gains.  It turns out that a large number
+of classes, like `string`, can be destructively moved using byte copies.  Such
+classes model a concept I call _trivially destructive-movable_.
 
-Finally, it turns out that a large number of classes can be _trivially
-destructive-movable_. Note that trivially destructive-movable does not require
-or imply trivially copyable; after the destructive move is complete, the
+Note that trivially destructive-movable does not require or imply trivially
+copyable; unlike a copy, after the destructive move is complete, the
 moved-from object must not be accessed, since any pointer members would point
 to memory shared with the moved-to object.
 
@@ -161,12 +163,12 @@ raw memory.  The postconditions are that `to` points to a valid object and
     ::new(to) T(std::move(*from));
     to->~T();
 
-However, this default can be overridden in two ways:
+This default, however, can be overridden in two ways:
 
  1. If the trait `is_trivially_destructive_movable<T>` is true, then
     the destructive move is implemented using byte copies. This trait is
     always true for types that are trivially movable, but can also be
-    overridden for other types by the class authors.
+    overridden for other types by class authors.
 
  2. If `destructive_move` is overloaded for a specific type, then ADL will
     resolve to the overloaded version. Thus, a class author can implement an
@@ -240,7 +242,7 @@ Header `<experimental/destructive_move>` synopsis
 
       template <class T>
         void destructive_move_array(T* to, T* from, size_t sz)
-          noexcept(is_nothrow_destructive_move<T>::value);
+          noexcept(is_nothrow_destructive_movable<T>::value);
 
     }
     }
@@ -269,7 +271,7 @@ A type `t` is _trivially destructive-movable_ if, given two pointers to `T`,
 base-class subobject and `p2` points to allocated storage of suitable size and
 alignment for an object of type `T`, copying the underlying bytes from `*p1`
 to `*p2` has the same user-visible effect as move-constructing `*p2` from
-`*p1` then destroying`*p1`. [_Note:_ A type need not be trivially
+`*p1` then destroying `*p1`. [_Note:_ A type need not be trivially
 move-constructible nor trivially destructible in order to be trivially
 destructive-movable -- _end note_]
 
@@ -313,11 +315,11 @@ existing object that is not a base-class subobject.
 
 _Effects_: If `is_trivially_destructive_movable<T>::value` is true, then
 equivalent to `memcpy(to, from, sizeof(T));` otherwise, equivalent to
-`::new(static_cast<void*>(to), move(*from)); from->~from();`.
+`::new(static_cast<void*>(to), move(*from)); from->~T();`.
 [_Note:_ Overloads of this function for user-defined or library types may
 achieve the same postconditions by other means. -- _end note_]
 
-_Throws:_: nothing unless the move constructor or destructor for `T` throws.
+_Throws_: nothing unless the move constructor or destructor for `T` throws.
 The expression within the `noexcept` clause is equivalent to
 `is_trivially_destructive_movable<T>::value ||`  
 `(is_nothrow_move_constructible<T>::value &&`
@@ -329,7 +331,8 @@ _Postconditions_: `*to` (after the call) is equivalent to (i.e., substitutable
 for) `*from` before the call except that it has a different address. The
 lifetime of `*from` is ended (but `from` still points to allocated
 storage). [_Note:_ To avoid invoking the destructor on the destroyed object,
-`from` should not point to an object with automatic storage. -- _end note_]
+`from` should not point to an object with automatic storage duration.
+-- _end note_]
 
 ## Function template `destructive_move_array`
 
@@ -339,7 +342,8 @@ storage). [_Note:_ To avoid invoking the destructor on the destroyed object,
 
 _Requires_: `T` shall be MoveConstructible.  If
 `is_nothrow_destructive_movable<T>::value` is false, then `T` shall also be
-CopyConstructible.
+CopyConstructible and the destructor for `T` shall not throw for any element
+in `from`.
 
 _Preconditions_: `to` shall be a pointer to allocated memory of suitable size
 and alignment for an array of `sz` elements of type `T`, `from` shall be a
@@ -358,7 +362,7 @@ Implementation Experience
 
 Source code for the traits and function templates proposed in this paper,
 as well as an implementation of `simple_vec` and a test driver for the whole
-thing is available at
+thing, is available at
 <http://halpernwightsoftware.com/WG21/destructive_move.tgz>. The code is free
 to use and distribute for both commercial and non-commercial
 purposes. Destructive move with specializations for trivially
@@ -372,9 +376,9 @@ Future work
 The `destructive_move` function template can be useful not only for
 non-overlapping operations such as vector reallocations, but also for
 overlapping array operations such as inserting and erasing elements.  However,
-the `destructive_move_array` is not suited to those overlapping moves. There
+`destructive_move_array` is not suited to those overlapping moves. There
 is an opportunity to add one or two additional function templates for this
-purpose. Additionally, there may be use case for a variant of
+purpose. Additionally, there may be use cases for a variant of
 `destructive_move_array` that would work on arbitrary iterator ranges rather
 than specifically on arrays.
 
