@@ -1,4 +1,4 @@
-% An Abstract Model of Vector Parallelism in C and C++
+% An Abstract Model of Simd Parallelism in C and C++
 % Pablo Halpern (<pablo.g.halpern@intel.com>), Intel Corp.
 % 2014-06-10
 
@@ -6,7 +6,7 @@ Motivation
 ==========
 
 When trying to define portable C and C++ constructs to enable a programmer to
-write loops that take advantage vector-parallel hardware, we at Intel have,
+write loops that take advantage simd-parallel hardware, we at Intel have,
 until now, tried to use a model similar to that used for enabling
 task-parallel (multicore) loops.  In Robert Geva's proposal to the C++
 standards committee, [N3831][], a simd-parallel loop is distinguished from a
@@ -20,26 +20,26 @@ allowed in each.  For a simd-parallel loop, the proposal says this:
 There are a number of problems with this definition of a SIMD loop:
 
  1. The definition itself is an arcane set of constraints on a program -- it
-    derived from our (Intel's) internal mental model of how vector execution
-    works.  It is not itself a model of vector execution and does little to
-    help the programmer decide whether vector execution is appropriate to
+    derived from our (Intel's) internal mental model of how simd execution
+    works.  It is not itself a model of simd execution and does little to
+    help the programmer decide whether simd execution is appropriate to
     his/her problem.
 
- 2. It encourages people to think of task parallelism and vector parallelism
+ 2. It encourages people to think of task parallelism and simd parallelism
     as being the same thing, with only subtle differences, and it invites them
     to find ways to smooth over those differences.  Indeed, in the C++
     standards committee, we are finding it difficult to convince people that a
-    loop with a vector-only policy (as opposed to a vector + parallel policy)
+    loop with a simd-only policy (as opposed to a simd + parallel policy)
     is an important top-level concept.
 
  3. The model is not rich enough to express cross-lane operations such as
     compress and expand operations and localized reductions. These operations
-    were deemed important for maximizing the benefit of vector hardware, but
+    were deemed important for maximizing the benefit of simd hardware, but
     proposals to add such features do not fit well with the limited
-    description of vector execution implied by the above dependency statement.
+    description of simd execution implied by the above dependency statement.
 
 For these reasons, I have attempted in this paper to describe a model for
-vector execution.  This model subsumes the dependency statement from N3831 but
+simd execution.  This model subsumes the dependency statement from N3831 but
 is much more complete and provides a framework for describing cross-lane
 dependencies.  The model attempts to describe modern SIMD hardware without
 being specific to any one architecture or CPU manufacturer.
@@ -61,10 +61,10 @@ This paper does not propose any syntax. Rather, it is a description of
 concepts that can be rendered using many different possible language
 constructs.
 
-Vector execution
+Simd execution
 ================
 
-Vector Lanes and Chunks
+Simd Lanes and Chunks
 -----------------------
 
 A loop executes in chunks of VL contiguous iterations at a time.  Each
@@ -103,7 +103,7 @@ _selection-statement_ is a step and all branches within a
 _selection-statement_ comprise a single step. The compiler is thus free to
 schedule multiple branches simultaneously.  In the following example, the
 optimizer might condense two branches into a single hardware step by computing
-a vector of `+1` and `-1` values and performing a single vector addition.
+a vector of `+1` and `-1` values and performing a single simd addition.
 
     for simd (int i = 0; i < N; ++) {
         if (c[i])
@@ -176,7 +176,7 @@ conditions.
 Lane-specific and cross-lane operations
 =======================================
 
-There are situations where the vector model is exposed very directly in the
+There are situations where the simd model is exposed very directly in the
 code.  A short list of operations that might be useful are:
 
  * Compress: Put the results of a computation on a (non-contiguous) branch set
@@ -190,7 +190,7 @@ code.  A short list of operations that might be useful are:
 
 Note that many of these operations could be used in such a way as to break
 serial equivalence; i.e., cause the result of a computation to differ
-depending on how many vector lanes exist.  However, these operations are
+depending on how many simd lanes exist.  However, these operations are
 meaningful within the model and, used carefully, can produce deterministic
 results.
 
