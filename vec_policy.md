@@ -34,13 +34,14 @@ The problem
 ===========
 
 Although SIMD vector units are common on modern microprocessors such as the
-x86, ARM, Power, and several others, vector instructions date back to older
-"long vector" super computers such as the CDC Star-100, Cray, CM-1, and
-CM-2. For code that can take advantage of the vector instructions, the
-performance benefit is often better than that of multicore programming, and is
-even better when the two types of parallelism are combined.  It is therefore
-crucial that vector programming be given proper attention when considering C++
-extensions for parallelism.
+x86 ([AVX][] and SSE), ARM ([NEON][]), Power ([AltiVec][]), MIPS ([MSA][]),
+and several others, vector instructions date back to older "long vector" super
+computers such as the CDC Star-100, Cray, CM-1, and CM-2. For code that can
+take advantage of the vector instructions, the performance benefit is often
+better than that of multicore programming, and is even better when the two
+types of parallelism are combined.  It is therefore crucial that vector
+programming be given proper attention when considering C++ extensions for
+parallelism.
 
 The WP for the parallelism TS, however, attempts to minimize the differences
 between vector and multicore (task) parallelism.  This attempt satisfies a
@@ -50,7 +51,7 @@ expressed. The purpose of parallelism is to exploit the hardware efficiently.
 Given the prevalence of vector hardware, we risk falling short of our
 mission.
 
-A **short** recap of the difference between parallel and vector execution
+A **brief** recap of the difference between parallel and vector execution
 =========================================================================
 
 This topic has been discussed a lot, so I will endeavor to keep this section
@@ -73,16 +74,16 @@ The main guarantee provided by vector parallelism is that given two iterations
 within a loop, execution of the logically later iteration can never "get
 ahead" of the earlier iteration, i.e., it will not execute a later expression
 than has been executed in an earlier iteration.  This quality has been
-formalized in other proposals, and the formalism could possibly be improved,
-but the purpose of this paper is not to define a vector model in detail, but
-to leave room for adding a complete vector model in the future.
+formalized in other proposals, and the formalism could possibly be improved.
+However, the purpose of this paper is not to define a vector model in detail,
+but to leave room for adding a complete vector model in the future.
 
 Up until now, we have not done a good job at motivating the need for this
 ordering guarantee. A recent study of customer code, however, illuminated a
 set of operations that were vital for taking advantage of vectorization.
 These operations rely on the ordering guarantee as well as other aspects
 of vector hardware and reinforce the semantics that have been presented and
-largely agreed-to in the vector loop proposal.
+largely agreed-to in the vector loop proposal, [N3831][].
 
 Without going into excessive technical detail, here is a short list of some of
 these operations:
@@ -97,11 +98,15 @@ these operations:
 
 All of these operations would require significant synchronization overhead in
 a multithreaded implementation but are extremely fast in a vector
-implementation.  Compress and Expand would actually require blocking in a
+implementation.  Compress and expand are beginning to show up as primitive
+operations in hardware whereas they would actually require blocking in a
 parallel implementation in order to get the elements in the correct order.
 
 Proposal summary
 ================
+
+The status quo
+--------------
 
 Some time ago, it was suggested that execution policies should be described by
 the following taxonomy:
@@ -175,6 +180,21 @@ Parallelism_, Jared Hoberock, editor, 2014-05-23
 [N3831][]: _Language Extensions for Vector level parallelism_, Robert Geva and
 Clark Nelson, 2014-01-14
 
+[AVX]: https://software.intel.com/en-us/articles/introduction-to-intel-advanced-vector-extensions
+[AVX][]: _Introduction to Intel(R) Advanced Vector Extensions_,
+https://software.intel.com/en-us/articles/introduction-to-intel-advanced-vector-extensions
+
+[NEON]: http://www.arm.com/products/processors/technologies/neon.php
+[NEON][]: _ARM(R) NEON(tm) SIMD Engine_,
+http://www.arm.com/products/processors/technologies/neon.php
+
+[AltiVec]: http://www.freescale.com/webapp/sps/site/overview.jsp?code=DRPPCALTVC&tid=vanALTIVEC
+[AltiVec][] _Altivec(tm) Technologies for Power Architecture_, 
+http://www.freescale.com/webapp/sps/site/overview.jsp?code=DRPPCALTVC&tid=vanALTIVEC
+
+[MSA]: http://www.imgtec.com/mips/architectures/simd.asp
+[MSA][]: _MIPS(R) SIMD Architecture_,
+http://www.imgtec.com/mips/architectures/simd.asp 
 
 <!--  LocalWords:  PDTS parvec
  -->
