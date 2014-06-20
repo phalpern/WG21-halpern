@@ -1,4 +1,4 @@
-% Changes to vector_execution_policy | D4060
+% Changes to vector_execution_policy | N4060
 % Pablo Halpern, Intel Corp. <pablo.g.halpern@intel.com>
 % 2014-06-11
 
