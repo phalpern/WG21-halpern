@@ -8,7 +8,7 @@
 CXXFLAGS = -std=c++11 -g
 CXXFLAGS += -DUSE_DESTRUCTIVE_MOVE
 
-DOCNAME=simd-execution-model
+DOCNAME=vector-execution-models
 
 html: $(DOCNAME).html
 	:
@@ -23,9 +23,9 @@ pdf: $(DOCNAME).pdf
 	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H header.tex $< -o $@
 
 header.tex : header.tmplt.tex $(DOCNAME).md
-	sed -e s/DOCNUM/$$(sed -n  -e '/N[0-9][0-9][0-9][0-9]/s/.*\(N[0-9][0-9][0-9][0-9]\).*/\1/p' -e '/N[0-9][0-9][0-9][0-9]/q' $(DOCNAME).md)/g $< > $@
+	sed -e s/DOCNUM/$$(sed -n  -e '/[ND][0-9][0-9][0-9][0-9]/s/.*\([ND][0-9][0-9][0-9][0-9]\).*/\1/p' -e '/[ND][0-9][0-9][0-9][0-9]/q' $(DOCNAME).md)/g $< > $@
 
 clean:
-	rm -f destructive_move.t $(DOCNAME).html $(DOCNAME).pdf header.tex
+	rm -f $(DOCNAME).html $(DOCNAME).pdf header.tex
 
 .FORCE:
