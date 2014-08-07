@@ -1,9 +1,9 @@
-% Task Region R3 | Dxxxx ~N3991~
+% Task Region R3 | N4088
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2014-06-20
+% 2014-06-21
 
 <!-- Make sure that doc number in header.tex matches this one -->
 
@@ -14,9 +14,21 @@ library class `task_region_handle` with member functions `run` and `wait` that
 together enable developers to write expressive and portable fork-join parallel
 code.
 
-This proposal is a revision of [N3832][].
+# Document status and history
 
-# Changes from N3832
+This revision of this proposal has been approved by
+the Parallelism and Concurrency study group (SG1) at the June 2014 meeting and
+is expected to be reviewed by the Library Evolution working group and Library
+working group at the November 2014 meeting. It is tentatively targeted at a
+future Parallelism TS.
+
+## Changes from [N3991][] to N4088
+
+This paper contains no interface changes. The wording describing the
+asynchronous nature of `run` has been improved. Formal wording has also been
+added making explicit the thread-switching nature of most interface functions.
+
+## Changes from [N3832][] to N3911
 
 The main change from the previous revision of this paper is the addition of the
 `task_region_handle` class as an explicit means of communicating from a
@@ -44,8 +56,8 @@ Finally, `task_cancelled_exception` was renamed to `task_canceled_exception`
 
 # Motivation and Related Proposals
 
-The working draft for the Parallelism TS [N3960][] augments the STL algorithms
-with the 
+The working draft for the Parallelism TS [N3960][] (or [N4071][] by the time
+this paper is published) augments the STL algorithms with the 
 inclusion of parallel execution policies. Programmers use these as a basis to
 write additional high-level algorithms that can be implemented in terms of the
 provided parallel algorithms. However, the scope of N3960 does not include
@@ -254,9 +266,8 @@ explanation of when this matters and how surprises can be mitigated.
 
     namespace std {
       namespace experimental {
-      inline namespace parallelism_v2 {
-
       namespace parallel {
+      inline namespace v2 {
 
         class task_canceled_exception;
 
@@ -267,7 +278,6 @@ explanation of when this matters and how surprises can be mitigated.
         template<typename F>
           void task_region_final(F&& f);
       }
-
       }
       }
 
@@ -370,16 +380,17 @@ _Effects_: Causes the expression `f()` to be invoked asynchronously.  The
 invocation of `f` is permitted to run on an unspecified thread in an unordered
 fashion relative to the sequence of operations following the call to `run(f)`
 (the _continuation_), or indeterminately sequenced within the same thread as
-the continuation. The implementation shall ensure that the invocation of `f()`
-will complete prior to completion of the next invocation of `wait` on the same
-`task_region_handle` or completion of the nearest enclosing task region (i.e.,
-the `task_region` or `task_region_final` that created this
+the continuation. The call to `run` synchronizes with the invocation of
+`f`. The completion of `f()` synchronizes with the next invocation of `wait`
+on the same `task_region_handle` or completion of the nearest enclosing task
+region (i.e., the `task_region` or `task_region_final` that created this
 `task_region_handle`).
 
 _Throws_: `task_canceled_exception`, as described in [Exception Handling][]. 
 
 _Postconditions_: A call to `run` may return on a different thread than that
-from which it was called.
+on which it was called. [_Note_: The call to `run` is sequenced before the
+continuation as if `run` returns on the same thread. -- _end note_]
 
 _Remarks_: The invocation of the user-supplied callable object `f` may be
 immediate or may be delayed until compute resources are available.  `run`
@@ -397,8 +408,9 @@ have finished.
 _Throws_: `task_canceled_exception`, as described in [Exception Handling][].
 
 _Postcondition_: All tasks spawned by the nearest enclosing task region have
-finished. A call to `wait` may return on a different thread than that from
-which it was called.
+finished. A call to `wait` may return on a different thread than that on
+which it was called. [_Note_: The call to `wait` is sequenced before subsequent
+operations as if `wait` returns on the same thread. -- _end note_]
 
 [_Example:_
 
@@ -426,10 +438,11 @@ _Effects_: Constructs a `task_region_handle`, `tr`, and invokes the expression
 _Throws_: `exception_list`, as specified in [Exception Handling][].
 
 _Postcondition_: All tasks spawned from `f` have finished execution.  A call
- to `task_region` may return on a different thread than that from which it was
- called.  A call to `task_region_final` always returns on the same native
- thread as that on which it was invoked. (See [Thread Switching][] in the
- Issues section.)
+ to `task_region` may return on a different thread than that on which it was
+ called.  A call to `task_region_final` always returns on the same thread as
+ that on which it was called. (See [Thread Switching][] in the Issues
+ section.) [_Note_: The call to `task_region` is sequenced before subsequent
+operations as if `task_region` returns on the same thread. -- _end note_]
 
 _Notes_: It is expected (but not mandated) that `f`
 will (directly or indirectly) call `tr.run(_callable_object_)`.
@@ -463,28 +476,20 @@ from the task region.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
-The `exception_list` class is described in [N3960][] and is defined as
-follows:
+The `exception_list` class is described in [N3960][] and is defined as follows
+(as modified in [N4071][]):
 
     class exception_list : public exception
     {
-    public:
-        typedef exception_ptr                                 value_type;
-        typedef const value_type&                             reference;
-        typedef const value_type&                             const_reference;
-        typedef _implementation-defined_                      const_iterator;
-        typedef const_iterator                                iterator;
-        typedef typename iterator_traits<const_iterator>::difference_type
-                                                              difference_type;
-        typedef size_t                                        size_type;
+      public:
+        typedef _unspecified_ iterator;
 
         size_t size() const noexcept;
         const_iterator begin() const noexcept;
         const_iterator end() const noexcept;
-    private:
-        // ...
-    };
 
+        const char* what() const override noexcept;
+    };
 
 # Scheduling Strategies
 
@@ -740,9 +745,17 @@ a new TS.
 [Guo2009][] _Work-First and Help-First Scheduling Policies for Async-Finish
 Task Parallelism_, Yi Guo et. al., Rice University 2009
 
+[N4071]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n4071.pdf
+[N4071][] _Working Draft, Technical Specification for C++ Extensions for
+Parallelism_, J. Hoberock (editor), 2014-06-19
+
 [N3960]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3960.pdf
 [N3960][] _Working Draft, Technical Specification for C++ Extensions for
 Parallelism_, J. Hoberock (editor), 2014-02-28
+
+[N3991]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3991.pdf
+[N3991][] _Task Region R2_, P. Halpern, A. Robison, H. Hong; A. Laksberg,
+G. Nishanov, H. Sutter, 2014-05-23
 
 [N3832]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3832.pdf
 [N3832][] _Task Region_, P. Halpern, A. Robison, H. Hong; A. Laksberg,
