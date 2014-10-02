@@ -1,6 +1,6 @@
-% Destructive Move | N4034
+% Destructive Move | Dxxxx
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2014-05-27
+% 2014-10-02
 
 Abstract
 ========

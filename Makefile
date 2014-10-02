@@ -8,30 +8,32 @@
 CXXFLAGS = -std=c++11 -g
 CXXFLAGS += -DUSE_DESTRUCTIVE_MOVE
 
-test : destructive_move.test
+FILEROOT = destructive_move
 
-destructive_move.test : destructive_move.t
-	./destructive_move.t
+test : $(FILEROOT).test
 
-destructive_move.t : destructive_move.t.cpp destructive_move.h simple_vec.h
+$(FILEROOT).test : $(FILEROOT).t
+	./$(FILEROOT).t
+
+$(FILEROOT).t : $(FILEROOT).t.cpp $(FILEROOT).h simple_vec.h
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-html: n4034_destructive_move.html
+html: $(FILEROOT).html
 	:
 
-pdf: n4034_destructive_move.pdf
+pdf: $(FILEROOT).pdf
 	:
 
 %.html : %.md
 	pandoc --number-sections -s -S $< -o $@
 
 %.pdf : %.md header.tex
-	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H header.tex $< -o $@
-
-header.tex : header.tmplt.tex n4034_destructive_move.md
-	sed -e s/DOCNUM/$$(sed -n  -e '/N[0-9][0-9][0-9][0-9]/s/.*\(N[0-9][0-9][0-9][0-9]\).*/\1/p' -e '/N[0-9][0-9][0-9][0-9]/q' n4034_destructive_move.md)/g $< > $@
+	$(eval DOCNUM=$(shell sed -n  -e '/^% .*[ND][0-9x][0-9x][0-9x][0-9x]/s/^.*\([ND][0-9x][0-9x][0-9x][0-9x]\).*/\1/p' -e '/^[ND][0-9x][0-9x][0-9x][0-9x]$$/q' $<))
+	sed -e s/DOCNUM/$(DOCNUM)/g header.tex > $*.hdr.tex
+	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H $*.hdr.tex $< -o $@
+	rm -f $*.hdr.tex
 
 clean:
-	rm -f destructive_move.t n4034_destructive_move.html n4034_destructive_move.pdf header.tex
+	rm -f $(FILEROOT).t $(FILEROOT).html $(FILEROOT).pdf
 
 .FORCE:
