@@ -3,7 +3,7 @@
 // Copyright 2014 Pablo Halpern.
 // Free to use and redistribute (See accompanying file license.txt.)
 
-// Test driver for 'destructive_move' and 'simple_vec'
+// Test driver for 'uninitialized_destructive_move' and 'simple_vec'
 
 #include "destructive_move.h"
 #include "simple_vec.h"
@@ -88,7 +88,8 @@ template <moveType E>
 int MyClass<E>::s_move_ctor_calls = 0;
 
 // Specialization that doesn't call (throwing) move constructor
-void destructive_move(MyClass<specialMove> *to, MyClass<specialMove> *from) noexcept
+void uninitialized_destructive_move(MyClass<specialMove> *from,
+                                    MyClass<specialMove> *to) noexcept
 {
     to->setVal(from->val());
     from->setVal(0xffff);
@@ -104,9 +105,9 @@ namespace experimental {
 template <moveType E>
 void testMoveMyClass()
 {
-    // Test operation of 'destructive_move'.  Whether or not
-    // 'destructive_move' can throw and whether or not it calls the move
-    // constructor for 'MyClass' depends on 'E' as follows:
+    // Test operation of 'uninitialized_destructive_move'.  Whether or not
+    // 'uninitialized_destructive_move' can throw and whether or not it calls
+    // the move constructor for 'MyClass' depends on 'E' as follows:
     //
     // E            Can throw? Mechanism
     // ----------   ---------- ---------
@@ -115,7 +116,7 @@ void testMoveMyClass()
     // specialMove  No         specialized nothrow 'destructive_move'
     // throwingMove Yes        throwing move ctor
 
-    using exp::destructive_move;
+    using exp::uninitialized_destructive_move;
 
     // the move constructor is called only for 'nothrowMove' or 'throwingMove':
     int callMoveCtor = (E == nothrowMove || E == throwingMove) ? 1 : 0;
@@ -129,7 +130,7 @@ void testMoveMyClass()
     TEST_ASSERT(1 == Obj::population());
     int moveCtorCallsBefore = Obj::move_ctor_calls();
 
-    destructive_move(a, b);
+    uninitialized_destructive_move(b, a);
 
     TEST_ASSERT(Obj::move_ctor_calls() == moveCtorCallsBefore+callMoveCtor);
     TEST_ASSERT(1 == Obj::population());
@@ -154,7 +155,7 @@ void testMoveMyClass()
 
     moveCtorCallsBefore = Obj::move_ctor_calls();
     try {
-        destructive_move(a, b);
+        uninitialized_destructive_move(b, a);
         TEST_ASSERT(E == specialMove); // Specialized noexcept destructive_move
         TEST_ASSERT(1 == Obj::population());
         TEST_ASSERT(0xcafe == a->val());
@@ -179,11 +180,13 @@ void testMoveMyClass()
 template <moveType E>
 void testSimpleVec()
 {
-    // Test operation of 'simple_vec', which uses 'destructive_move_array'.
+    // Test operation of 'simple_vec', which uses
+    // 'uninitialized_destructive_move_n'.
 
 #ifdef USE_DESTRUCTIVE_MOVE
-    // Whether or not 'destructive_move_array' can throw and whether or not it
-    // calls the move constructor for 'MyClass' depends on 'E' as follows:
+    // Whether or not 'uninitialized_destructive_move_n' can throw and whether
+    // or not it calls the move constructor for 'MyClass' depends on 'E' as
+    // follows:
     //
     // E            Can throw? Mechanism
     // ----------   ---------- ---------
@@ -319,7 +322,7 @@ int main()
     TEST_ASSERT(!exp::is_nothrow_destructive_movable<MyClass<throwingMove>>());
 
     int a = 4, b = 5;
-    exp::destructive_move(&a, &b);
+    exp::uninitialized_destructive_move(&b, &a);
     TEST_ASSERT(5 == a && 5 == b);
 
     testMoveMyClass<trivialMove>();

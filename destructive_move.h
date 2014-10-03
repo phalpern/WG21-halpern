@@ -24,7 +24,7 @@ template <class T> struct is_nothrow_destructive_movable;
 template <class T>
 inline
 typename enable_if<is_trivially_destructive_movable<T>::value>::type
-destructive_move(T* to, T* from) noexcept
+uninitialized_destructive_move(T* from, T* to) noexcept
 {
     // Use bitwise copy
     memcpy(to, from, sizeof(T));
@@ -33,7 +33,7 @@ destructive_move(T* to, T* from) noexcept
 template <class T>
 inline
 typename enable_if<! is_trivially_destructive_movable<T>::value>::type
-destructive_move(T* to, T* from)
+uninitialized_destructive_move(T* from, T* to)
     noexcept(is_nothrow_move_constructible<T>::value &&
              is_nothrow_destructible<T>::value)
 {
@@ -44,7 +44,7 @@ destructive_move(T* to, T* from)
 template <class T>
 inline
 typename enable_if<is_trivially_destructive_movable<T>::value>::type
-destructive_move_array(T* to, T* from, size_t sz) noexcept
+uninitialized_destructive_move_n(T* from, size_t sz, T* to) noexcept
 {
     // Bitwise move entire array
     memcpy(to, from, sz * sizeof(T));
@@ -54,17 +54,17 @@ template <class T>
 inline
 typename enable_if<(! is_trivially_destructive_movable<T>::value &&
            is_nothrow_destructive_movable<T>::value)>::type
-destructive_move_array(T* to, T* from, size_t sz) noexcept
+uninitialized_destructive_move_n(T* from, size_t sz, T* to) noexcept
 {
     // Destructively move each element (will not throw)
     for (size_t i = 0; i < sz; ++i)
-        destructive_move(&to[i], &from[i]);
+        uninitialized_destructive_move(&from[i], &to[i]);
 }        
 
 template <class T>
 inline
 typename enable_if<! is_nothrow_destructive_movable<T>::value>::type
-destructive_move_array(T* to, T* from, size_t sz) noexcept(false)
+uninitialized_destructive_move_n(T* from, size_t sz, T* to) noexcept(false)
 {
     size_t i;
     try {
@@ -79,7 +79,7 @@ destructive_move_array(T* to, T* from, size_t sz) noexcept(false)
         throw;
     }
         
-    // Destroy 'from' array
+    // Destroy elements of 'from' array
     for (i = 0; i < sz; ++i)
         from[i].~T();
 }
@@ -93,8 +93,8 @@ struct is_trivially_destructive_movable :
 
 template <class T>
 struct is_nothrow_destructive_movable :
-        integral_constant<bool, noexcept(destructive_move((T*) nullptr,
-                                                          (T*) nullptr))>
+        integral_constant<bool, noexcept(
+            uninitialized_destructive_move((T*) nullptr, (T*) nullptr))>
 {
 };
 

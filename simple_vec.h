@@ -96,7 +96,7 @@ void simple_vec<T, A>::swap(simple_vec& other) noexcept
 template <class T, class A>
 void simple_vec<T, A>::push_back(const T& v)
 {
-    using std::experimental::destructive_move_array;
+    using std::experimental::uninitialized_destructive_move_n;
 
     if (m_length == m_capacity) {
         // Grow the vector by creating a new one and swapping
@@ -105,7 +105,7 @@ void simple_vec<T, A>::push_back(const T& v)
         temp.m_data = alloc_traits::allocate(m_alloc, temp.m_capacity);
 
         // Exception-safe move from this->m_data to temp.m_data
-        destructive_move_array(temp.m_data, m_data, m_length);
+        uninitialized_destructive_move_n(m_data, m_length, temp.m_data);
 
         // All elements of 'temp' have been constructed and
         // all elements of '*this' have been destroyed.
