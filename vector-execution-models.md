@@ -1,6 +1,24 @@
-% An Abstract Models of Vector Parallelism in C and C++
+% An Abstract Model of Vector Parallelism in C and C++
 % Pablo Halpern (<pablo.g.halpern@intel.com>), Intel Corp.
 % 2014-10-01
+
+Abstract
+========
+
+This document presents a software model of vector execution, with three
+identified variants.  It is intended to foster and inform discussion of
+software vector models within Intel.  However, much of the content is not
+Intel-specific and is likely to be re-used for similar documents in external
+contexts, especially standards bodies where we are trying to influence the
+design of parallel languages.
+
+The model presented here is intended to help us create software for our
+vector-enabled CPUs.  In addition to SIMD instructions, this paper mentions
+GPUs, as many of the concepts apply in that realm.  The primary goal is not to
+boost the programmability of GPUs, however, nor to make SIMD units and GPUs
+look the same.  In fact, by carefully describing the model of vector
+execution, we can more clearly articulate the differences between GPUs and
+vector CPUs.
 
 Motivation
 ==========
@@ -8,10 +26,11 @@ Motivation
 When trying to define portable C and C++ constructs to enable a programmer to
 write loops that take advantage simd-parallel hardware, we at Intel have,
 until now, tried to promote a model similar to that used for enabling
-task-parallel (multicore) loops.  In Robert Geva's proposal to the C++
-standards committee, [N3831][], a vector-parallel loop is distinguished from a
-task-parallel loop only by the ordering dependencies that are and are not
-allowed in each.  For a vector-parallel loop, the proposal says this:
+task-parallel (multicore) loops.  In Robert Geva and Clark Nelson's proposal
+to the C++ standards committee, [N3831][], a vector-parallel loop is
+distinguished from a task-parallel loop only by the ordering dependencies that
+are and are not allowed in each.  For a vector-parallel loop, the proposal
+says this:
 
 > For all expressions X and Y evaluated as part of a SIMD loop, if X is
 > sequenced before Y in a single iteration of the serialization of the loop
