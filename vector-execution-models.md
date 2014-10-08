@@ -1,6 +1,6 @@
 % An Abstract Model of Vector Parallelism in C and C++
 % Pablo Halpern (<pablo.g.halpern@intel.com>), Intel Corp.
-% 2014-10-01
+% 2014-10-08
 
 Abstract
 ========
@@ -24,7 +24,7 @@ Motivation
 ==========
 
 When trying to define portable C and C++ constructs to enable a programmer to
-write loops that take advantage simd-parallel hardware, we at Intel have,
+write loops that take advantage of simd-parallel hardware, we at Intel have,
 until now, tried to promote a model similar to that used for enabling
 task-parallel (multicore) loops.  In Robert Geva and Clark Nelson's proposal
 to the C++ standards committee, [N3831][], a vector-parallel loop is
@@ -78,39 +78,42 @@ described here can be quite as general, my hope is that they are general
 enough to describe a wide range of present and future hardware.
 
 
-Overview of the Vector Models
-=============================
+Overview of the Vector-Model Variants
+=====================================
 
-This paper describes three vector models:
+This paper describes three variants on a vector model:
 
- 1. *lockstep execution*: The model used by ispc
- 2. *Wavefront execution*: The model used by the Intel compiler
- 3. *Explicit-barrier execution*: The model used by CUDA*.
+ 1. *lockstep execution*: The variant used by ISPC
+ 2. *Wavefront execution*: The variant used by the Intel compiler
+ 3. *Explicit-barrier execution*: The variant used by CUDA*.
 
-The models presented here differ from one another in the kind of interaction
+The variants presented here differ from one another in the kind of interaction
 that is permitted across lanes and, consequently, the cross-lane dependencies
-that can be expressed by the programmer.
+that can be expressed by the programmer.  Each variant is strictly weaker
+(makes fewer ordering guarantees) than the one before it, so, for example, an
+implementation that supports lockstep execution fully conforms to wavefront
+and explicit-barrier execution semantics.
 
 It is my understanding that the Intel compiler's vectorization model matches
-the second ("wavefront") model. The other two models are described for
+the second ("wavefront") variant. The other two variants are described for
 completeness and to provide a context for evaluating proposed vectorization
-features coming from both inside and outside Intel.  Each model has a
+features coming from both inside and outside Intel.  Each variant has a
 different set of pros and cons, so comparing them helps us understand the
-strengths and weaknesses of our current model.
+strengths and weaknesses of our current variant.
 
 This paper does not propose any syntax. Rather, it is a description of
 concepts that can be rendered using many different possible language
-constructs. An important use of these models is as a set of fundamental
+constructs. An important use of these variants is as a set of fundamental
 concepts that we can use to judge the appropriateness of future language and
 library constructs and to help document those constructs that we choose to
 adopt.
 
-Concepts that are Common to All Vector Models
-=============================================
+Concepts that are Common to All Vector Model Variants
+=====================================================
 
 The concepts of _program steps_, _vector lanes_, _control divergence_,
 _vector-enabled function_, and _scalar region_, described in this section, are
-common to all three models.  Some of the details vary by model.
+common to all three variants.  Some of the details vary by variant.
 
 Program Steps
 -------------
@@ -121,7 +124,7 @@ recursively until we reach a primitive operation.  The decomposition of a
 larger step into smaller steps follows the syntactic and semantic structure of
 the language such that, e.g., a compound statement is decomposed into a series
 of (nested) statements and an `if` statement is decomposed into a conditional
-expression, a statement to be executed in the **true** case and a statement to
+expression, a statement to be executed in the **true** case, and a statement to
 be executed in the **false** case.
 
 Vector Lanes and Gangs
@@ -141,7 +144,7 @@ queried by the program, but such a query weakens the abstraction.  A vector
 loop executes in chunks of VL sequential iterations, with each iteration
 assigned to a lane. The chunks need not all be the same size (have the same
 VL); it is common for the first and/or last chunk to be smaller than the rest
-(i.e., for peeling and remainder loops).
+(e.g., for peeling and remainder loops).
 
 The lanes in a gang are indexed from 0 to VL-1.  Lanes with smaller indexes
 within the same gang are referred to as _earlier than_ or _previous to_ lanes
@@ -151,7 +154,7 @@ iterations are assigned to lanes in increasing order so that earlier
 iterations in the serial version of the loop map to earlier lanes in each
 gang.
 
-In all of the models, there is neither a requirement nor an expectation that
+In all of the variants, there is neither a requirement nor an expectation that
 individual lanes within a gang will make independent progress.  If any lane
 within a gang blocks (e.g., on a mutex), then it is likely (but not required)
 that all lanes will stop making progress.
@@ -167,12 +170,12 @@ to execute different code paths.  For each control-flow branch, those lanes
 that should execute that branch are called _active_ lanes.  Control flow
 _converges_ when the control paths come back together at the end of the
 construct construct, e.g., at the end of an `if` statement.  Although
-different models have different ways of dealing with control-flow divergence,
-it is generally true of all of the models that large amounts of control-flow
+different variants have different ways of dealing with control-flow divergence,
+it is generally true of all of the variants that large amounts of control-flow
 divergence has a negative impact on performance.  If the control flow within a
-loop has irreducible constructs (i.e., loops or conditional statements that
-have multiple entry or exit points via gotos), it may be impractical for the
-compiler to vectorize those constructs at all.
+loop has irreducible constructs (e.g., loops that have multiple entry points
+via gotos), it may be impractical for the compiler to vectorize those
+constructs at all.
 
 Vector-enabled functions
 ------------------------
@@ -198,13 +201,12 @@ loop to be a _scalar_ region. This region has the following characteristics:
 
  1. Only one lane executes the scalar region at a time.
 
- 2. It is considered a single step, regardless of how many statements or
-    expressions are within it; no portion of a scalar region on one lane is
-    interleaved with any code on another lane.
+ 2. It is considered a single, indivisible step, regardless of how many
+    statements or expressions are within it; no portion of a scalar region on
+    one lane is interleaved with any code on another lane.
 
-A call to a vector-enabled function proceeds as if that function were part of
-the simd block.  A call to a non-vector-enabled function procedes as if the
-call were in a scalar region.  (The as-if rule applies; if the compiler can
+An implicit scalar region surrounds each call to a non-vector-enabled function
+within a vectorized loop.  (The as-if rule applies; if the compiler can
 prove that a non-vector function can be vectorized without changing the
 observable behavior, it is free to do so.)
 
@@ -258,13 +260,13 @@ the future.  Thus, a programmer could not use a wavefront to violate serial
 semantics.
 
 
-Lockstep Execution Model
-=========================
+Lockstep Execution
+==================
 
 Overview
 --------
 
-Intuitively, each step in the lockstep execution model occurs simultaneously
+Intuitively, each step in the lockstep execution variant occurs simultaneously
 on all lanes within a gang.  More precisely, there is a logical full barrier
 at the end of each step, with all of the lanes completing one step before any
 lane starts the next step.  Each step is further subdivided into smaller
@@ -273,7 +275,7 @@ come to a primitive step that cannot be subdivided.  If a local variable
 (including any temporary variable) is needed by any step, then a separate
 instance of that local variable is created for each lane.
 
-The lockstep execution model maps directly to modern SIMD microprocessors.
+The lockstep execution variant maps directly to modern SIMD microprocessors.
 For code that cannot be translated directly into SIMD instructions the
 compiler must ensure that the program behaves _as if_ every operation, down to
 a specific level of granularity, were executed simultaneously on every lane.
@@ -327,13 +329,13 @@ set, then the mask is recomputed.  The loop terminates (and control flow
 converges) when the set of lanes with a true loop condition is empty (i.e.,
 the mask is all zeros).
 
-The Wavefront Execution Model
-==============================
+Wavefront Execution
+===================
 
 Overview
 --------
 
-Unlike the lockstep model, the steps in the wavefront execution model can
+Unlike the lockstep variant, the steps in the wavefront execution variant can
 proceed at different rates on different lanes.  However, although two lanes
 may execute the same step *simultaneously*, a step on one lane cannot be
 executed *before* the same step on an earlier lane.  Intuitively, then,
@@ -358,32 +360,32 @@ Handling of control-flow divergence
 -----------------------------------
 
 For operations that rely on SIMD instructions, control-flow divergence in the
-wavefront model is handled the same way as in the lockstep model.  A segment
+wavefront variant is handled the same way as in the lockstep variant.  A segment
 of code that cannot be translated into SIMD instructions is serialized and
 executed for each active lane within a branch.  By executing the segment for
 earlier lanes before later lanes, the wavefront dependencies are automatically
 preserved.  Thus, control-flow divergence is easier to handle in the wavefront
-model than in the lockstep model, though it may be a bit more complicated to
+variant than in the lockstep variant, though it may be a bit more complicated to
 describe.
 
-The Explicit-Barrier Execution Model
-====================================
+Explicit-Barrier Execution
+==========================
 
 Overview
 --------
 
-This execution model is the most like a parallel execution model.  All lanes
+This execution variant is the most like a parallel execution model.  All lanes
 can progress at different rates with no requirement that earlier lanes stay
 ahead of later lanes.  When an inter-lane dependency is needed, an explicit
 barrier must be issued to cause the lanes to synchronize.
 
-Because the lanes are not required to stay in sync, this model is the
-preferred model for most GPUs, giving a group of hardware threads the
+Because the lanes are not required to stay in sync, this variant is the
+preferred variant for most GPUs, giving a group of hardware threads the
 appearance of very wide vector units.  On a GPU, a full barrier is a fairly
 cheap operation, although it does reduce parallelism by forcing some threads
 to stall while waiting for other threads.
 
-This model is also useful on SIMD hardware.  Like the wavefront model, the
+This variant is also useful on SIMD hardware.  Like the wavefront variant, the
 compiler uses SIMD instructions where possible and processes one lane at a
 time otherwise.  There are no hardware instructions corresponding to a
 barrier, but a barrier in the code does restrict the order of execution of
@@ -404,9 +406,9 @@ independently.  If control-flow divergence causes a pipeline stall, other
 threads tend to smooth over the latency.
 
 On SIMD hardware, control-flow divergence can be handled the same way as for
-the wavefront model.  The lack of implicit dependencies also allows the
+the wavefront variant.  The lack of implicit dependencies also allows the
 compiler to re-order instructions in a way that is not possible with a pure
-wavefront model.
+wavefront variant.
 
 
 Varying, linear, and uniform
@@ -418,7 +420,7 @@ or _uniform_, as follows:
  * _varying_: The expression can have a different, unrelated,
    value in each lane.
  * _linear_: The value of the variable or
-   expression increases linearly with lane index.  The difference in
+   expression is linear with respect to the lane index.  The difference in
    value between one lane and the next is the _stride_.  A common special case
    is a _unit stride_ -- i.e., a stride of one -- which is often more efficient
    for the hardware.
@@ -470,7 +472,7 @@ code.  A short list of operations that might be useful are:
    in a non-contiguous set of active lanes.  (Implies a wavefront barrier.)
  * Prefix-sum (or other parallel prefix): The value of the expression in each
    lane is the value of the same expression in the previous active lane
-   combined summed with a lane-specific value (or combined using some other
+   summed with a lane-specific value (or combined using some other
    associative operation).  (Implies a wavefront barrier.)
  * Chunk reduction: Combine values from multiple lanes into one uniform value.
    (Implies a full barrier.)
@@ -481,60 +483,63 @@ result of a computation to differ depending on how many simd lanes exist.
 Used carefully, however, these operations can produce deterministic results.
 
 
-Comparing the Models
-====================
+Comparing the Variants
+======================
 
-The lockstep model might be the most intuitive for those who understand SIMD
+The lockstep variant might be the most intuitive for those who understand SIMD
 hardware, but is arguably the least intuitive for those with experience with
 more general forms of parallelism.  It is fairly easy to reason about, but the
 divergence from serial semantics could cause scalability and maintainability
-problems. The lockstep model limits optimization options by the compiler and
-requires significant back-end involvement.  (Is this true?  Isn't ispc
-implemented using LLVM without special back-end support?) There is concern that
-that the lockstep model is inefficient on some hardware.  GPUs, in particular,
+problems. The lockstep variant limits optimization options by the compiler and
+there is concern that
+that the lockstep variant is inefficient on some hardware.  GPUs, in particular,
 are not well suited to lockstep execution.  This problem with GPUs is not a
 reason in and of itself to reject lockstep execution as a valuable model but,
 all things being equal, a model that works well with both CPUs and GPUs will
 gain better support with the standards communities.
 
-The wavefront model is a bit more abstract than the lockstep model and retains
+The wavefront variant is a bit more abstract than the lockstep variant and
+retains 
 serial semantics in more cases.  On the other hand, it has more of a feel of
 auto-vectorization; someone looking for SIMD execution might be concerned
 about what the compiler is actually generating.  (It can be argued that such
-concerns are irrational, but they are real nonetheless.)  The wavefront model
+concerns are irrational, but they are real nonetheless.)  The wavefront variant
 can be augmented with explicit full barriers (which do violate serial
 semantics) in order to support certain cross-lane operations and get the best
 of both worlds. With fewer dependency constraints, compiler has more
-opportunities for optimization than it does for the lockstep model. The
-wavefront model suffers most of the same implementation problems with GPUs and
-LLVM as the lockstep model and, thus, evokes some standards committee
-resistance.
+opportunities for optimization than it does for the lockstep variant. The
+wavefront variant suffers most of the same implementation problems with GPUs
+as the lockstep variant and, thus, evokes some standards committee
+resistance.  In addition, it is difficult to implement the wavefront model in
+LLVM (see [Robison14][]).
 
-The explicit barrier model is the most flexible model for both the programmer
+The explicit barrier variant is the most flexible variant for both the
+programmer 
 and the compiler, allowing the programmer to choose where dependencies are
 needed and (if both full and wavefront barriers are provided) what type of
 dependency is needed.  The compiler is free to optimize aggressively,
-including reordering instructions between barriers.  This model is the least
-imperative of the models, which may make some programmers wonder if
+including reordering instructions between barriers.  This variant is the least
+imperative of the variants, which may make some programmers wonder if
 vectorization is actually happening (as in the case of the wavefront
-model). The explicit barrier model maps well to both CPUs (which require no
+variant). The explicit barrier variant maps well to both CPUs (which require no
 hardware barrier instructions) and GPUs (which would use actual barrier
 instructions).
 
 Conclusion
 ==========
 
-The models presented here are intended to directly express the concepts of
+The model presented here is intended to directly express the concepts of
 SIMD execution as implemented by x86, ARM, Power, and other CPUs and, to a
-lesser degree, by some GPGPUs.  They are more powerful than the model that has
-been presented to the C and C++ standards committee because they provide a
+lesser degree, by some GPGPUs.  It is more powerful than the model that has
+been presented to the C and C++ standards committee because it provides a
 basis for cross-lane operations.
 
-We should choose a model chosen for a specific language system (Cilk Plus,
-standard C++, etc.)  and should use that model to drive the program and
+My hope is that by defining a model and choosing a variant, we can
+use that model to drive the program and
 implementation constraints rather than choosing the constraints and attempting
 to use them to define a model.  The dependency constraints described in N3831,
-for example, follow directly from the wavefront model.
+for example, follow directly from the wavefront variant of the vector model
+presented here.
 
 
 Appendix: Matching Steps and Barriers Across Iterations
@@ -554,7 +559,7 @@ allow barriers to be executed in the presence of control divergence; if any
 lane (thread) executes a barrier, then all of the others must execute that
 barrier or else deadlock results.
 
-**[The description below is incomplete and might be replaced entirely]***
+**[The description below is incomplete and might be replaced entirely]**
 
 Although intuitively easy to grasp, linguistically we must devise a way of
 numbering steps (including steps in multiple iterations of inner loops) such
@@ -572,8 +577,8 @@ step.  (Note that same numbers apply to each lane executing this code.):
     1           c *= a;
     2.i.0       for (int i = 0;
     2.i.1            i < c;
-    2.i.2            ++i)
-    2.i.3            x[b] += f(i);
+    2.i.3            ++i)
+    2.i.2            x[b] += f(i);
     3           y[b] = g(x[b]);
 
 With this numbering scheme, step 2.1.1 (first step in the second iteration of
@@ -588,6 +593,10 @@ References
 [N3831]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3831.pdf
 [N3831][]: _Language Extensions for Vector level parallelism_, Robert Geva and
 Clark Nelson, 2014-01-14
+
+[Robison14]: http://lists.cs.uiuc.edu/pipermail/llvmdev/2014-September/077290.html
+[Robison14][]: _Proposal for ""llvm.mem.vectorize.safelen"_ (Discussion thread
+on LLVMdev email list).
 
 <!--
 
