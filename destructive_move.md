@@ -381,10 +381,11 @@ in `from`.
 
 _Preconditions_: `to` shall be a pointer to allocated memory of suitable size
 and alignment for an array of `sz` elements of type `T`, `from` shall be a
-pointer to an existing array of `sz` elements of type `T`.
+pointer to an existing array of `sz` elements of type `T`. The memory
+addressed by `to` and `from` shall not overlap.
 
-_Effects_: Constructs copies of the elements in `from` into the memory pointed
-to by `to` and destroys the elements in `from`. If
+_Effects_: For each *i* in `[0,sz)`, Constructs a copy of element `from +` *i*
+into `to +` *i* and destroys the element in `from` + *i*. If
 `is_nothrow_destructive_movable<T>::value` is true, the copies are constructed
 as if by `uninitialized_destructive_move`, otherwise by copy construction.
 
