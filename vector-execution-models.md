@@ -20,6 +20,11 @@ look the same.  In fact, by carefully describing the model of vector
 execution, we can more clearly articulate the differences between GPUs and
 vector CPUs.
 
+The model presented here itself is a software abstraction.  However, its
+usefulness is predicated on having an efficient mapping to hardware concepts.
+This paper, therefore, dips into implementation concerns, but it should not be
+seen as an implementation specification or design document.
+
 Motivation
 ==========
 
