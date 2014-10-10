@@ -301,15 +301,20 @@ not be trivially move-constructible nor trivially destructible in order to be
 trivially destructive-movable. The `is_trivially_destructive_movable` template
 could be specialized for such a type. -- _end note_]
 
-The `is_trivially_destructive_movable` template shall be a UnaryTypeTrait with
-a base characteristic of `true_type` if it can be shown that `T` is _trivially
-destructive-movable_, otherwise `false_type`.  [_Note:_ False negatives are
-acceptable, but false positives would result in undefined behavior. --
-_end note_]  An implementation may specialize
-`is_trivially_destructive_movable` for any standard library type for which it
-is appropriate. A program may specialize `is_trivially_destructive_movable`
-for a user-defined class `T`. Such a specializations shall meet all of the
-requirements for this template.
+The `is_trivially_destructive_movable` template is a UnaryTypeTrait with a
+base characteristic of `true_type` or `false_type`.  A specialization with a
+base characteristic of `true_type` indicates that type `T` is _trivially
+destructive-movable_.  A specialization with a base characteristic of
+`false_type` gives no indication of whether or not `T` is _trivially
+destructive-movable_.  The behavior of a program for which a specialization of
+`is_trivially_destructive_movable` incorrectly derives from `true_type` is
+undefined.
+[_Note:_ False negatives are acceptable, but false positives would result in
+undefined behavior. -- _end note_]
+An implementation may provide explicit specializations of
+`is_trivially_destructive_movable` for any subset of types in the standard and
+a program may specialize `is_trivially_destructive_movable` for user-defined
+classes.
 
 Type trait `is_nothrow_destructive_movable`
 -------------------------------------------
@@ -409,22 +414,24 @@ Future work
 ===========
 
 The `uninitialized_destructive_move` function template can be useful not only
-for 
-non-overlapping operations such as vector reallocations, but also for
+for non-overlapping operations such as vector reallocations, but also for
 overlapping array operations such as inserting and erasing elements.  However,
 `uninitialized_destructive_move_n` is not suited to those overlapping
-moves. There 
-is an opportunity to add one or two additional function templates for this
-purpose. Additionally, there may be use cases for a variant of
+moves. There is an opportunity to add one or two additional function templates
+for this purpose. Additionally, there may be use cases for a variant of
 `uninitialized_destructive_move_n` that would work on arbitrary iterator
-ranges rather 
-than specifically on arrays.
+ranges rather than specifically on arrays.
+
+There is an opportunity for the standard to specialize
+`is_trivially_destructive_movable` for `tuple`, `pair`, and `array` such that
+each derives from `true_type` when the trait for all if its elements yields
+`true_type`.
 
 Acknowledgments
 ===============
 
 Thanks to my former colleagues at Bloomberg for encouraging me to write this
-paper and reviewing early drafts.
+paper and reviewing the drafts.
 
 References
 ==========
