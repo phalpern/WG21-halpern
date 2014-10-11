@@ -1,5 +1,4 @@
-.o$
-.t$
-.pdf$
-.html$
-.tgz$
+\.pdf$
+\.html$
+\.docx$
+\.hdr\.tex$

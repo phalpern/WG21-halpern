@@ -1,4 +1,4 @@
-% An Abstract Model of Vector Parallelism in C and C++
+% An Abstract Model of Vector Parallelism
 % Pablo Halpern (<pablo.g.halpern@intel.com>), Intel Corp.
 % 2014-10-08
 
@@ -88,7 +88,7 @@ Overview of the Vector-Model Variants
 
 This paper describes three variants on a vector model:
 
- 1. *lockstep execution*: The variant used by ISPC
+ 1. *Lockstep execution*: The variant used by ISPC
  2. *Wavefront execution*: The variant used by the Intel compiler
  3. *Explicit-barrier execution*: The variant used by CUDA*.
 
@@ -481,6 +481,7 @@ code.  A short list of operations that might be useful are:
    associative operation).  (Implies a wavefront barrier.)
  * Chunk reduction: Combine values from multiple lanes into one uniform value.
    (Implies a full barrier.)
+ * Shuffle: Re-order elements across lanes. (Implies a full barrier.)
 
 Note that many of these operations, especially those that imply full barriers,
 could be used in such a way as to break serial equivalence; i.e., cause the
