@@ -293,7 +293,7 @@ A type `T` is _trivially destructive-movable_ if, given two pointers to `T`,
 `p1` and `p2`, where `p1` points to an existing object that is not a
 base-class subobject and `p2` points to allocated storage of suitable size and
 alignment for an object of type `T`, copying the underlying bytes from `*p1`
-to `*p2` has equivalent user-visible effects as move-constructing `*p2` from
+to `*p2` has the same user-visible effects as move-constructing `*p2` from
 `*p1` then destroying `*p1`.  [_Note:_ In order to take advantage of this
 trait, a program can invoke `uninitialized_destructive_move` (5.4) or
 `uninitialized_destructive_move_n` (5.5). -- _end note_] [_Note:_ A type need
@@ -312,7 +312,7 @@ undefined.
 [_Note:_ False negatives are acceptable, but false positives would result in
 undefined behavior. -- _end note_]
 An implementation may provide explicit specializations of
-`is_trivially_destructive_movable` for any subset of types in the standard and
+`is_trivially_destructive_movable` for any subset of types in the standard, and
 a program may specialize `is_trivially_destructive_movable` for user-defined
 classes.
 
@@ -353,10 +353,10 @@ equivalent to `memcpy(to, from, sizeof(T));` otherwise, equivalent to
 `::new(static_cast<void*>(to)) T(std::move(*from)); from->~T();`.  This
 function may be overloaded, in the appropriate associated namespaces, for
 user-defined or library types. Such overloads shall achieve the postconditions
-described below, but are not required to use one of the two methods described
+described below, but are not required to use either of the two methods described
 here.
 
-_Throws_: nothing unless the selected constructor or destructor for `T` throws.
+_Throws_: nothing unless the destructor or selected constructor for `T` throws.
 
 _Remark_: The expression within the `noexcept` clause is equivalent to  
 `is_trivially_destructive_movable<T>::value ||`
@@ -365,12 +365,13 @@ _Remark_: The expression within the `noexcept` clause is equivalent to
 Overloads of this function for specific types may have different
 exception specifications.
 
-_Postconditions_: `*to` (after the call) is equivalent to (i.e., substitutable
-for) `*from` before the call except that it has a different address. The
-lifetime of `*from` is ended (but `from` still points to allocated
-storage). [_Note:_ To avoid invoking the destructor on the destroyed object,
-`from` should not point to an object with static or automatic storage duration.
--- _end note_]
+_Postconditions_: `*to` is equivalent to the value of `*from` before the call,
+where equivalency is determined the same way as for move construction.  The
+lifetime of `*from` ends on entry to this function; `from`, however, still
+points to allocated storage.
+[_Note:_ To avoid invoking the destructor on the destroyed object, `from`
+should not point to an object having static or automatic storage duration.
+-- _end note_] The lifetime of `*to` begins on return from this function.
 
 ## Function template `uninitialized_destructive_move_n`
 
@@ -413,12 +414,12 @@ operations.
 Future work
 ===========
 
-The `uninitialized_destructive_move` function template can be useful not only
+The `uninitialized_destructive_move` function template can be useful, not only
 for non-overlapping operations such as vector reallocations, but also for
-overlapping array operations such as inserting and erasing elements.  However,
-`uninitialized_destructive_move_n` is not suited to those overlapping
+overlapping array operations such as inserting and erasing elements.
+`uninitialized_destructive_move_n`, however, is not suited to those overlapping
 moves. There is an opportunity to add one or two additional function templates
-for this purpose. Additionally, there may be use cases for a variant of
+for this purpose.  There may also be use cases for a variant of
 `uninitialized_destructive_move_n` that would work on arbitrary iterator
 ranges rather than specifically on arrays.
 
