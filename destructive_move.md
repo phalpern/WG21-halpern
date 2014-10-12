@@ -29,6 +29,9 @@ Changes from N4034
 
  * Renamed `destructive_move_array` to `uninitialized_destructive_move_n`
 
+ * Added `uninitialized_trivial_destructive_move` as a central place for
+   behavior that interacts with the core language.
+
  * Changed order of arguments to more closely match similar functions such as
    `uninitialized_copy` and `uninitialized_copy_n`.
 

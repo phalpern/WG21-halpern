@@ -54,17 +54,18 @@ inline
 typename enable_if<is_trivially_destructive_movable<T>::value>::type
 uninitialized_destructive_move_n(T* from, size_t sz, T* to) noexcept
 {
-    // Bitwise move entire array
+    // Trivially move-constrictible.  Bitwise move entire array.
     memcpy(to, from, sz * sizeof(T));
 }
 
 template <class T>
 inline
 typename enable_if<(! is_trivially_destructive_movable<T>::value &&
-           is_nothrow_destructive_movable<T>::value)>::type
+                    is_nothrow_destructive_movable<T>::value)>::type
 uninitialized_destructive_move_n(T* from, size_t sz, T* to) noexcept
 {
-    // Destructively move each element (will not throw)
+    // Nothrow destructive-movable.
+    // Destructively move each element (will not throw).
     for (size_t i = 0; i < sz; ++i)
         uninitialized_destructive_move(&from[i], &to[i]);
 }        
