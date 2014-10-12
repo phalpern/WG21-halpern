@@ -260,6 +260,9 @@ Header `<experimental/destructive_move>` synopsis
       template <class T> struct is_nothrow_destructive_movable;
 
       template <class T>
+        void uninitialized_trivial_destructive_move(T* from, T* to) noexcept;
+
+      template <class T>
         void uninitialized_destructive_move(T* from, T* to)
           noexcept( /* see below */ );
 
@@ -295,8 +298,8 @@ base-class subobject and `p2` points to allocated storage of suitable size and
 alignment for an object of type `T`, copying the underlying bytes from `*p1`
 to `*p2` has the same user-visible effects as move-constructing `*p2` from
 `*p1` then destroying `*p1`.  [_Note:_ In order to take advantage of this
-trait, a program can invoke `uninitialized_destructive_move` (5.4) or
-`uninitialized_destructive_move_n` (5.5). -- _end note_] [_Note:_ A type need
+trait, a program can invoke `uninitialized_trivial_destructive_move` (5.4).
+-- _end note_] [_Note:_ A type need
 not be trivially move-constructible nor trivially destructible in order to be
 trivially destructive-movable. The `is_trivially_destructive_movable` template
 could be specialized for such a type. -- _end note_]
@@ -334,6 +337,22 @@ base characteristic of `true_type` if the expression
 `uninitialized_destructive_move<T>(p1, p2)` is known not to throw exceptions
 for valid arguments `p1` and `p2`, otherwise `false_type`.
 
+Function template `uninitialized_trivial_destructive_move`
+----------------------------------------------------------
+
+    template <class T>
+      void uninitialized_trivial_destructive_move(T* from, T* to) noexcept;
+
+_Requires_: `T` shall be trivially destructive-movable.
+
+_Preconditions_: `to` shall be a pointer to allocated memory of suitable size
+and alignment for an object of type `T`; `from` shall be a pointer to an
+existing object that is not a base-class subobject.
+
+_Effects_: equivalent to `memcpy(to, from, sizeof(T));`. The lifetime of `*to`
+begins on return from this function.  The lifetime of `*from` ends on entry to
+this function, although `from` still points to allocated storage.
+
 Function template `uninitialized_destructive_move`
 --------------------------------------------------
 
@@ -348,8 +367,8 @@ _Preconditions_: `to` shall be a pointer to allocated memory of suitable size
 and alignment for an object of type `T`; `from` shall be a pointer to an
 existing object that is not a base-class subobject.
 
-_Effects_: If `is_trivially_destructive_movable<T>::value` is true, then
-equivalent to `memcpy(to, from, sizeof(T));` otherwise, equivalent to
+_Effects_: If `is_trivially_destructive_movable<T>::value` is true, then  
+`uninitialized_trivial_destructive_move(from, to);` otherwise, equivalent to  
 `::new(static_cast<void*>(to)) T(std::move(*from)); from->~T();`.  This
 function may be overloaded, in the appropriate associated namespaces, for
 user-defined or library types. Such overloads shall achieve the postconditions
@@ -367,13 +386,14 @@ exception specifications.
 
 _Postconditions_: `*to` (after the call) is equivalent to `*from` before the
 call, where equivalence is defined in the same way as it is for move
-construction.  The lifetime of `*from` ends on entry to this function; `from`,
-however, still points to allocated storage.
+construction.  The lifetime of `*from` has ended, although `from` still points
+to allocated storage.
 [_Note:_ To avoid invoking the destructor on the destroyed object, `from`
 should not point to an object having static or automatic storage duration.
--- _end note_] The lifetime of `*to` begins on return from this function.
+-- _end note_]
 
-## Function template `uninitialized_destructive_move_n`
+Function template `uninitialized_destructive_move_n`
+----------------------------------------------------
 
     template <class T>
       void uninitialized_destructive_move_n(T* from, size_t sz, T* to)
@@ -391,7 +411,7 @@ pointer to an existing array of `sz` elements of type `T`. The memory
 addressed by `to` and `from` shall not overlap.
 
 _Effects_: For each *i* in `[0,sz)`, Constructs a copy of element `from +` *i*
-into `to +` *i* and destroys the element in `from` + *i*. If
+into `to +` *i* and destroys the element in `from +` *i*. If
 `is_nothrow_destructive_movable<T>::value` is true, the copies are constructed
 as if by `uninitialized_destructive_move`, otherwise by copy construction.
 

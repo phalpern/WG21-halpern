@@ -23,11 +23,19 @@ template <class T> struct is_nothrow_destructive_movable;
 
 template <class T>
 inline
+void uninitialized_trivial_destructive_move(T* from, T* to) noexcept
+{
+    // Use bitwise copy
+    memcpy(to, from, sizeof(T));
+}
+
+template <class T>
+inline
 typename enable_if<is_trivially_destructive_movable<T>::value>::type
 uninitialized_destructive_move(T* from, T* to) noexcept
 {
     // Use bitwise copy
-    memcpy(to, from, sizeof(T));
+    uninitialized_trivial_destructive_move(from, to);
 }
 
 template <class T>
