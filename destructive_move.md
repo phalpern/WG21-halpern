@@ -365,10 +365,10 @@ _Remark_: The expression within the `noexcept` clause is equivalent to
 Overloads of this function for specific types may have different
 exception specifications.
 
-_Postconditions_: `*to` is equivalent to the value of `*from` before the call,
-where equivalency is determined the same way as for move construction.  The
-lifetime of `*from` ends on entry to this function; `from`, however, still
-points to allocated storage.
+_Postconditions_: `*to` (after the call) is equivalent to `*from` before the
+call, where equivalence is defined in the same way as it is for move
+construction.  The lifetime of `*from` ends on entry to this function; `from`,
+however, still points to allocated storage.
 [_Note:_ To avoid invoking the destructor on the destroyed object, `from`
 should not point to an object having static or automatic storage duration.
 -- _end note_] The lifetime of `*to` begins on return from this function.
