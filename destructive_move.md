@@ -1,6 +1,6 @@
 % N4158 | Destructive Move (Rev 1)
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2014-10-09
+% 2014-10-12
 
 Abstract
 ========
