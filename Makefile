@@ -33,6 +33,9 @@ pdf: $(FILEROOT).pdf
 	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H $*.hdr.tex $< -o $@
 	rm -f $*.hdr.tex
 
+%.docx : %.md
+	pandoc --number-sections -s -S $< -o $@
+
 clean:
 	rm -f $(FILEROOT).t $(FILEROOT).html $(FILEROOT).pdf
 
