@@ -1,6 +1,6 @@
-% Dxxxx | Noop Constructors and Destructors
+% D4393 | Noop Constructors and Destructors
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2015-02-26
+% 2015-03-03
 
 Abstract
 ========
@@ -29,7 +29,9 @@ of its constructor _and one other way_. This led me to search for a
 generalized way of getting the desired effect without making
 `destructive_move` special in the core language. In the processes, I
 considered other situations in my career where I had wanted the ability to
-skip a constructor or destructor invocation.
+skip a constructor or destructor invocation. For example, had this feature
+been available in C++0x, the piecewise constructor for `pair` might have been
+unnecessary.
 
 Description of Proposed feature
 ===============================
@@ -55,10 +57,15 @@ deemed to have ended.
 A class cannot declare `__COOKIE__` constructors or destructors -- they are
 automatically available in every type.  An invocation of a `__COOKIE__`
 constructor or destructor does not require overload resolution, since no
-function is actually being called.  An invocation of a `__COOKIE__`
-constructor or destructor is valid before or after the invocation of a real
-constructor or destructor, respectively, and is idempotent with other,
-`__COOKIE__` invocations on the same object.
+function is actually being called.
+
+An invocation of a `__COOKIE__` constructor or destructor is valid before or
+after the invocation of a real constructor or destructor, respectively, and is
+idempotent with other, `__COOKIE__` invocations on the same object.  It is the
+responsibility of the caller to ensure that the bytes that make up an object
+constructed using the `__COOKIE__` constructor are valid; setting the bytes to
+a valid pattern can be done either before or after the noop constructor is
+invoked.
 
 Use cases
 =========
@@ -88,10 +95,10 @@ like this:
         // Move data members over. Note that no new sentinel node is allocated.
         to->m_begin = from->m_begin;
         to->m_end  = from->m_end;
-        new (&to->m_allocator) A(from->m_allocator);
-        from->m_allocator.~A();
+        new (&to->m_allocator) A(std::move(from->m_allocator));
 
         from->m_begin = from->m_end = nullptr_t;  // unnecessary, but safe
+        from->m_allocator.~A();
 
         // Bless the new list and unbless the old one
         new (to) list_t(__COOKIE__);
@@ -121,8 +128,8 @@ Swizzle to disk
 ---------------
 
 A noop constructor is useful any time the bits that compose an object are
-arranged externally.  A carefully-designed data structure can be written
-straight to disk and read back again:
+arranged outside of the object's constructor.  A carefully-designed data
+structure can be written straight to disk and read back again:
 
     // Type that uses relative pointers and is designed for storage on disk
     class record { ... };
@@ -132,16 +139,15 @@ straight to disk and read back again:
     file.write(my_record, sizeof(record));
     ...
 
-    record *my_record2 = static_cast<record*>(operator new(sizeof(record)));
+    record *my_record2 = new record(__COOKIE__);
     file.read(my_record2, sizeof(record));
-    new (my_record2) record(__COOKIE__);
 
 Choosing a constructor at run time
 ----------------------------------
 
 Sometimes, it is necessary to choose a constructor at runtime, passing
-arguments of different types or different arguments depending on some
-condition:
+arguments of different types or different number of arguments depending on
+some condition:
 
     struct Y {
         Y(float) noexcept;
@@ -158,9 +164,9 @@ condition:
     X::X(float a, int b) : m_y(__COOKIE__) {
         // Choose one of two constructors for m_y
         if (b > 0)
-            new (&m_y) Y(b, a); // 2-arg constructor
+            new (&m_y) Y(b, a); // Invoke Y(int, float)
         else
-            new (&m_y) Y(a);    // 1-arg constructor
+            new (&m_y) Y(a);    // Invoke Y(float)
         ...
     }
 
@@ -175,10 +181,11 @@ variable with static or automatic lifetime, the real destructor will still be
 called.
 
 The dangers of these constructs are not, however, any worse than the current
-dangers of calling a destructor manually (`x.~T()`) or (deliberately)
-overwriting an object using `memcpy`.  Just like these two programming
-techniques, proper application should typically be left to expert programmers
-writing reusable libraries (including standard library components such as
+dangers of calling a destructor manually (`x.~T()`), allocating an object
+using malloc without calling the constructor, or (deliberately) overwriting an
+object using `memcpy`.  Just like these other programming techniques, proper
+application should typically be left to expert programmers writing reusable
+libraries (including standard library components such as
 `uninitialized_destructive_move`).
 
 Alternatives for `__COOKIE__`
@@ -188,7 +195,7 @@ There are an infinite number of existing tokens or token sequences that could
 be used for `__COOKIE__` in the language definition.  I will list a few here,
 and leave it up to your imagination to come up with better ones. In looking at
 the aesthetics of each example, think of it in the context of declaring a
-variable `x`.  For example, if `__COOKIE__` is `=0`, then a variable
+variable `x`.  For example, if `__COOKIE__` were `=0`, then a variable
 declaration with a no-op constructor would look like `X x(=0)`.
 
 Some possibilities are:
@@ -209,6 +216,8 @@ Some possibilities are:
         delete (requires look-ahead)
         =noop (context-sensitive keyword)
 
+A non-serious suggestion: A number of emoticons would also work. `:-)`
+
 Alternatives considered
 =======================
 
@@ -220,9 +229,9 @@ and end the lifetimes of its arguments without saying how.
 
 **Pros**:
 
- * Library-only change for most compilers. (However, tools that track object
+ * Library-only change for most compilers. However, tools that track object
    lifetime would need to hook all specializations of
-   `uninitialized_destructive_move`.)
+   `uninitialized_destructive_move`.
 
 **Cons**:
 
@@ -235,8 +244,8 @@ Function templates `bless`/`unbless`
 Instead of adding a magic cookie, we could add two magic function templates:
 
     namespace std {
-        template <class T> void bless(T& obj);
-        template <class T> void unbless(T& obj);
+        template <class T> void bless(T& obj) noexcept;
+        template <class T> void unbless(T& obj) noexcept;
     }
 
 The `bless` function would begin the lifetime of an object without invoking
@@ -246,8 +255,8 @@ without invoking its destructor.
 **Pros**:
 
  * Trivial no-op functions with no compiler changes on most
-   implementations. (However, tools that track object lifetime would need to
-   hook all specializations of `bless` and `unbless`.)
+   implementations. However, tools that track object lifetime would need to
+   hook all specializations of `bless` and `unbless`.
  * General-purpose functions can be used for use cases other than
    destructive move, such as swizzling from disk.
 
@@ -255,7 +264,8 @@ without invoking its destructor.
 
  * Changes the rule that an object's life begins at the end of its constructor
    invocation to a less elegant rule that an object's life begins at the end
-   of its constructor invocation _or on return from std::bless_.
+   of its constructor invocation _or on return from std::bless_.  A similar
+   change would be needed for the destructor/`std::unbless`.
  * Does not allow suppressing normal constructor invocation for automatic,
    static, and member variables and base class subobjects.  Hence does not
    support use cases like the "Choosing a constructor at run time" use case,
@@ -284,7 +294,7 @@ Implementation Concerns
 =======================
 
 We have no experience implementing this proposal.  We do have experience
-faking it for some use cases (including `uninitialized_destructive_move`)
+faking it for some use cases (including `uninitialized_destructive_move`).
 
 Nevertheless, it should be easy to implement in a compiler -- just recognize
 the magic cookie and replace constructor or destructor invocation by a
