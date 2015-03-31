@@ -1,6 +1,6 @@
 % D4393 | Noop Constructors and Destructors
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2015-03-03
+% 2015-03-31
 
 Abstract
 ========
@@ -59,13 +59,22 @@ automatically available in every type.  An invocation of a `__COOKIE__`
 constructor or destructor does not require overload resolution, since no
 function is actually being called.
 
+An invocation of a `__COOKIE__` constructor on an object of class type with
+virtual functions, virtual base classes, or subobjects with virtual functions
+or virtual base classes is ill formed. The reason for this restriction is
+defined below in [Future directions][],
+[Establishing compiler-managed invariants][], along with a possible way to
+lift the restriction.
+
 An invocation of a `__COOKIE__` constructor or destructor is valid before or
 after the invocation of a real constructor or destructor, respectively, and is
-idempotent with other, `__COOKIE__` invocations on the same object.  It is the
-responsibility of the caller to ensure that the bytes that make up an object
-constructed using the `__COOKIE__` constructor are valid; setting the bytes to
-a valid pattern can be done either before or after the noop constructor is
-invoked.
+idempotent with other, `__COOKIE__` invocations on the same
+object. ([basic.life] paragraph 4 already allows us to call constructors on
+live objects.) It is the responsibility of the caller to ensure that the bytes
+that make up an object constructed using the `__COOKIE__` constructor are
+valid; setting the bytes to a valid pattern can be done either before or after
+the noop constructor is invoked.
+
 
 Use cases
 =========
@@ -92,23 +101,28 @@ like this:
 
         typedef std::list<T,A> list_t;
 
+        // Bless the new list
+        new (to) list_t(__COOKIE__);
+        
         // Move data members over. Note that no new sentinel node is allocated.
         to->m_begin = from->m_begin;
         to->m_end  = from->m_end;
         new (&to->m_allocator) A(std::move(from->m_allocator));
 
+        // Unbless the old list
         from->m_begin = from->m_end = nullptr_t;  // unnecessary, but safe
-        from->m_allocator.~A();
-
-        // Bless the new list and unbless the old one
-        new (to) list_t(__COOKIE__);
         from->~list_t(__COOKIE__);
+        
         // Postconditions: `from` points to uninitialized memory;
         // `to` points to a valid list object
     }
 
-If the allocator is trivially movable and trivially destructible, this
-operation can be simplified to an invocation of `memcpy`:
+Trivial Destructive Move
+------------------------
+
+If the allocator is trivially movable and trivially destructible, the
+destructive move operation above can be simplified to an invocation of
+`memcpy`:
 
     template <class T, class A>
     std::enable_if<is_trivially_destructive_movable_v<A>, void>
@@ -121,7 +135,8 @@ operation can be simplified to an invocation of `memcpy`:
         from->~list_t(__COOKIE__);
     }
 
-This idiom would work for the vast majority of value classes, and is
+This idiom would work for the vast majority of value classes, even those that
+(like list) are not trivially movable and destructible. The idiom is
 generalized in N4158 for all "trivially destructive movable" types.
 
 Swizzle to disk
@@ -129,7 +144,8 @@ Swizzle to disk
 
 A noop constructor is useful any time the bits that compose an object are
 arranged outside of the object's constructor.  A carefully-designed data
-structure can be written straight to disk and read back again:
+structure (containing no absolute pointers) can be written straight to disk
+and read back again:
 
     // Type that uses relative pointers and is designed for storage on disk
     class record { ... };
@@ -139,8 +155,13 @@ structure can be written straight to disk and read back again:
     file.write(my_record, sizeof(record));
     ...
 
-    record *my_record2 = new record(__COOKIE__);
+    record *my_record2 = static_cast<record*>(operator new(sizeof(record)));
     file.read(my_record2, sizeof(record));
+    new (my_record2) record(__COOKIE__);
+
+Note that `record` cannot have virtual functions or virtual base classes.
+However, see [Future Directions][], below for a possible enhancement that would
+allow swizzling and `memcpy` of a broader range of types.
 
 Choosing a constructor at run time
 ----------------------------------
@@ -188,6 +209,16 @@ application should typically be left to expert programmers writing reusable
 libraries (including standard library components such as
 `uninitialized_destructive_move`).
 
+A related danger is the lack of exception safety. If an object's lifetime has
+begun artificially by means of a no-op constructor, its destructor will not be
+run during exception unwinding, potentially leaking resources or worse. This
+problem not unlike that of a constructor, which must clean up a
+partially-constructed object if an exception is thrown. Indeed, the function
+that call a no-op constructor is a pseudo-constructor and needs to ensure
+either that class invariants hold or that the object is unwound (possibly
+calling the no-op destructor) in the event of an exception or early return.
+
+
 Alternatives for `__COOKIE__`
 =============================
 
@@ -229,7 +260,7 @@ and end the lifetimes of its arguments without saying how.
 
 **Pros**:
 
- * Library-only change for most compilers. However, tools that track object
+ * Library-only change for all known compilers. However, tools that track object
    lifetime would need to hook all specializations of
    `uninitialized_destructive_move`.
 
@@ -271,8 +302,30 @@ without invoking its destructor.
    support use cases like the "Choosing a constructor at run time" use case,
    above.
 
-Future enhancements
-===================
+Future directions
+=================
+
+Establishing compiler-managed invariants
+----------------------------------------
+
+During object construction, a program establishes two types of invariants:
+those that are managed by the author of the class, and those that are managed
+by the compiler. The latter category comprises the setting of vtbl pointers
+and virtual-base pointers.  For a class that has no virtual functions and no
+virtual base classes, the class author can use a no-op constructor to
+construct a valid object by setting the member variables of the class
+(including base-class member variables) to valid values. This is not (in
+general) possible for classes that have virtual functions or virtual base
+classes because the job of establishing some of the invariants is given to the
+compiler. A possible enhancement, therefore, would be to have a the
+`__COOKIE__` constructor establish the compiler-managed invariants of the
+class while leaving all the data members alone. If this enhancement were
+adopted, it might be desirable to use a different `__COOKIE__` so that the
+user who is expecting a true no-op doesn't get surprised.
+
+
+Suppressing automatic destruction
+---------------------------------
 
 Although the `__COOKIE__` constructor suppresses automatic constructor
 invocation for objects of any storage duration, this proposal does not provide
