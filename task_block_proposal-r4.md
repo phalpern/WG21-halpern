@@ -37,6 +37,14 @@ the introduction of parallel libraries into serial code by guaranteeing that,
 if called from serial code, a library function will always return on the same
 thread even if the library function uses parallelism internally.
 
+## Added _DECAY_COPY_ for `run`
+
+We borrowed some of the language used to describe `async` for the invocation
+of the asynchronous function in `task_block::run`. In particular, it is
+necessary to copy the invocable passed as a function argument to `run` so that
+the continuation can modify or destroy the argument without invalidating the
+asynchronously-called invocable.
+
 ## Naming changes
 
 A number of identifiers have changed names in this proposal for the following
@@ -396,7 +404,7 @@ by `run`. (The invoked function should not, therefore, capture the
 
     define_task_block([&](auto& tb) {
         tb.run([&]{
-            tb.run([] { f(); });        // Error: tb is not active
+            tb.run([] { f(); });        // Error: tb is not active within run
             define_task_block([&](auto& tb) { // Nested task block
                 tb.run(f);              // OK: inner tb is active
                 ...
@@ -413,17 +421,18 @@ above error at translation time -- _end note_]
     template<typename F>
       void run(F&& f);
 
-_Requires_: `F` shall be `MoveConstructible`. The expression, `(void) f()`,
-shall be well-formed.
+_Requires_: `F` shall be `MoveConstructible`.
+_INVOKE(DECAY_COPY_`(std::forward<F>(f)`)), shall a valid expression.
 
 _Precondition_: `this` shall be the active `task_block`.
 
-_Effects_: Causes the expression `f()` to be invoked asynchronously.  The
-invocation of `f` is permitted to run on an unspecified thread in an unordered
+_Effects_: Let _fcopy_ = _DECAY_COPY_(`std::forward<F>(f)`). Computes _fcopy_
+synchronously within the current thread, then calls _INVOKE(fcopy)_. The call
+to _INVOKE_ is permitted to run on an unspecified thread in an unordered
 fashion relative to the sequence of operations following the call to `run(f)`
 (the _continuation_), or indeterminately sequenced within the same thread as
-the continuation. The call to `run` synchronizes with the invocation of
-`f`. The completion of `f()` synchronizes with the next invocation of `wait`
+the continuation. The call to `run` synchronizes with the call to _INVOKE_.
+The completion of _INVOKE_ synchronizes with the next invocation of `wait`
 on the same `task_block` or completion of the nearest enclosing task
 block (i.e., the `define_task_block` or `define_task_block_restore_thread` that
 created this `task_block`).
@@ -432,7 +441,7 @@ _Throws_: `task_canceled_exception`, as described in [Exception Handling][].
 
 _Postconditions_: A call to `run` may return on a different thread than that
 on which it was called. [_Note_: The call to `run` is sequenced before the
-continuation as if `run` returns on the same thread. -- _end note_]
+continuation as if `run` returned on the same thread. -- _end note_]
 
 _Remarks_: The invocation of the user-supplied callable object `f` may be
 immediate or may be delayed until compute resources are available.  `run`
