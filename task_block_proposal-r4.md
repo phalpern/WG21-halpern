@@ -26,6 +26,17 @@ meeting in Urbana-Champaign.
 
 The changes from N4088 are described below.
 
+## New guarantee for outermost task block
+
+An *outermost task block* is one that is created (by a call to
+`define_task_block`) when there is no previously-active task block, i.e., at
+the outermost level of parallel execution. On return from the outermost task
+block, the caller's thread is restored as if the call had been to
+`define_task_block_restore_thread`. This new guarantee was added to help ease
+the introduction of parallel libraries into serial code by guaranteeing that,
+if called from serial code, a library function will always return on the same
+thread even if the library function uses parallelism internally.
+
 ## Naming changes
 
 A number of identifiers have changed names in this proposal for the following
@@ -291,7 +302,7 @@ The proposed interface is as follows.  With the exception of
 `define_task_block_restore_thread`, the implementation of each of the
 functions defined
 herein is permitted to return on a different thread than that from
-which it was invoked.  See [Thread switching][] in the issues section for an
+which it was invoked.  See [Thread switching][] in the design section for an
 explanation of when this matters and how surprises can be mitigated.
 
 ## Header `<experimental/task_block>` synopsis
@@ -378,8 +389,8 @@ operation on a `task_block` that is not active results in undefined
 behavior.
 
 The `task_block` that is active before a specific call to the `run`
-member function is not active within the asynchronous function that invoked
-`run`. (The invoked function should not, therefore, capture the
+member function is not active within the asynchronous function that is invoked
+by `run`. (The invoked function should not, therefore, capture the
 `task_block` from the surrounding block.)
 [_Example:_
 
@@ -470,8 +481,10 @@ _Throws_: `exception_list`, as specified in [Exception Handling][].
 
 _Postcondition_: All tasks spawned from `f` have finished execution.  A call
 to `define_task_block` may return on a different thread than that on which it
-was called.  A call to `define_task_block_restore_thread` always returns on
-the same
+was called unless there are no task blocks active (see [Class `task_block`][])
+on entry to `define_task_block`, in which case the call returns on the same
+thread as that on which it was called.
+A call to `define_task_block_restore_thread` always returns on the same
 thread as that on which it was called. (See [Thread switching][] in the
 Issues section.) [_Note_: The call to `define_task_block` is sequenced before
 subsequent operations as if `define_task_block` returns on the same thread.
