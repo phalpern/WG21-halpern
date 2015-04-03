@@ -1,11 +1,11 @@
-% Task Block R4 | D4411
+% Task Block (formerly Task Region) R4 | D4411
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
 % 2015-04-01
 
-<!-- Make sure that doc number in header.tex matches this one -->
+<!-- Make sure that doc number in header.tex matches the one above -->
 
 # Abstract
 
@@ -14,39 +14,45 @@ library class `task_block` with member functions `run` and `wait` that
 together enable developers to write expressive and portable fork-join parallel
 code.
 
-# Document status and history
+# Document Status and History
 
-This revision of this proposal has been approved by
-the Parallelism and Concurrency study group (SG1) at the June 2014 meeting and
-is expected to be reviewed by the Library Evolution working group and Library
-working group at the November 2014 meeting. It is tentatively targeted at a
-future Parallelism TS.
+The proposals in this document are  targeted at a future Parallelism TS or,
+potentially, a separate TS.
 
-## Changes from [N4088][] to N4411
+The predecessor to this document, [N4088][], was approved by the Parallelism
+and Concurrency study group (SG1) at the June 2014 meeting in Rapperswil. This
+revision contains changes resulting from LEWG review at the November 2014
+meeting in Urbana-Champaign. 
+
+The changes from N4088 are described below.
+
+## Naming changes
 
 A number of identifiers have changed names in this proposal for the following
 reasons:
 
- * The term "task region" is used in OpenMP to mean something that is just
-   close enough in meaning to cause confusion. For this reason, the term has
-   been changed to "task block".
+ * What was previously called a "task region" is now called a "task
+   block". The term "task region" is used in OpenMP to mean something that is
+   just close enough in meaning to cause confusion and just different enough
+   that it cannot be considered the same thing. The C Parallel Language
+   Extensions study group (CPLEX) also adopted the term "task block"
  * LEWG observed that `task_region` is a noun and that it is better for
-   function template names to be verbs or verb phrases, thus the verb "define"
+   function names to be verbs or verb phrases.  Thus the verb "define"
    was prefixed to the names of the function templates.
  * LEWG also observed that there was nothing final about `task_region_final`.
-   Since the feature that distinguishes `task_region_final` from `task_region`
-   is that the former is guaranteed to return on the same C++ thread, the
+   Since the feature that distinguished `task_region_final` from `task_region`
+   was that the former is guaranteed to return on the same C++ thread, the
    "final" suffix was changed to "restore_thread".
  * Finally, since the "define" prefix was added to the function templates,
-   there was no longer a need for a suffix to distinguish the class
-   representing a task region from the function that defines it. Thus, the
+   there was no longer a need for a suffix to distinguish the *class*
+   representing a task region from the *function* that defines it. Thus, the
    "handle" suffix was dropped.
 
 Putting all of these changes together, the mapping from old names to new names
 is summarized in the following table:
 
 -------------------------------------------------------
-N4088                 N4411
+Old (N4088)           New (N4411)
 --------------------- ---------------------------------
 `task_region`         `define_task_block`
 
@@ -55,46 +61,38 @@ N4088                 N4411
 `task_region_handle`  `task_block`
 --------------------- ---------------------------------
 
-## Changes from [N3991][] to N4088
+## Editorial changes
 
-This paper contains no interface changes. The wording describing the
-asynchronous nature of `run` has been improved. Formal wording has also been
-added making explicit the thread-switching nature of most interface functions.
+A number of non-technical changes were made to improve readability and prepare
+the document for review by a wider audience:
 
-## Changes from [N3832][] to N3911
+The issues section has been replaced by a
+[Design Decisions and Alternatives][] section, now that all of the issues have
+been resolved.
 
-The main change from the previous revision of this paper is the addition of the
-`task_block` class as an explicit means of communicating from a
-`define_task_block` to the spawn point of a child task.  A change in this vein
-was
-requested at the February 2014 Issaquah meeting as a way to avoid "magic" or
-"out-of-band communication."  It was also suggested that requiring an explicit
-handshake between these parts of a task region would make it easier for
-compilers and linkers to avoid combining disparate implementations of the
-library proposed herein.
+The change history has been condensed.
 
-An additional change is that the type of parallelism described in N3832 was
-"terminally strict" whereas the type of parallelism described in this paper
-is "fully strict" (see [Strict Fork-join Parallelism][], below).
-The change was made because terminal strictness was deemed to present
-implementation difficulties for little gain in expressiveness.
+## Previous changes
 
-These changes created an issue not present in the original paper: potential
-violations of fully-strict fork-join parallelism.  A few sentences in the formal
-wording and a new issue in the issues section was added to the paper in
-response.
+---------- --------------------------------------------------------------------
+[N4088][]  Improved wording for asynchronous execution and thread switching.
+2014-06-21
 
-Finally, `task_cancelled_exception` was renamed to `task_canceled_exception`
-(one el instead of two).
+[N3991][]  Added `task_region_handle` (now `task_block`) as an explicit means
+2014-05-23 of communicating between the definition of the task block and
+           the `run` function. Changed from terminally strict to fully strict.
+
+[N3832][]  Original version.
+2014-01-17
+---------- --------------------------------------------------------------------
 
 
 # Motivation and Related Proposals
 
-The working draft for the Parallelism TS [N3960][] (or [N4071][] by the time
-this paper is published) augments the STL algorithms with the 
-inclusion of parallel execution policies. Programmers use these as a basis to
+The Draft Parallelism TS, [N4312][], augments the STL algorithms with
+parallel execution policies. Programmers use these as a basis to
 write additional high-level algorithms that can be implemented in terms of the
-provided parallel algorithms. However, the scope of N3960 does not include
+provided parallel algorithms. However, the scope of N4312 does not include
 lower-level mechanisms to express arbitrary fork-join parallelism.
 
 Over the last several years, Microsoft and Intel have collaborated to produce
@@ -105,7 +103,8 @@ Intel.  Additionally, the paper is informed by Intel's experience with
 [Cilk Plus][], an extension to C++ included in the Intel C++ compiler in the
 Intel Composer XE product and also in gcc 4.9.
 
-The `define_task_block`, `run` and the `wait` functions proposed in this
+The `define_task_block`, `task_block::run` and `task_block::wait` functions
+proposed in this
 document are  based on the `task_group` concept that is a part of the common
 subset of the PPL and the TBB  libraries. A previous proposal, [N3711][], was
 presented to the Committee at the Chicago 
@@ -120,7 +119,7 @@ in the following ways:
 * The exception handling model is simplified and more consistent with normal
   C++ exceptions.
 * Most violations of strict fork-join parallelism can be enforced at compile
-  time (with compiler assistance, in some cases).
+  time (with compiler recognition of the constructs, in some cases).
 * The syntax allows scheduling approaches other than child stealing.
 
 We aim to converge with the language-based proposal for low-level parallelism
@@ -138,11 +137,11 @@ results:
     {
         int left = 0, right = 0;
 
-        define_task_block([&](task_block& tr) {
+        define_task_block([&](task_block& tb) {
             if (n->left)
-                tr.run([&] { left = traverse(n->left, compute); });
+                tb.run([&] { left = traverse(n->left, compute); });
             if (n->right)
-                tr.run([&] { right = traverse(n->right, compute); });
+                tb.run([&] { right = traverse(n->right, compute); });
         });
 
         return compute(n) + left + right;
@@ -151,14 +150,14 @@ results:
 The example above demonstrates the use of two of the functions proposed in this
 paper, `define_task_block` and `task_block::run`.
 
-The `define_task_block` function delineates a region in a program code
+The `define_task_block` function delineates a region in the program code
 potentially containing invocations of tasks spawned by the `run` member
 function of the `task_block` class.
 
 The `run` function spawns a _task_, a unit of work that is allowed to
 execute in parallel with respect to the caller.  Any parallel tasks spawned by
 `run` within the `define_task_block` are joined back to a single thread of
-execution at the end of the `define_task_block`.
+execution on return from `define_task_block`.
 
 `run` takes a user-provided function object `f` and starts it
 asynchronously -- i.e. it may return before the execution of `f` completes.
@@ -171,9 +170,9 @@ only from a user-provided function passed to `define_task_block`:
 
     void g();
 
-    void f(task_block& tr)
+    void f(task_block& tb)
     {
-        tr.run(g);    // OK, invoked from within define_task_block in h
+        tb.run(g);    // OK, invoked from within define_task_block in h
     }
 
     void h()
@@ -183,17 +182,15 @@ only from a user-provided function passed to `define_task_block`:
 
     int main()
     {
-        task_block tr; // Error: no public constructor
-        tr.run(g);     // No way to call run outside of a define_task_block
+        task_block tb; // Error: no public constructor
+        tb.run(g);     // No way to call run outside of a define_task_block
         return 0;
     }
 
 
 # Task Parallelism Model
 
-<a id="Strict_Fork_Join"></a>
-
-## Strict Fork-join Task Parallelism
+## Strict fork-join task parallelism
 
 The model of parallelism supported by the constructs in this paper is called
 _strict fork-join task parallelism_, which has decades of research behind it
@@ -203,8 +200,8 @@ These languages can be subdivided into two groups: those with _fully-strict_
 semantics and those with _terminally-strict_ semantics.
 
 In both the fully-strict and terminally-strict models, there is a notion of a
-_task region_ that "owns" all of the tasks spawned within it.  A _child_ task
-spawned within a task region is automatically joined when the task region ends
+_task block_ that "owns" all of the tasks spawned within it.  A _child_ task
+spawned within a task block is automatically joined when the task block ends
 (i.e., the program waits for it to finish before continuing).
 
 In the fully-strict model (Cilk and Cilk Plus), a task cannot complete
@@ -235,8 +232,8 @@ function), but not to an _asynchronous_ function call.  Thus the following
 code would have undefined behavior. This violation and most such innocent
 violations can be diagnosed by a savvy compiler:
 
-    define_task_block([&](auto& tr) {
-        tr.run([&]{ g(tr); }); // Error, tr captured by asynchronous lambda
+    define_task_block([&](auto& tb) {
+        tb.run([&]{ g(tb); }); // Error, tb captured by asynchronous lambda
         ...
     });
 
@@ -255,7 +252,7 @@ described in [N3960][] neither require nor benefit
 from unstructured parallelism.
 
 
-## Non-mandatory Parallelism
+## Non-mandatory parallelism
 
 Whereas concurrency constructs such as threads, producer-consumer queues, and
 the like are primarily about program _structure_, parallelism constructs of
@@ -294,7 +291,7 @@ The proposed interface is as follows.  With the exception of
 `define_task_block_restore_thread`, the implementation of each of the
 functions defined
 herein is permitted to return on a different thread than that from
-which it was invoked.  See [Thread Switching][] in the issues section for an
+which it was invoked.  See [Thread switching][] in the issues section for an
 explanation of when this matters and how surprises can be mitigated.
 
 ## Header `<experimental/task_block>` synopsis
@@ -330,7 +327,7 @@ explanation of when this matters and how surprises can be mitigated.
 
 The class `task_canceled_exception` defines the type of objects thrown by
 `task_block::run` or `task_block::wait` if they detect that an
-exception is pending within the current parallel region.  See
+exception is pending within the current parallel block.  See
 [Exception Handling][], below.
 
 ## Class `task_block`
@@ -364,18 +361,18 @@ create an object of type `task_block` and pass a reference to that
 object to a user-provided callable object.
 
 An object of class `task_block` cannot be constructed, destroyed,
-copied, or moved except by the implementation of the task region library.
+copied, or moved except by the implementation of the task block library.
 Taking the address of a `task_block` object via `operator&`  is ill
 formed. The result of obtaining its address by any other means (including
 `addressof`) is unspecified.
 
 A `task_block` is _active_ if it was created by the nearest enclosing task
-region, where "task region" refers to an invocation of `define_task_block` or
+block, where "task block" refers to an invocation of `define_task_block` or
 `define_task_block_restore_thread` and "nearest enclosing" means the most recent
 invocation
 that has not yet completed. Code designated for execution in another thread by
 means other than the facilities in this section (e.g., using `thread` or
-`async`) are not enclosed in the task region and a `task_block` passed
+`async`) are not enclosed in the task block and a `task_block` passed
 to (or captured by) such code is not active within that code. Performing any
 operation on a `task_block` that is not active results in undefined
 behavior.
@@ -386,11 +383,11 @@ member function is not active within the asynchronous function that invoked
 `task_block` from the surrounding block.)
 [_Example:_
 
-    define_task_block([&](auto& tr) {
-        tr.run([&]{
-            tr.run([] { f(); });        // Error: tr is not active
-            define_task_block([&](auto& tr) { // Nested task region
-                tr.run(f);              // OK: inner tr is active
+    define_task_block([&](auto& tb) {
+        tb.run([&]{
+            tb.run([] { f(); });        // Error: tb is not active
+            define_task_block([&](auto& tb) { // Nested task block
+                tb.run(f);              // OK: inner tb is active
                 ...
             });
         });
@@ -417,7 +414,7 @@ fashion relative to the sequence of operations following the call to `run(f)`
 the continuation. The call to `run` synchronizes with the invocation of
 `f`. The completion of `f()` synchronizes with the next invocation of `wait`
 on the same `task_block` or completion of the nearest enclosing task
-region (i.e., the `define_task_block` or `define_task_block_restore_thread` that
+block (i.e., the `define_task_block` or `define_task_block_restore_thread` that
 created this `task_block`).
 
 _Throws_: `task_canceled_exception`, as described in [Exception Handling][]. 
@@ -441,16 +438,16 @@ have finished.
 
 _Throws_: `task_canceled_exception`, as described in [Exception Handling][].
 
-_Postcondition_: All tasks spawned by the nearest enclosing task region have
+_Postcondition_: All tasks spawned by the nearest enclosing task block have
 finished. A call to `wait` may return on a different thread than that on
 which it was called. [_Note_: The call to `wait` is sequenced before subsequent
 operations as if `wait` returns on the same thread. -- _end note_]
 
 [_Example:_
 
-    define_task_block([&](auto& tr) {
-        tr.run([&]{ process(a, w, x); }); // Process a[w] through a[x]
-        if (y < x) tr.wait();             // Wait if overlap between [w,x) and [y,z)
+    define_task_block([&](auto& tb) {
+        tb.run([&]{ process(a, w, x); }); // Process a[w] through a[x]
+        if (y < x) tb.wait();             // Wait if overlap between [w,x) and [y,z)
         process(a, y, z);                 // Process a[y] through a[z]
     });
 
@@ -463,11 +460,11 @@ operations as if `wait` returns on the same thread. -- _end note_]
     template<typename F>
       void define_task_block_restore_thread(F&& f);
 
-_Requires_: `F` shall be `MoveConstructible`. Given an lvalue `tr` of type
-`task_block`, the expression, `(void) f(tr)`, shall be well-formed.
+_Requires_: `F` shall be `MoveConstructible`. Given an lvalue `tb` of type
+`task_block`, the expression, `(void) f(tb)`, shall be well-formed.
 
-_Effects_: Constructs a `task_block`, `tr`, and invokes the expression
-`f(tr)` on the user-provided object, `f`.
+_Effects_: Constructs a `task_block`, `tb`, and invokes the expression
+`f(tb)` on the user-provided object, `f`.
 
 _Throws_: `exception_list`, as specified in [Exception Handling][].
 
@@ -475,41 +472,39 @@ _Postcondition_: All tasks spawned from `f` have finished execution.  A call
 to `define_task_block` may return on a different thread than that on which it
 was called.  A call to `define_task_block_restore_thread` always returns on
 the same
-thread as that on which it was called. (See [Thread Switching][] in the
+thread as that on which it was called. (See [Thread switching][] in the
 Issues section.) [_Note_: The call to `define_task_block` is sequenced before
 subsequent operations as if `define_task_block` returns on the same thread.
 -- _end note_]
 
 _Notes_: It is expected (but not mandated) that `f`
-will (directly or indirectly) call `tr.run(_callable_object_)`.
-
-<a id="Exception_Handling"></a>
+will (directly or indirectly) call `tb.run(_callable_object_)`.
 
 # Exception Handling
 
-Every task region has an associated exception list. When the
-task region starts, its associated exception list is empty.
+Every task block has an associated exception list. When the
+task block starts, its associated exception list is empty.
 
 When an exception is thrown from the user-provided callable object passed to
 `define_task_block` or `define_task_block_restore_thread`, it is added to the
 exception
-list for that task region.  Similarly, when an exception is thrown from the
+list for that task block.  Similarly, when an exception is thrown from the
 user-provided function object passed into `task_block::run`, the exception
 object is added to the exception list
-associated with the nearest enclosing task region. In both cases, an
+associated with the nearest enclosing task block. In both cases, an
 implementation may discard any pending tasks that have not yet been invoked.
 Tasks that are already in progress are not interrupted except at a call to
 `task_block::run` or `task_block::wait`, as described below.
 
 If the implementation is able to detect that an exception has been thrown by
-another task within the same nearest enclosing task region, then
+another task within the same nearest enclosing task block, then
 `task_block::run` or `task_block::wait` may throw
 `task_canceled_exception`; these instances of `task_canceled_exception` are
 not added to the exception list of the corresponding `task_group`.
 
-When a task region finishes with a non-empty exception list, the exceptions are
+When a task block finishes with a non-empty exception list, the exceptions are
 aggregated into an `exception_list` object (defined below), which is then thrown
-from the task region.
+from the task block.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
@@ -559,7 +554,7 @@ approaches.
 It is the intent of this proposal to enable either scheduling approach and, in
 general, to be as open as possible to additional scheduling approaches.
 
-# Issues
+# Design Decisions and Alternatives
 
 The constructs proposed in this paper have a strong theoretical foundation
 from previous work on language-based parallelism such as Cilk, X10, and
@@ -570,13 +565,12 @@ joining with sub-tasks is more difficult to
 achieve in C++ because the strict scoping of C++ function variables is less
 forgiving than the garbage collected variables in the other two languages.
 
-This section describes a couple of important issues along with some discussion
-of how they might be addressed.
+This section describes a couple of important issues that we considered along
+with some discussion of why we chose the specific resolutions that we did.
 
+## Thread switching
 
-<a id="Thread_Switching"></a>
-
-## Thread Switching
+### Description of the issues
 
 One of the properties of continuation stealing and greedy scheduling is that a
 `define_task_block` or `run` or `wait` call might return on a different thread
@@ -588,7 +582,7 @@ throughout the serial portions of the function (for example, in programs
 accessing GUI objects, mutexes, thread-local storage and thread ID).
 
 There are a number of possible approaches to mitigate the problems caused by
-thread switching. In considering mitigation proposals, it is important to
+thread switching. In considering mitigation proposals, it was important to
 avoid overly-constraining future implementations in order to support today's
 limited view of threads.  For example, this proposal does not require that
 parallelism be implemented using OS threads at all -- it could be implemented
@@ -607,6 +601,8 @@ Conversely, thread-local caches should not be shared between
 concurrently-executing tasks.  With or without thread switching, we will
 certainly need new TLS-like facilities.
 
+### Design in this paper
+
 In this proposal, the `define_task_block_restore_thread` function template
 provides a minimal
 but powerful approach for addressing thread switching.  Using this facility, a
@@ -622,9 +618,17 @@ not support greedy scheduling, the behavior of
 `define_task_block_restore_thread` would probably be identical to that of
 `define_task_block`.
 
-We have also discussed the possibility of language or library constructs to
+The "outermost" call to `define_task_block` always returns on the thread from
+which it was called. This special-case simplifies the job of adding
+parallelism to serial programs.  A task block can be added to a function
+within a program that was, until that point, entirely serial, without
+breaking the potential assumptions of the caller.
+
+### Alternatives considered
+
+We also discussed the possibility of language or library constructs to
 mark a function as potentially returning on a different thread than that on
-which it was called.  A straw-man proposal involves a `thread_switching`
+which it was called.  A straw-man proposal involved a `thread_switching`
 keyword that would be applied as a suffix in the declarator for such
 functions:
 
@@ -647,8 +651,7 @@ until the original thread became available to resume execution:
 
 Alternatively, calling a decorated function from an undecorated function could
 simply be ill formed, requiring the programmer to call
-`define_task_block_restore_thread`
-explicitly to avoid an error:
+`define_task_block_restore_thread` explicitly to avoid an error:
 
     void f() thread_switching;
 
@@ -662,17 +665,18 @@ explicitly to avoid an error:
         });
     }
 
-Other approaches are also being considered, including making a theoretical
+Other approaches were considered, including making a theoretical
 distinction between a "thread" as defined in C++11 and a "worker" as the agent
 that executes tasks.  Making this distinction would solve certain problems
 with parallelism and thread identity, including issues of object and thread
-lifetimes that the `thread_switching` keyword does not address.
+lifetimes that the `thread_switching` keyword does not address. As we refine
+our notion of "execution agent", it may become attractive to adopt this
+terminology.
 
-Final resolution of issues related to thread-switching may need to wait until
-a thorough discussion of "execution agents."
 
+## Returning with unjoined children
 
-## Returning with Unjoined Children
+### Description of the issue
 
 The _escaping asynchronous children_ feature of the constructs proposed in
 this paper 
@@ -685,18 +689,22 @@ attempting, in this paper, to define much more structured constructs that
 operate at a finer granularity of work. Programmers writing _structured_
 parallel code need to be put on notice when a function invoked in their
 program might spawn parallel tasks and return without joining them first.
-The compiler may need to generate stack-allocated stack frames for such
+The compiler may need to generate heap-allocated stack frames for such
 functions and the optimizer might be impaired in doing its job if it
 needs to defensively assume that any function might return with child tasks
 still running.
 
-This proposal, unlike the previous revision, requires that a
+### Design in this paper
+
+This proposal, unlike a previous revision, requires that a
 `task_block` be available in order to spawn a child task. It can be
 argued that the presence of a `task_block&` argument to a function is
 sufficient notice for both the compiler and the programmer to recognize that
 the called function might spawn children and return with them still running.
 Indeed, there seems to be little reason to pass a `task_block` to a
 called function except to allow exactly this usage.
+
+### Alternatives considered
 
 We previously considered adding an `unjoined_children` decoration, similar to
 the `thread_switching` keyword described above.  This decoration would be
@@ -707,7 +715,9 @@ it seems that this approach is unnecessary and is not discussed further in
 this revision.
 
 
-## Violating Structured Parallelism
+## Violating structured parallelism
+
+### Description of the issue
 
 The `task_block` class was introduced (or re-introduced, as
 it was present in an early draft for task regions) in order to avoid "out of
@@ -719,44 +729,52 @@ of other problems, including that of returning with unjoined children
 (above).  However, `task_block` also exposes a name that can be abused
 to violate structured parallelism.  For example:
 
-    define_task_block([&](auto& tr1) {
-        tr1.run(f);
-        define_task_block([&](auto& tr2) {
-            tr2.run(g);
-            tr1.run(h);  // Using tr1 violates strict fork-join rules
-            tr2.run(j);
+    define_task_block([&](auto& tb1) {
+        tb1.run(f);
+        define_task_block([&](auto& tb2) {
+            tb2.run(g);
+            tb1.run(h);  // Using tb1 violates strict fork-join rules
+            tb2.run(j);
         }
         k();
     }
 
 Simply allowing such code makes all parallel programs harder to reason about,
 both for tools such as race detectors and for human programmers.  Additionally,
-in order to support scheduling children other than from the inner-most task
-region might require more expensive data structures in the scheduler and/or
+support FOR scheduling children other than from the inner-most task
+block might require more expensive data structures in the scheduler and/or
 more expensive synchronization than the strict constructs.  This proposal would
 make such usage undefined behavior, but it is unfortunate that we cannot make
 it ill-formed because this is a library-only interface.  Nevertheless, we
 believe that most, if not 
-all, such abuses can be caught by a an implementation that integrates the
+all, such abuses can be caught by an implementation that integrates the
 parallelism library with the compiler.
 
 Another way in which `task_block` can be misused is by passing one to
 an asynchronous call. An example of such misuse appears in the formal wording
-for `task_block`, above.  Again, such abuses a generally detectable by
+for `task_block`, above.  Again, such abuses are generally detectable by
 a sufficiently sophisticated compiler, but it is unfortunate that we cannot
 declare such misuse "ill formed."
 
+### Design in this paper
 
-# Moving Forward with Unresolved Issues
+It is our opinion that actual errors caused by programmers violating
+structured parallelism will be rare, especially when compared to the much
+larger set of hazards that are possible within a parallel or concurrent
+program. Moreover, the risk can be mitigating by following simple coding
+rules, such as always giving your `task_block` the same name, thus preventing
+two `task_block`s from being in scope at the same time. Thus, our approach to
+this potential problem can be summarized as "live with it."
 
-The authors continue to research a number of alternatives for addressing the
-issues described above, both with and without language support, and we seek
-committee guidance in the form of feedback on the ideas we've presented as well
-as additional ideas.  We believe, however, that working through these issues
-will have only a modest impact on the library interfaces described in this
-paper and that these interfaces should therefore be used as the basis for
-adding strict fork-join library constructs, either to the parallelism TS or to
-a new TS.
+### Alternatives considered
+
+The original version of this proposal did not have a `task_block` object whose
+that could be abused to violate structured parallelism.  Instead, the runtime
+library would be require to track the dynamic nesting of `defined_task_block`
+calls to deduce the correct task block for any call to `run` or `wait`.  The
+benefits of the `task_block` parameter, however, was considered to out-weight
+the small risk of structured parallelism violations caused by its
+introduction.
 
 
 # References
@@ -786,13 +804,9 @@ a new TS.
 [Guo2009][] _Work-First and Help-First Scheduling Policies for Async-Finish
 Task Parallelism_, Yi Guo et. al., Rice University 2009
 
-[N4071]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n4071.pdf
-[N4071][] _Working Draft, Technical Specification for C++ Extensions for
-Parallelism_, J. Hoberock (editor), 2014-06-19
-
-[N3960]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3960.pdf
-[N3960][] _Working Draft, Technical Specification for C++ Extensions for
-Parallelism_, J. Hoberock (editor), 2014-02-28
+[N4312]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n4312.pdf
+[N4312][] _Draft Technical Specification for C++ Extensions for
+Parallelism_, J. Hoberock (editor), 2014-11-21
 
 [N4088]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3991.pdf
 [N4088][] _Task Region R3_, P. Halpern, A. Robison, H. Hong; A. Laksberg,
@@ -816,11 +830,3 @@ Parallelism_, A. Laksberg, H. Sutter, 2013-08-15
 [N3872]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2014/n3872.pdf
 [N3872][] _A Primer on Scheduling Fork-Join Parallelism with Work Stealing_,
 Arch Robison, 2014-01
-
-<!-- The following references are internal to this document -->
-
-[Strict Fork-join Parallelism]: #Strict_Fork_Join
-
-[Exception Handling]: #Exception_Handling
-
-[Thread Switching]: #Thread_Switching
