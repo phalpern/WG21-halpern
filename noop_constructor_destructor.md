@@ -62,7 +62,7 @@ function is actually being called.
 An invocation of a `__COOKIE__` constructor on an object of class type with
 virtual functions, virtual base classes, or subobjects with virtual functions
 or virtual base classes is ill formed. The reason for this restriction is
-defined below in [Future directions][],
+described below in [Future directions][],
 [Establishing compiler-managed invariants][], along with a possible way to
 lift the restriction.
 
@@ -195,7 +195,7 @@ Dangers
 =======
 
 It should be obvious to anybody reading this paper that both the no-op
-constructor and no-op destructor are both extremely dangerous operations. One
+constructor and no-op destructor are extremely dangerous operations. One
 could easily write code that uses an object that has not been initialized or
 which has already been destroyed.  If the no-op destructor is used on a
 variable with static or automatic lifetime, the real destructor will still be
@@ -209,15 +209,17 @@ application should typically be left to expert programmers writing reusable
 libraries (including standard library components such as
 `uninitialized_destructive_move`).
 
-A related danger is the lack of exception safety. If an object's lifetime has
-begun artificially by means of a no-op constructor, its destructor will not be
-run during exception unwinding, potentially leaking resources or worse. This
+A related concern is that more care must be taken to ensure exception safety.
+Beginning an object's lifetime artificially by means of a no-op constructor
+does not change whether or not its destructor is invoked during exception
+unwinding.  If the destructor runs, we risk attempting to destroy an
+incompletely-constructed object. If the destructor does not run, we risk
+leaking resources from the incompletely-constructed object.  This
 problem not unlike that of a constructor, which must clean up a
 partially-constructed object if an exception is thrown. Indeed, the function
 that call a no-op constructor is a pseudo-constructor and needs to ensure
 either that class invariants hold or that the object is unwound (possibly
 calling the no-op destructor) in the event of an exception or early return.
-
 
 Alternatives for `__COOKIE__`
 =============================
@@ -275,8 +277,8 @@ Function templates `bless`/`unbless`
 Instead of adding a magic cookie, we could add two magic function templates:
 
     namespace std {
-        template <class T> void bless(T& obj) noexcept;
-        template <class T> void unbless(T& obj) noexcept;
+        template <class T> T* bless(void* obj) noexcept;
+        template <class T> void unbless(T* obj) noexcept;
     }
 
 The `bless` function would begin the lifetime of an object without invoking
@@ -302,6 +304,20 @@ without invoking its destructor.
    support use cases like the "Choosing a constructor at run time" use case,
    above.
 
+Impact on the standard
+======================
+
+This document does not contain formal wording, pending approval for the
+concept by the EWG.  Formal wording will require collaboration with a member
+of the CWG.  Nevertheless, we can expect wording changes will be necessary in
+the section on object lifetime [basic.life] and may be necessary in the
+sections for postfix expressions [expr.post], and unary expressions
+[expr.unary].  although noop constructors and destructors are not
+user-defined, there is possibly some impact on the section for special member
+functions [special].  It is unlikely that there would be any impact on the
+wording around access to volatile objects [intro.execution], but only a core
+review would establish this for sure.
+
 Future directions
 =================
 
@@ -320,9 +336,8 @@ classes because the job of establishing some of the invariants is given to the
 compiler. A possible enhancement, therefore, would be to have a the
 `__COOKIE__` constructor establish the compiler-managed invariants of the
 class while leaving all the data members alone. If this enhancement were
-adopted, it might be desirable to use a different `__COOKIE__` so that the
+adopted, it would be desirable to use a different `__COOKIE__` so that the
 user who is expecting a true no-op doesn't get surprised.
-
 
 Suppressing automatic destruction
 ---------------------------------
@@ -354,6 +369,13 @@ the magic cookie and replace constructor or destructor invocation by a
 no-op. Tools that track object lifetime would treat the special calls like
 normal constructor or destructor calls with implicit construction or
 destruction of subobjects.
+
+Acknowledgments
+===============
+
+Thanks to Alisdair Merideth, Mike Henry Verschell, John Lakos, Mike Giroux,
+and Hyman Rosen for reviewing drafts of this paper and helping me clarify some
+concerns.
 
 References
 ==========
