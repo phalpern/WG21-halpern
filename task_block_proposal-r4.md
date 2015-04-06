@@ -3,7 +3,7 @@
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2015-04-02
+% 2015-04-06
 
 <!-- Make sure that doc number in header.tex matches the one above -->
 
@@ -85,13 +85,13 @@ Old (N4088)           New (N4411)
 A number of non-technical changes were made to improve readability and prepare
 the document for review by a wider audience:
 
-The issues section has been replaced by a
-[Design Decisions and Alternatives][] section, now that all of the issues have
-been resolved.
+ * The issues section has been replaced by a
+   [Design Decisions and Alternatives][] section, now that all of the issues
+   have been resolved.
 
-The change history has been condensed.
+ * This change history has been condensed.
 
-## Previous changes
+## Summary of previous changes
 
 ---------- --------------------------------------------------------------------
 [N4088][]  Improved wording for asynchronous execution and thread switching.
@@ -99,7 +99,8 @@ The change history has been condensed.
 
 [N3991][]  Added `task_region_handle` (now `task_block`) as an explicit means
 2014-05-23 of communicating between the definition of the task block and
-           the `run` function. Changed from terminally strict to fully strict.
+           the `run` function. Changed from terminally strict to fully strict
+           semantics.
 
 [N3832][]  Original version.
 2014-01-17
@@ -267,7 +268,7 @@ much more efficient memory allocation for (highly structured) local variables
 than for (unstructured) heap-allocated variables, so, too, can a compiler and
 scheduler take advantage of the structure of strict fork-join parallelism to
 implement efficient queuing and scheduling of parallel tasks.  The algorithms
-described in [N3960][] neither require nor benefit
+described in [N4312][] neither require nor benefit
 from unstructured parallelism.
 
 
@@ -522,7 +523,7 @@ If the implementation is able to detect that an exception has been thrown by
 another task within the same nearest enclosing task block, then
 `task_block::run` or `task_block::wait` may throw
 `task_canceled_exception`; these instances of `task_canceled_exception` are
-not added to the exception list of the corresponding `task_group`.
+not added to the exception list of the corresponding task block.
 
 When a task block finishes with a non-empty exception list, the exceptions are
 aggregated into an `exception_list` object (defined below), which is then thrown
@@ -530,8 +531,7 @@ from the task block.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
-The `exception_list` class is described in [N3960][] and is defined as follows
-(as modified in [N4071][]):
+The `exception_list` class is described in [N4312][] and is defined as follows:
 
     class exception_list : public exception
     {
@@ -542,7 +542,7 @@ The `exception_list` class is described in [N3960][] and is defined as follows
         const_iterator begin() const noexcept;
         const_iterator end() const noexcept;
 
-        const char* what() const override noexcept;
+        const char* what() const noexcept override;
     };
 
 # Scheduling Strategies
