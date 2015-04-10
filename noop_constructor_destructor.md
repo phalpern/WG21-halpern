@@ -1,6 +1,6 @@
-% D4393 | Noop Constructors and Destructors
+% N4393 | Noop Constructors and Destructors
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2015-04-04
+% 2015-04-10
 
 Abstract
 ========
@@ -160,13 +160,13 @@ and read back again:
     new (my_record2) record(__COOKIE__);
 
 Note that `record` cannot have virtual functions or virtual base classes.
-However, see [Future Directions][], below for a possible enhancement that would
+However, see [Future directions][], below, for a possible enhancement that would
 allow swizzling and `memcpy` of a broader range of types.
 
 Choosing a constructor at run time
 ----------------------------------
 
-Sometimes, it is necessary to choose a constructor at runtime, passing
+Sometimes it is necessary to choose a constructor at runtime, passing
 arguments of different types or different number of arguments depending on
 some condition:
 
@@ -217,7 +217,7 @@ incompletely-constructed object. If the destructor does not run, we risk
 leaking resources from the incompletely-constructed object.  This
 problem not unlike that of a constructor, which must clean up a
 partially-constructed object if an exception is thrown. Indeed, the function
-that call a no-op constructor is a pseudo-constructor and needs to ensure
+that calls a no-op constructor is a pseudo-constructor and needs to ensure
 either that class invariants hold or that the object is unwound (possibly
 calling the no-op destructor) in the event of an exception or early return.
 
@@ -249,7 +249,7 @@ Some possibilities are:
         delete (requires look-ahead)
         =noop (context-sensitive keyword)
 
-A non-serious suggestion: A number of emoticons would also work. `:-)`
+Humorous suggestion: A number of emoticons would also work. `:-)`
 
 Alternatives considered
 =======================
@@ -258,7 +258,8 @@ Special Case for `uninitialized_destructive_move`
 -------------------------------------------------
 
 N4158 had weasel words that allowed `uninitialized_destructive_move` to start
-and end the lifetimes of its arguments without saying how.
+and end the lifetimes of its arguments without articulating a language
+mechanism.
 
 **Pros**:
 
@@ -304,6 +305,40 @@ without invoking its destructor.
    support use cases like the "Choosing a constructor at run time" use case,
    above.
 
+Special version of `operator new`
+---------------------------------
+
+It was suggested that the expression, `new(addr, __COOKIE__) T`, should have
+the effect of beginning the lifetime of the `T` object at `addr`.  An
+alternative syntax would be `new(addr) __COOKIE__ T`.
+
+**Pros**:
+
+ * Probably requires slightly fewer changes to the standard than the proposal
+   presented in this paper.
+ * Supports the destructive move and swizzling use cases.
+ * The second version of the syntax could be extended to work with all
+   overloads of `operator new`.  For example `T* p = new __COOKIE__ T;`
+   would allocate space appropriate for a `T` object but not construct it,
+   exactly like `T* p = new T(__COOKIE__);` does in the current proposal.
+
+**Cons**
+
+ * It is not clear now no-op destruction would be described. The `operator
+   delete(void*, __COOKIE__)` corresponding to `operator new(size_t,
+   __COOKIE__)` would normally be used only for exception handling (for an
+   exception that could never occur).
+ * It is a bit strange to put this behavior on `operator new`, which is
+   concerned primarily with memory allocation, not construction. Of course,
+   the constructor is normally called the invocation of `operator new`, but
+   construction details are normally in the constructor, not in `operator
+   new`.
+ * Does not allow suppressing normal constructor invocation for automatic,
+   static, and member variables and base class subobjects.  Hence does not
+   support use cases like the "Choosing a constructor at run time" use case,
+   above.
+
+
 Impact on the standard
 ======================
 
@@ -312,7 +347,7 @@ concept by the EWG.  Formal wording will require collaboration with a member
 of the CWG.  Nevertheless, we can expect wording changes will be necessary in
 the section on object lifetime [basic.life] and may be necessary in the
 sections for postfix expressions [expr.post], and unary expressions
-[expr.unary].  although noop constructors and destructors are not
+[expr.unary].  Although noop constructors and destructors are not
 user-defined, there is possibly some impact on the section for special member
 functions [special].  It is unlikely that there would be any impact on the
 wording around access to volatile objects [intro.execution], but only a core
@@ -335,7 +370,8 @@ general) possible for classes that have virtual functions or virtual base
 classes because the job of establishing some of the invariants is given to the
 compiler. A possible enhancement, therefore, would be to have a the
 `__COOKIE__` constructor establish the compiler-managed invariants of the
-class while leaving all the data members alone. If this enhancement were
+class (and those of its data member and base-class subobjects) while leaving
+the user-managed aspects of the class alone. If this enhancement were
 adopted, it would be desirable to use a different `__COOKIE__` so that the
 user who is expecting a true no-op doesn't get surprised.
 
@@ -354,9 +390,9 @@ be desirable to suppress destruction during exception unwinding in certain
 cases.
 
 The ability to suppress automatic destruction could be seen as a natural
-extension of this proposal, but it is not central to the goal of providing a
-way to begin or end the lifetime of an object without invoking its constructor
-or destructor.
+extension of this proposal, but it would add significantly more core language
+changes and it is not central to the goal of providing a way to begin or end
+the lifetime of an object without invoking its constructor or destructor.
 
 Implementation Concerns
 =======================
