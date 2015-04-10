@@ -1,9 +1,9 @@
-% Task Block (formerly Task Region) R4 | D4411
+% N4411 | Task Block (formerly Task Region) R4
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2015-04-06
+% 2015-04-10
 
 <!-- Make sure that doc number in header.tex matches the one above -->
 
@@ -383,8 +383,9 @@ object to a user-provided callable object.
 An object of class `task_block` cannot be constructed, destroyed,
 copied, or moved except by the implementation of the task block library.
 Taking the address of a `task_block` object via `operator&`  is ill
-formed. The result of obtaining its address by any other means (including
-`addressof`) is unspecified.
+formed. Obtaining its address by any other means (including `addressof`)
+results in a pointer with unspecified value; dereferencing such a pointer
+results in undefined behavior.
 
 A `task_block` is _active_ if it was created by the nearest enclosing task
 block, where "task block" refers to an invocation of `define_task_block` or
@@ -397,10 +398,10 @@ to (or captured by) such code is not active within that code. Performing any
 operation on a `task_block` that is not active results in undefined
 behavior.
 
-The `task_block` that is active before a specific call to the `run`
-member function is not active within the asynchronous function that is invoked
-by `run`. (The invoked function should not, therefore, capture the
-`task_block` from the surrounding block.)
+On entry to the invocable argument to `task_block::run`, no `task_block` is
+active, including the `task_block` on which `run` was called. (The invocable
+object should not, therefore, capture a `task_block` from the surrounding
+block.)
 [_Example:_
 
     define_task_block([&](auto& tb) {
@@ -595,8 +596,8 @@ with some discussion of why we chose the specific resolutions that we did.
 ### Description of the issues
 
 One of the properties of continuation stealing and greedy scheduling is that a
-`define_task_block` or `run` or `wait` call might return on a different thread
-than that
+`define_task_block`, `task_block::run` or `task_block::wait` call might return
+on a different thread than that
 from which it was invoked, assuming scheduler threads are mapped 1:1 to standard
 threads. This phenomenon, which is new to C++, can be surprising to
 programmers and break programs that rely on the OS thread remaining the same
@@ -794,7 +795,7 @@ The original version of this proposal did not have a `task_block` object whose
 that could be abused to violate structured parallelism.  Instead, the runtime
 library would be require to track the dynamic nesting of `defined_task_block`
 calls to deduce the correct task block for any call to `run` or `wait`.  The
-benefits of the `task_block` parameter, however, was considered to out-weight
+benefits of the `task_block` parameter, however, were considered to outweigh
 the small risk of structured parallelism violations caused by its
 introduction.
 
