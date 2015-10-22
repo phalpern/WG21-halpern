@@ -1,9 +1,9 @@
-% DxxxxR0 | Task Block R5
+% P0155R0 | Task Block R5
 % Pablo Halpern; Arch Robison
   {pablo.g.halpern, arch.robison}@intel.com
   Hong Hong; Artur Laksberg; Gor Nishanov; Herb Sutter
   {honghong, arturl, gorn, hsutter}@microsoft.com
-% 2015-10-17
+% 2015-10-22
 
 <!-- Make sure that doc number in header.tex matches the one above -->
 
@@ -22,9 +22,9 @@ potentially, a separate TS.
 The predecessor to this document, [N4411][], was approved by LEWG during the
 May 2015 meeting in Lenexa, Kansas.  Unfortunately, LWG was unable to review
 the document at that meeting.  The only change to the formal wording since
-N4411 is the addition of a feature-test macro to
-[Header `<experimental/task_block>` synopsis][].  A non-normative discussion
-of [Execution agents][] was also added.
+N4411 is the addition of a
+[feature-test recommendations](#task_block.feature.test) section.  A
+non-normative discussion of [Execution agents][] was also added.
 
 The predecessor to N4411 is [N4088][], which was approved by the Parallelism
 and Concurrency study group (SG1) at the June 2014 meeting in Rapperswil. This
@@ -48,9 +48,9 @@ thread even if the library function uses parallelism internally.
 
 We borrowed some of the language used to describe `async` for the invocation
 of the asynchronous function in `task_block::run`. In particular, it is
-necessary to copy the invocable passed as a function argument to `run` so that
+necessary to copy the function-object argument to `run` so that
 the continuation can modify or destroy the argument without invalidating the
-asynchronously-called invocable.
+asynchronously-called function.
 
 ## Naming changes
 
@@ -116,10 +116,10 @@ the document for review by a wider audience:
 
 # Motivation and Related Proposals
 
-The Parallelism TS, [N4409][], augments the STL algorithms with
+The Parallelism TS, [N4507][], augments the STL algorithms with
 parallel execution policies. Programmers use these as a basis to
 write additional high-level algorithms that can be implemented in terms of the
-provided parallel algorithms. However, the scope of N4409 does not include
+provided parallel algorithms. However, the scope of N4507 does not include
 lower-level mechanisms to express arbitrary fork-join parallelism.
 
 Over the last several years, Microsoft and Intel have collaborated to produce
@@ -275,7 +275,7 @@ much more efficient memory allocation for (highly structured) local variables
 than for (unstructured) heap-allocated variables, so, too, can a compiler and
 scheduler take advantage of the structure of strict fork-join parallelism to
 implement efficient queuing and scheduling of parallel tasks.  The algorithms
-described in [N4409][] neither require nor benefit
+described in [N4507][] neither require nor benefit
 from unstructured parallelism.
 
 
@@ -314,40 +314,71 @@ then it is not valid as a parallel program, either.
 
 ## Execution agents
 
-There is as yet no technical specification that yet uses the term "execution
-agent".  It is therefore not possible to refer to that term within the formal
-wording for this proposal.  However, the parallel model for the proposed
-constructs assumes parallel execution agents as described in [P0072R0][] as
-follows:
+There is as yet no technical specification that yet uses the term "parallel
+execution agent".  It is therefore not possible to refer to that term within
+the formal wording for this proposal.  However, the parallel model for the
+proposed constructs assumes parallel execution agents as described in
+[P0072R0][] as follows:
 
 Upon execution of `task_block::run`, two parallel execution agents are
-created: one to execute the invocable argument to `run`, and the other to
+created: one to execute the function-object argument to `run`, and the other to
 execute the _continuation_ of the call to `run`, that is, the code immediately
 following the call up to the next join point, which is the end of the task
 block or the next call to `task_block::wait`. The initial execution agent
-_boost blocks_ on those two execution agents.  At the join point, either the
+boost blocks on those two execution agents.  At the join point, either the
 initial execution agent continues, or it transfers control to a new execution
 agent with the same progress guarantees.
 
 
-# Interface
+# Formal Wording
 
 The proposed interface is as follows.  With the exception of
 `define_task_block_restore_thread`, the implementation of each of the
 functions defined
-herein is permitted to return on a different thread than that from
-which it was invoked.  See [Thread switching][] in the design section for an
-explanation of when this matters and how surprises can be mitigated.
+herein is permitted to return on a thread other than the one from
+which it was invoked.
+[**Editorial Note**: See [Thread switching][] in the design section for an
+explanation of when this matters and how surprises can be mitigated. ]
 
-## Header `<experimental/task_block>` synopsis
+## Feature testing recommendations (informative) [task_block.feature.test] {#task_block.feature.test}
 
-    // Feature-testing macro (per SD-6 recommendations)
-    #define __cpp_lib_experimental_parallel_task_block 201510
+For the sake of improved portability between partial implementations of
+various C++ standards, WG21 (the ISO technical committee for the C++
+programming language) recommends that implementers and programmers follow the
+guidelines in this section concerning feature-test
+macros. [_Note:_ WG21's SD-6 makes similar recommendations for the C++ Standard
+itself. — _end note_]
+
+Implementers who provide a new standard feature should define a macro with the
+recommended name, in the same circumstances under which the feature is
+available (for example, taking into account relevant command-line options), to
+indicate the presence of support for that feature. Implementers should define
+that macro with the value specified in the most recent version of this
+technical specification that they have implemented. The recommended macro name
+is "__cpp_lib_experimental_" followed by the string in the "Macro Name Suffix"
+column.
+
+Programmers who wish to determine whether a feature is available in an
+implementation should base that determination on the presence of the header
+(determined with __has_include(\<header/name\>)) and the state of the macro with
+the recommended name. (The absence of a tested feature may result in a program
+with decreased functionality, or the relevant functionality may be provided in
+a different way. A program that strictly depends on support for a feature can
+just try to use the feature unconditionally; presumably, on an implementation
+lacking necessary support, translation will fail.)
+
+Table: Table 1 -- Significant features in this proposal
+
+-------------------------------------------------------------------------
+    Title      Macro name suffix    Value             Header
+------------ --------------------- -------- -----------------------------
+ Task block   parallel_task_block   201510   `<experimental/task_block>`
+-------------------------------------------------------------------------
+
+## Header `<experimental/task_block>` synopsis [task_block.synopsis]
 
     namespace std {
-      namespace experimental {
-      namespace parallel {
-      inline namespace v2 {
+      namespace experimental { namespace parallel { inline namespace v2 {
 
         class task_canceled_exception;
 
@@ -357,62 +388,56 @@ explanation of when this matters and how surprises can be mitigated.
           void define_task_block(F&& f);
         template<typename F>
           void define_task_block_restore_thread(F&& f);
-      }
-      }
-      }
-
+      }}}
     }
 
-## Class `task_canceled_exception`
+## Class `task_canceled_exception` [task_block.task_canceled_exception]
 
     class task_canceled_exception : public exception {
     public:
-        task_canceled_exception() noexcept;
-        task_canceled_exception(const task_canceled_exception&) noexcept;
-        task_canceled_exception& operator=(const task_canceled_exception&) noexcept;
-        virtual const char* what() const noexcept;
+      task_canceled_exception() noexcept;
+      virtual const char* what() const noexcept;
     };
 
 The class `task_canceled_exception` defines the type of objects thrown by
 `task_block::run` or `task_block::wait` if they detect that an
 exception is pending within the current parallel block.  See
-[Exception Handling][], below.
+[Exception Handling](#task_block.exceptions), below.
 
-## Class `task_block`
+### `task_canceled_exception` member function `what` [task_block.task_canceled_exception.what]
+
+    virtual const char* what() const noexcept;
+
+_Returns_: An implementation-define NTBS.
+
+## Class `task_block` [task_block.class] {#task_block.class}
 
     class task_block {
     private:
-        // Private members and friends (for exposition only)
-        template<typename F>
-          friend void define_task_block(F&& f);
-        template<typename F>
-          friend void define_task_block_restore_thread(F&& f);
-
-        task_block(_unspecified_);
-        ~task_block();
+      ~task_block();
 
     public:
-        task_block(const task_block&) = delete;
-        task_block& operator=(const task_block&) = delete;
-        task_block* operator&() const = delete;
+      task_block(const task_block&) = delete;
+      task_block& operator=(const task_block&) = delete;
+      void operator&() const = delete;
 
-        template<typename F>
-          void run(F&& f);
+      template<typename F>
+        void run(F&& f);
 
-        void wait();
+      void wait();
     };
 
 The class `task_block` defines an interface for forking and joining
 parallel tasks. The `define_task_block` and `define_task_block_restore_thread`
 function templates
 create an object of type `task_block` and pass a reference to that
-object to a user-provided callable object.
+object to a user-provided function object.
 
 An object of class `task_block` cannot be constructed, destroyed,
 copied, or moved except by the implementation of the task block library.
-Taking the address of a `task_block` object via `operator&`  is ill
-formed. Obtaining its address by any other means (including `addressof`)
-results in a pointer with unspecified value; dereferencing such a pointer
+Taking the address of a `task_block` object via `operator&`  is
+ill-formed. Obtaining its address by any other means (including `addressof`)
+results in a pointer with an unspecified value; dereferencing such a pointer
 results in undefined behavior.
 
 A `task_block` is _active_ if it was created by the nearest enclosing task
@@ -426,119 +451,129 @@ to (or captured by) such code is not active within that code. Performing any
 operation on a `task_block` that is not active results in undefined
 behavior.
 
-On entry to the invocable argument to `task_block::run`, no `task_block` is
-active, including the `task_block` on which `run` was called. (The invocable
+When the argument to `task_block::run` is called, no `task_block` is
+active, not even the `task_block` on which `run` was called. (The function
 object should not, therefore, capture a `task_block` from the surrounding
 block.)
 [_Example:_
 
     define_task_block([&](auto& tb) {
-        tb.run([&]{
-            tb.run([] { f(); });        // Error: tb is not active within run
-            define_task_block([&](auto& tb) { // Nested task block
-                tb.run(f);              // OK: inner tb is active
-                ...
-            });
+      tb.run([&]{
+        tb.run([] { f(); });               // Error: tb is not active within run
+        define_task_block([&](auto& tb2) { // Define new task block
+          tb2.run(f);                      // OK: new task_block tb2 is active
+          ...
         });
-        ...
+      });
+      ...
     });
 
--- _end example_] [_Note:_ implementations are encouraged to diagnose the
+-- _end example_] [_Note:_ Implementations are encouraged to diagnose the
 above error at translation time -- _end note_]
 
-### `task_block` member function template `run`
+### `task_block` member function template `run` [task_block.class.run]
 
     template<typename F>
       void run(F&& f);
 
 _Requires_: `F` shall be `MoveConstructible`.
-_INVOKE(DECAY_COPY_`(std::forward<F>(f)`)), shall be a valid expression.
+_DECAY_COPY_`(std::forward<F>(f))()` shall be a valid expression.
 
 _Precondition_: `*this` shall be the active `task_block`.
 
-_Effects_: Let _fcopy_ = _DECAY_COPY_(`std::forward<F>(f)`). Computes _fcopy_
-synchronously within the current thread, then calls _INVOKE(fcopy)_. The call
-to _INVOKE_ is permitted to run an unspecified thread created by the
+_Effects_: Evaluates _DECAY_COPY_(`std::forward<F>(f))()`, where 
+_DECAY_COPY_`(std::forward<F>(f))` is evaluated synchronously within the
+current thread. The call to the resulting copy of the function object
+is permitted to run on an unspecified thread created by the
 implementation in an unordered
 fashion relative to the sequence of operations following the call to `run(f)`
 (the _continuation_), or indeterminately sequenced within the same thread as
-the continuation. The call to `run` synchronizes with the call to _INVOKE_.
-The completion of _INVOKE_ synchronizes with the next invocation of `wait`
+the continuation. The call to `run` synchronizes with the call to the function
+object.
+The completion of the call to the function object synchronizes with the next
+invocation of `wait`
 on the same `task_block` or completion of the nearest enclosing task
 block (i.e., the `define_task_block` or `define_task_block_restore_thread` that
 created this `task_block`).
 
-_Throws_: `task_canceled_exception`, as described in [Exception Handling][]. 
+_Throws_: `task_canceled_exception`, as described in [Exception Handling](#task_block.exceptions). 
 
-_Postconditions_: A call to `run` may return on a different thread than that
-on which it was called. [_Note_: The call to `run` is sequenced before the
-continuation as if `run` returned on the same thread. -- _end note_]
+_Remarks_: The `run` function may return on a thread other than the one
+on which it was called; in such cases, completion of the call to `run`
+synchronizes with the continuation. [_Note:_ The return from `run` is
+ordered similarly to an ordinary function call in a single thread.
+-- _end note_]
 
-_Remarks_: The invocation of the user-supplied callable object `f` may be
+_Remarks_: The invocation of the user-supplied function object `f` may be
 immediate or may be delayed until compute resources are available.  `run`
-might or might not return before invocation of `f` completes.
+might or might not return before the invocation of `f` completes.
 
-### `task_block` member function `wait`
+### `task_block` member function `wait` [task_block.class.wait]
 
     void wait();
 
-_Precondition_: `this` shall be the active `task_block`.
+_Precondition_: `*this` shall be the active `task_block`.
 
 _Effects_: Blocks until the tasks spawned using this `task_block`
-have finished.
+have completed.
 
-_Throws_: `task_canceled_exception`, as described in [Exception Handling][].
+_Throws_: `task_canceled_exception`, as described in [Exception Handling](#task_block.exceptions).
 
 _Postcondition_: All tasks spawned by the nearest enclosing task block have
-finished. A call to `wait` may return on a different thread than that on
-which it was called. [_Note_: The call to `wait` is sequenced before subsequent
-operations as if `wait` returns on the same thread. -- _end note_]
+completed.
+
+_Remarks_: The `wait` function may return on a thread other than the one on
+which it was called; in such cases, completion of the call to `wait`
+synchronizes with subsequent operations. [_Note:_ The return from `wait` is
+ordered similarly to an ordinary function call in a single thread.
+-- _end note_]
 
 [_Example:_
 
     define_task_block([&](auto& tb) {
-        tb.run([&]{ process(a, w, x); }); // Process a[w] through a[x]
-        if (y < x) tb.wait();             // Wait if overlap between [w,x) and [y,z)
-        process(a, y, z);                 // Process a[y] through a[z]
+      tb.run([&]{ process(a, w, x); }); // Process a[w] through a[x]
+      if (y < x) tb.wait();             // Wait if overlap between [w,x) and [y,z)
+      process(a, y, z);                 // Process a[y] through a[z]
     });
 
 -- _end example_]
 
-## Function templates `define_task_block` and  `define_task_block_restore_thread`
+## Function template `define_task_block` [task_block.define_task_block]
 
     template<typename F>
       void define_task_block(F&& f);
     template<typename F>
       void define_task_block_restore_thread(F&& f);
 
-_Requires_: `F` shall be `MoveConstructible`. Given an lvalue `tb` of type
-`task_block`, the expression, `(void) f(tb)`, shall be well-formed.
+_Requires_: Given an lvalue `tb` of type
+`task_block`, the expression `f(tb)` shall be well-formed.
 
-_Effects_: Constructs a `task_block`, `tb`, and invokes the expression
-`f(tb)` on the user-provided object, `f`.
+_Effects_: Constructs a `task_block` `tb` and calls `f(tb)`.
 
-_Throws_: `exception_list`, as specified in [Exception Handling][].
+_Throws_: `exception_list`, as specified in [Exception Handling](#task_block.exceptions).
 
-_Postcondition_: All tasks spawned from `f` have finished execution.  A call
-to `define_task_block` may return on a different thread than that on which it
-was called unless there are no task blocks active (see [Class `task_block`][])
-on entry to `define_task_block`, in which case the call returns on the same
-thread as that on which it was called.
-A call to `define_task_block_restore_thread` always returns on the same
-thread as that on which it was called. (See [Thread switching][] in the
-design section.) [_Note_: The call to `define_task_block` is sequenced before
-subsequent operations as if `define_task_block` returns on the same thread.
--- _end note_]
+_Postcondition_: All tasks spawned from `f` have finished execution.
+
+_Remarks_: The
+`define_task_block` function may return on a thread other than the one on
+which it was called unless there are no task blocks active on entry to
+`define_task_block` (see [Class `task_block`](#task_block.class)), in which
+case the function returns on the original thread. When `define_task_block`
+returns on a different thread, it synchronizes with operations following the
+call.
+[_Note:_ The return from `define_task_block` is ordered similarly to an ordinary function call in a single thread.  -- _end note_]
+The `define_task_block_restore_thread` function always returns on the same
+thread as the one on which it was called.
 
 _Notes_: It is expected (but not mandated) that `f`
-will (directly or indirectly) call `tb.run(_callable_object_)`.
+will (directly or indirectly) call `tb.run(`_function-object_`)`.
 
-# Exception Handling
+## Exception Handling [task_block.exceptions] {#task_block.exceptions}
 
 Every task block has an associated exception list. When the
 task block starts, its associated exception list is empty.
 
-When an exception is thrown from the user-provided callable object passed to
+When an exception is thrown from the user-provided function object passed to
 `define_task_block` or `define_task_block_restore_thread`, it is added to the
 exception
 list for that task block.  Similarly, when an exception is thrown from the
@@ -547,7 +582,7 @@ object is added to the exception list
 associated with the nearest enclosing task block. In both cases, an
 implementation may discard any pending tasks that have not yet been invoked.
 Tasks that are already in progress are not interrupted except at a call to
-`task_block::run` or `task_block::wait`, as described below.
+`task_block::run` or `task_block::wait` as described below.
 
 If the implementation is able to detect that an exception has been thrown by
 another task within the same nearest enclosing task block, then
@@ -561,19 +596,21 @@ from the task block.
 
 The order of the exceptions in the `exception_list` object is unspecified.
 
-The `exception_list` class is described in [N4409][] and is defined as follows:
+**EDITORIAL NOTE**
 
-    class exception_list : public exception
-    {
-      public:
-        typedef _unspecified_ iterator;
-
-        size_t size() const noexcept;
-        const_iterator begin() const noexcept;
-        const_iterator end() const noexcept;
-
-        const char* what() const noexcept override;
-    };
+> The `exception_list` class is described in [N4507][] and is defined as follows:
+> 
+>     class exception_list : public exception
+>     {
+>     public:
+>       typedef _unspecified_ iterator;
+> 
+>       size_t size() const noexcept;
+>       iterator begin() const noexcept;
+>       iterator end() const noexcept;
+> 
+>       const char* what() const noexcept override;
+>     };
 
 # Scheduling Strategies
 
@@ -583,7 +620,7 @@ then executed (or _stolen_) by a scheduler using a different (native) thread,
 based on the availability of hardware resources and other factors. The
 original _parent_ thread may participate in the execution of the tasks
 when it reaches the join point (i.e. at the  end of the execution of the
-callable object passed to the `define_task_block` or
+function object passed to the `define_task_block` or
 `define_task_block_restore_thread`).  This approach to scheduling is known as 
 _child stealing_.
 
@@ -702,7 +739,7 @@ until the original thread became available to resume execution:
     }
 
 Alternatively, calling a decorated function from an undecorated function could
-simply be ill formed, requiring the programmer to call
+simply be ill-formed, requiring the programmer to call
 `define_task_block_restore_thread` explicitly to avoid an error:
 
     void f() thread_switching;
@@ -806,7 +843,7 @@ Another way in which `task_block` can be misused is by passing one to
 an asynchronous call. An example of such misuse appears in the formal wording
 for `task_block`, above.  Again, such abuses are generally detectable by
 a sufficiently sophisticated compiler, but it is unfortunate that we cannot
-declare such misuse "ill formed."
+declare such misuse "ill-formed."
 
 ### Design in this paper
 
@@ -856,9 +893,9 @@ introduction.
 [Guo2009][] _Work-First and Help-First Scheduling Policies for Async-Finish
 Task Parallelism_, Yi Guo et. al., Rice University 2009
 
-[N4409]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4409.pdf
-[N4409][] _Technical Specification for C++ Extensions for Parallelism_,
-J. Hoberock (editor), 2015-04-10
+[N4507]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4507.pdf
+[N4507][] _Technical Specification for C++ Extensions for Parallelism_,
+J. Hoberock (editor), 2015-05-05
 
 [N4411]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4411.pdf
 [N4411][] _Task Block (formerly Task Region) R4_, P. Halpern, A. Robison,
