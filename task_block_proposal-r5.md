@@ -16,19 +16,20 @@ code.
 
 # Document Status and History
 
-The proposals in this document are  targeted at a future Parallelism TS or,
-potentially, a separate TS.
+The proposals in this document are targeted at the next revision of the
+Parallelism TS. It has gone through SG1 and LEWG review.  LWG review and
+approval was completed during the October 2015 meeting in Kona.
 
 The predecessor to this document, [N4411][], was approved by LEWG during the
-May 2015 meeting in Lenexa, Kansas.  Unfortunately, LWG was unable to review
-the document at that meeting.  The only change to the formal wording since
-N4411 is the addition of a
-[feature-test recommendations](#task_block.feature.test) section.  A
-non-normative discussion of [Execution agents][] was also added.
+May 2015 meeting in Lenexa, Kansas.  The only technical changes to the formal
+wording since N4411 are the addition of a
+[feature-test recommendations](#task_block.feature.test) section and a
+non-normative discussion of [Execution agents][]. A number of editorial
+changes were made after LWG review.
 
 The predecessor to N4411 is [N4088][], which was approved by the Parallelism
-and Concurrency study group (SG1) at the June 2014 meeting in Rapperswil. This
-revision contains changes resulting from LEWG review at the November 2014
+and Concurrency study group (SG1) at the June 2014 meeting in Rapperswil. N4411
+contains changes resulting from LEWG review at the November 2014
 meeting in Urbana-Champaign. 
 
 The changes from N4088 are described below.
@@ -925,5 +926,5 @@ Parallelism_, A. Laksberg, H. Sutter, 2013-08-15
 Arch Robison, 2014-01
 
 [P0072R0]: http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/p0072r0.pdf
-[P0072R0][] __Light-Weight Execution Agents (Revision 5)_,
+[P0072R0][] _Light-Weight Execution Agents (Revision 5)_,
 Torvald Riegel, 2015-09-24
