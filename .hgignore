@@ -1,3 +1,2 @@
-^Untracked/.*
-^lwg-issues/.*
-^parallelism-ts/.*
+~$
+.pdf$
