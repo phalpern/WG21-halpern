@@ -4,3 +4,4 @@
 *~
 *.t
 *.dSYM
+.DS_Store
