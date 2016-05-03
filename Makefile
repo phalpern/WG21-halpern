@@ -28,7 +28,7 @@ pdf: $(FILEROOT).pdf
 	pandoc --number-sections -s -S $< -o $@
 
 %.pdf : %.md header.tex
-	$(eval DOCNUM=$(shell sed -n  -e '/^% .*[ND][0-9x][0-9x][0-9x][0-9x]/s/^.*\([ND][0-9x][0-9x][0-9x][0-9x]\).*/\1/p' -e '/^[ND][0-9x][0-9x][0-9x][0-9x]$$/q' $<))
+	$(eval DOCNUM=$(shell sed -n  -e '/^% .*[NDP][0-9x][0-9x][0-9x][0-9x]/s/^.*\([NDP][0-9x][0-9x][0-9x][0-9x]\(R[0-9]+\)?\).*/\1/p' -e '/^[NDP][0-9x][0-9x][0-9x][0-9x]$$/q' $<))
 	sed -e s/DOCNUM/$(DOCNUM)/g header.tex > $*.hdr.tex
 	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H $*.hdr.tex $< -o $@
 	rm -f $*.hdr.tex
