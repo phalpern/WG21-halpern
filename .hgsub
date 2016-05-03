@@ -5,4 +5,5 @@ n4060 vec_policy = ssh://Pablo@truffle/Documents/C++Standard/n4060 vec_policy
 optional_test = ssh://Pablo@truffle/Documents/C++Standard/optional_test
 polymorphic_allocator = ssh://Pablo@truffle/Documents/C++Standard/polymorphic_allocator
 vector-execution-models = ssh://Pablo@truffle/Documents/C++Standard/vector-execution-models
+uses-allocator = [git]git@github.com:phalpern/uses-allocator.git
 task_region = [git]https://phalpernnh@git01.codeplex.com/goldenrod

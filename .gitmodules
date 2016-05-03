@@ -1,3 +1,6 @@
+[submodule "uses-allocator"]
+	path = uses-allocator
+	url = git@github.com:phalpern/uses-allocator.git
 [submodule "task_region"]
 	path = task_region
 	url = https://phalpernnh@git01.codeplex.com/goldenrod
