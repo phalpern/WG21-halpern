@@ -1,0 +1,3 @@
+[submodule "task_region"]
+	path = task_region
+	url = https://phalpernnh@git01.codeplex.com/goldenrod
