@@ -1,0 +1,52 @@
+Jacksonville:
+
+   Move P0075 to LEWG
+
+   Remove ordered scatters from P0076, move to LEWG, EWG/Core
+
+   Remove uninitialized_construct_from_tuple, Add an example, move to LWG
+
+   Changes to P0208:
+      * Move `copy_assign` into main part of proposal.  Consider renaming to
+       `copy_swap`.
+      * Alternative for `copy_swap_helper`: `copy_swap_transaction` that makes
+        a copy and calls a lambda.
+      * Add use in `std::experimental::function`
+      * Add example in wording
+
+  CWG 2159
+
+
+
+
+
+
+
+
+
+
+
+To do:
+   Read Howard's paper.  Pay attention to definition of native handles
+     Would like to see a definative list of what C++ compatibility means.
+     Validate the proposal against this list.
+   Write papers for wording for swap, etc.
+   Write paper for wording of shared_ptr aritmetic
+   Write (with Alisdair?) a paper about generic guards in <utility>
+   Rewrite shared-pointer arithmetic proposal for shared_ptr<T[]>, with actual
+     wording, and applying the same concepts to weak_ptr<T[]>
+   Write email to Doug about template <Allocator a> concept_map Deleter<a>
+
+   Keep track of issues that we resolved and feed to howard.
+     LWG 401, 634,258
+
+Allocator wording changes:
+   "object of type T" instead of "T object"
+   "Address of object referenced by x" instead of "Address of by x"
+   "at p from args" instead of "from args at p"
+   Change "reflexive and transitive" to "reflexive, symetric, and transitive"
+
+   Definition of suggest_scoped_allocator: change "item use container's
+   allocator" to "scoped"
+
+   Rename ExtendedXyzConstructible to XyzConstructibleWithAllocator.
