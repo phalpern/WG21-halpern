@@ -1,12 +1,13 @@
 #            Copyright 2009 Pablo Halpern.
 # Distributed under the Boost Software License, Version 1.0.
-#    (See accompanying file LICENSE_1_0.txt or copy at 
+#    (See accompanying file LICENSE_1_0.txt or copy at
 #          http://www.boost.org/LICENSE_1_0.txt)
 
 TESTARGS +=
 
 CXX=g++ -m32 -std=c++0x
 CXXFLAGS=-I. -Wall
+WD := $(shell basename $(PWD))
 
 all : polymorphic_allocator.test uses_allocator_wrapper.test xfunction.test
 
@@ -24,6 +25,12 @@ all : polymorphic_allocator.test uses_allocator_wrapper.test xfunction.test
 
 %.o : %.cpp
 	$(CXX) $(CXXFLAGS) -c -g $<
+
+%.pdf : %.md
+	cd .. && make $(WD)/$@
+
+%.html : %.md
+	cd .. && make $(WD)/$@
 
 clean :
 	rm -f *.t *.o
