@@ -1,6 +1,6 @@
-% D0337r0 | Delete `operator=` for `polymorphic_allocator`
+% P0337r0 | Delete `operator=` for `polymorphic_allocator`
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2016-05-08 | Target audience: LWG & LEWG
+% 2016-05-22 | Target audience: LWG & LEWG
 
 Target
 ======
@@ -81,7 +81,7 @@ A correct implementation is as follows:
 ```
 
 Polymorphic allocators are an important step towards making allocators easier
-to use. For this reason, we should whatever is possible to reduce the
+to use. For this reason, we should do whatever is possible to reduce the
 incidence of errors like the one above. [P0339](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2016/p0339r0.pdf) extends this notion further,
 and proposes `polymorphic_allocator` as a vocabulary type, making non-template
 classes like the one above easier to write.  However, P0339 is targeted for a
@@ -100,5 +100,5 @@ In section 20.11.3 [memory.polymorphic.allocator.class], change the
 declaration of `operator=` to be deleted instead of defaulted, as follows:
 
 > `    polymorphic_allocator&`
-> `      operator=(const polymorphic_allocator& rhs) =` <del>default</del><ins>delete</ins>;
+> `      operator=(const polymorphic_allocator& rhs) =` <del style="color:red">default</del><ins style="color:green">delete</ins>;
 
