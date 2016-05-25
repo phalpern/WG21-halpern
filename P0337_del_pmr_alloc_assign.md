@@ -1,6 +1,6 @@
 % P0337r0 | Delete `operator=` for `polymorphic_allocator`
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2016-05-22 | Target audience: LWG & LEWG
+% 2016-05-25 | Target audience: LWG & LEWG
 
 Target
 ======
@@ -49,9 +49,9 @@ Consider the following:
     };
 ```
 
-Now, let's look at the move constructor.  Even a knowledgeable implementer may
-accidentally forget that the allocator should not be moved, and write the code
-this way:
+Now, let's look at the move-assignment operator.  Even a knowledgeable
+implementer may accidentally forget that the allocator should not be moved,
+and write the code this way:
 
 ```Cpp
     // BUGGY IMPLEMENTATION
