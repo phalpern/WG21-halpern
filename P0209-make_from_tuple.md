@@ -1,9 +1,25 @@
 % P0209r1 | `make_from_tuple`: `apply` for construction
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2016-03-18 | Intended audience: LWG
+% 2016-05-29 | Intended audience: LWG
 
-Background
-==========
+Abstract
+========
+This paper proposes a function template that applies a `tuple` of arguments to
+an object constructor similar to the way `apply` works with non-constructor functions.
+
+The template described in this paper is should be tied to the `apply`
+function, which is currently targeted for C++17.  Therefore, this feature
+should also be targeted for C++17.
+
+Changes from R0
+===============
+ * Removed `uninitialized_construct_from_tuple` as per LEWG review.
+ * Added `constexpr`
+ * Added an example.
+ * Re-based to the March 2016 C++17 working draft
+
+Proposal
+========
 
 Motivation
 ----------
@@ -17,25 +33,25 @@ well suited for constructing objects from a list of arguments stored in a
 tuple.  Doing so would require wrapping the object construction in a lambda or
 other function and passing that function to `apply`, a process that, done
 generically, is more complicated than the implementation of `apply` itself.
-This proposal introduces a function template, `make_from_tuple`, to fill this
-void.
 
-Changes from R0
----------------
- * Removed `uninitialized_construct_from_tuple` as per LEWG review.
- * Added `constexpr`
- * Added an example.
+Summary
+-------
 
-Target
-------
-The template described in this paper is should follow the `apply`
-function, which is currently targeted for C++17.  Therefore, this feature
-should also be targeted for C++17.
+This proposal introduces a function template, `make_from_tuple`, to fill the
+void left by `apply`. The signature for `make_from_tuple` is:
+
+    template <class T, class Tuple>
+      constexpr T make_from_tuple(Tuple&& t);`
+
+It simply explodes it's `tuple` argument into separate arguments, which it
+passes to the constructor for type `T`, returning the newly-constructed
+object. Because of mandatory copy-elision in C++17, the return value is
+effectively constructed in place for the client.
 
 Example
 -------
 `make_from_tuple` can be used to implement the piecewise constructor for
-`std::pair`:
+`std::pair` as follows:
 
     template <class T1, class T2>
     template <class... Args1, class... Args2>
@@ -46,8 +62,12 @@ Example
     {
     }
 
+Scope
+=====
+Pure-library extension
+
 Alternatives considered
------------------------
+=======================
 There has been discussion of making `tuple` functionality more tightly
 integrated into the core language in such a way that these functions would not
 be needed. More recently, a proposed `direct_initialize` facility would allow
@@ -60,12 +80,8 @@ The names are, of course, up for discussion. A name that contains "apply"
 might be preferred, but I could think of no reasonable name that met that
 criterion.  LEWG considered several names and stuck with `make_from_tuple`.
 
-Scope
------
-Pure-library extension
-
 Implementation experience
--------------------------
+=========================
 The facility in this proposal have been fully implemented and tested.  An
 open-source implementation under the Boost license is available at:
 [https://github.com/phalpern/uses-allocator]()
@@ -73,21 +89,18 @@ open-source implementation under the Boost license is available at:
 Formal wording
 ==============
 
-The following changes are relative to the Fundamentals TS version 2 PDTS,
-[N4564](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4564.pdf).
-However, the changes should be applied to the C++17 working draft in the same
-way that other parts of the Library Fundamentals TS are being applied.
+The following changes are relative to the March 2016 C++17 working draft.
+[N4582](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2015/n4582.pdf).
 
-In section 3.2.1 ([header.tuple.synop]), add the following declarations to the
-`<experimental/tuple>` header (within the `std::experimental::fundamentals_v3`
-namespace):
+In section 20.4.1 ([tuple.general]), add the following declarations to the
+`<tuple>` header (within the `std` namespace), immediately after the
+declaration of `apply`:
 
         template <class T, class Tuple>
           constexpr T make_from_tuple(Tuple&& t);
 
-Add a new section after 3.2.2 ([tuple.apply]):
-
-**Constructing an object with a `tuple` of arguments [tuple.make_from]**
+In section 20.4.2.5 ([tuple.apply]), immediately after the description of
+`apply`, add the description for `make_from_tuple`:
 
     template <class T, class Tuple>
       constexpr T make_from_tuple(Tuple&& t);`
@@ -95,8 +108,7 @@ Add a new section after 3.2.2 ([tuple.apply]):
 > _Returns_: Given the exposition-only function
 
             template <class T, class Tuple, size_t... I>
-            constexpr T make_from_tuple_impl(Tuple&& t, index_sequence<I...>)
-            {
+            constexpr T make_from_tuple_impl(Tuple&& t, index_sequence<I...>) { // exposition only
                 return T(get<I>(forward<Tuple>(t))...);
             }
 
