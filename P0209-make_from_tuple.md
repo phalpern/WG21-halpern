@@ -1,15 +1,21 @@
-% P0209r1 | `make_from_tuple`: `apply` for construction
+% P0209r2 | `make_from_tuple`: `apply` for construction
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2016-05-29 | Intended audience: LWG
+% 2016-6-23 | Intended audience: LWG
 
 Abstract
 ========
 This paper proposes a function template that applies a `tuple` of arguments to
-an object constructor similar to the way `apply` works with non-constructor functions.
+an object constructor similar to the way `apply` works with non-constructor
+functions.
 
 The template described in this paper is should be tied to the `apply`
 function, which is currently targeted for C++17.  Therefore, this feature
 should also be targeted for C++17.
+
+Changes from R1 (from LWG review)
+=================================
+ * Added missing `std::` on `forward`
+ * Fixed typos
 
 Changes from R0
 ===============
@@ -41,7 +47,7 @@ This proposal introduces a function template, `make_from_tuple`, to fill the
 void left by `apply`. The signature for `make_from_tuple` is:
 
     template <class T, class Tuple>
-      constexpr T make_from_tuple(Tuple&& t);`
+      constexpr T make_from_tuple(Tuple&& t);
 
 It simply explodes it's `tuple` argument into separate arguments, which it
 passes to the constructor for type `T`, returning the newly-constructed
@@ -105,14 +111,14 @@ In section 20.4.2.5 ([tuple.apply]), immediately after the description of
     template <class T, class Tuple>
       constexpr T make_from_tuple(Tuple&& t);`
 
-> _Returns_: Given the exposition-only function
+> _Returns_: Given the exposition-only function:
 
             template <class T, class Tuple, size_t... I>
-            constexpr T make_from_tuple_impl(Tuple&& t, index_sequence<I...>) { // exposition only
-                return T(get<I>(forward<Tuple>(t))...);
+            constexpr T make_from_tuple_impl(Tuple&& t, index_sequence<I...>) {
+                return T(get<I>(std::forward<Tuple>(t))...);
             }
 
-> Equivalent to
+> Equivalent to:
 
             make_from_tuple_impl<T>(forward<Tuple>(t),
                                     make_index_sequence<tuple_size_v<decay_t<Tuple>>>())
