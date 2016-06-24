@@ -109,7 +109,7 @@ In section 20.4.2.5 ([tuple.apply]), immediately after the description of
 `apply`, add the description for `make_from_tuple`:
 
     template <class T, class Tuple>
-      constexpr T make_from_tuple(Tuple&& t);`
+      constexpr T make_from_tuple(Tuple&& t);
 
 > _Returns_: Given the exposition-only function:
 
