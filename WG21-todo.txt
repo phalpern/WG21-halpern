@@ -1,0 +1,102 @@
+Issaquah:
+
+* Work with Peter & Lawrence on sync_stream: should be based on streambuf, not
+  on ostream. Consider bringing back move constructor (if other streams have
+  it).
+* Make sure that all vector papers and task_block are in good shape.
+* Try to advance context tokens
+
+Oulu:
+
+* Work with Peter & Lawrence on sync_stream: should be based on streambuf, not
+  on ostream. Rename `get` and/or bring back copy constructor. Consider
+  bringing back move constructor (if other streams have it).
+X Send update of P0076 (with policy-name changes) for post-meeting mailing
+* Push for implementation of parallelism concepts at Intel
+   * task_block
+   * resumable functions
+   * support for range-based 'for' w/ '#pragma OMP parallel for'
+X Fix polymorphic_allocator<void> to either use none_t or fix 'void'. See if
+  'void' is consistent with paper to make 'void' more concrete.
+* Review executor work. What dimensions should executor encompass? What should
+  be the concept interface between algorithms and executors? Between
+  task_block and executor?
+   * Design an "embedded language" to describe the needs of the computation
+     and get an appropriate executor.
+   * Progress guarantees?
+   * Ordering?
+   * TLS?
+   * Where are we running?
+   * Default allocator for an execution context?  Multiple allocators?
+     Get an executor from the allocator (i.e., to retain locality)?
+   * Make a motion that we adopt
+X NB comments (Due Sep 14, 2016, 12 noon EST):
+   * shorten "Block with forward progress guarantee delegation" to
+     "block with progress delegation"
+   * 20.19.4 (ed) change "Sequential" to "Sequenced"
+   * 20.19.6 (ed) change "Parallel+Vector" to "Parallel+Unsequenced" and
+     "[execpol.vec] to [execpol.par_unseq]"
+   * Add ExecutionPolicy overloads to sections 25.3, 25.4, and 25.5, rather
+     than relying exclusively on the blanket statement in 25.3.  Better yet,
+     reorganize to put parallel algorithms *after* regular algorithms, and
+     ExecutionPolicy overloads that have special semantics separately.
+   * (Ed) Section 25.2.3 (Effect of execution policies) needs a
+     cross-reference to section 20.19 (Execution policies)
+   * Split definition of INVOKE to INVOKE and INVOKE_R.  Change definition of
+     is_callable to is_callable and is_callable_r.  Mention that abuse of
+     function declarator is the problem and that we should fix in future
+     standard.
+
+
+Jacksonville:
+
+X Make sure issue is filed to remove allocators from `function`. Present paper
+  for resolution?
+X Paper to change `function` in LFTS to use `polymorphic_allocator` instead of
+  type-erasure for allocators, including in `function`.
+X Update to P0075 for_loop
+X Update to P0076 vec policy
+X Update to P0209 make_from_tuple
+X Propose alternative names for `seq`, `unseq`, and `par_vec` for SG1/LEWG/LWG.
+
+   Move P0075 to LEWG
+
+   Remove ordered scatters from P0076, move to LEWG, EWG/Core
+
+   P0209 Remove uninitialized_construct_from_tuple, Add an example, move to LWG
+
+   Changes to P0208:
+      * Move `copy_assign` into main part of proposal.  Consider renaming to
+       `copy_swap`.
+      * Alternative for `copy_swap_helper`: `copy_swap_transaction` that makes
+        a copy and calls a lambda.
+      * Add use in `std::experimental::function`
+      * Add example in wording
+
+  CWG 2159
+
+
+To do:
+   Read Howard's paper.  Pay attention to definition of native handles
+     Would like to see a definative list of what C++ compatibility means.
+     Validate the proposal against this list.
+   Write papers for wording for swap, etc.
+   Write paper for wording of shared_ptr aritmetic
+   Write (with Alisdair?) a paper about generic guards in <utility>
+   Rewrite shared-pointer arithmetic proposal for shared_ptr<T[]>, with actual
+     wording, and applying the same concepts to weak_ptr<T[]>
+   Write email to Doug about template <Allocator a> concept_map Deleter<a>
+
+   Keep track of issues that we resolved and feed to howard.
+     LWG 401, 634,258
+
+Allocator wording changes:
+   "object of type T" instead of "T object"
+   "Address of object referenced by x" instead of "Address of by x"
+   "at p from args" instead of "from args at p"
+   Change "reflexive and transitive" to "reflexive, symetric, and transitive"
+
+   Definition of suggest_scoped_allocator: change "item use container's
+   allocator" to "scoped"
+
+   Rename ExtendedXyzConstructible to XyzConstructibleWithAllocator.
