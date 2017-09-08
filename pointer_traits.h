@@ -2,7 +2,7 @@
  *
  *            Copyright 2009 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
- *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *    (See accompanying file LICENSE_1_0.txt or copy at
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
@@ -33,10 +33,10 @@ namespace __details {
     template <typename _Ptr, typename _Tp>
     struct __ptr_has_rebind {
 
-        template <typename _X>
-        static char test(int, typename _X::template _REBIND(_Tp)*);
+        template <typename _Xt>
+        static char test(int, typename _Xt::template _REBIND(_Tp)*);
 
-        template <typename _X>
+        template <typename _Xt>
         static int test(_LowPriorityConversion<int>, void*);
 
         static const bool value = (1 == sizeof(test<_Ptr>(0, 0)));
@@ -44,11 +44,11 @@ namespace __details {
 
     // Implementation of pointer_traits<_Ptr>::rebind if _Ptr has
     // its own rebind template.
-    template <typename _Ptr, typename _U,
-              bool _HasRebind = __ptr_has_rebind<_Ptr,_U>::value >
+    template <typename _Ptr, typename _Ut,
+              bool _HasRebind = __ptr_has_rebind<_Ptr,_Ut>::value >
     struct __ptr_rebinder
     {
-        typedef typename _Ptr::template _REBIND(_U) other;
+        typedef typename _Ptr::template _REBIND(_Ut) other;
     };
 
     // Specialization of pointer_traits<_Ptr>::rebind if _Ptr does not
@@ -57,30 +57,30 @@ namespace __details {
     // Many pointers fit this form, hence many pointers will get a
     // reasonable default for rebind.
     template <template <class, class...> class _Ptr, typename _Tp, class... _Tn,
-              class _U>
-    struct __ptr_rebinder<_Ptr<_Tp, _Tn...>,_U,false>
+              class _Ut>
+    struct __ptr_rebinder<_Ptr<_Tp, _Tn...>,_Ut,false>
     {
-        typedef _Ptr<_U, _Tn...> other;
+        typedef _Ptr<_Ut, _Tn...> other;
     };
 
     _DEFAULT_TYPE_TMPLT(element_type);
     _DEFAULT_TYPE_TMPLT(difference_type);
 
-    template <typename _U, typename _PtrU, typename _PtrT> inline
+    template <typename _Ut, typename _PtrU, typename _PtrT> inline
     auto static_ptr_cast_imp(const _PtrT& p, int) noexcept ->
-        decltype(p.template static_pointer_cast<_U>())
+        decltype(p.template static_pointer_cast<_Ut>())
     {
-        return p.template static_pointer_cast<_U>();
+        return p.template static_pointer_cast<_Ut>();
     }
 
-    template <typename _U, typename _PtrU, typename _PtrT> inline
+    template <typename _Ut, typename _PtrU, typename _PtrT> inline
     auto static_ptr_cast_imp(const _PtrT& p,
                              _LowPriorityConversion<int>) noexcept ->
         decltype(static_cast<_PtrU>(p))
     {
         return static_cast<_PtrU>(p);
     }
-    
+
 } // end namespace __details
 
 template <typename _Ptr>
@@ -93,11 +93,11 @@ struct pointer_traits
     typedef _DEFAULT_TYPE(_Ptr,difference_type,std::ptrdiff_t) difference_type;
 
 #ifdef TEMPLATE_ALIASES
-    template <class _U> using rebind =
-        typename __details::__ptr_rebinder<_Ptr,_U>::other;
+    template <class _Ut> using rebind =
+        typename __details::__ptr_rebinder<_Ptr,_Ut>::other;
 #else
-    template <class _U> struct rebind {
-        typedef typename __details::__ptr_rebinder<_Ptr,_U>::other other;
+    template <class _Ut> struct rebind {
+        typedef typename __details::__ptr_rebinder<_Ptr,_Ut>::other other;
     };
 #endif
 
@@ -105,24 +105,24 @@ struct pointer_traits
     pointer pointer_to(typename __details::__unvoid<element_type>::type& r)
         { return _Ptr::pointer_to(r); }
 
-    template <typename _U>
-    static typename _REBIND(_U) static_pointer_cast(const _Ptr& p) noexcept {
-        (void) sizeof(static_cast<_U*>(declval<element_type*>()));
-        typedef typename _REBIND(_U) _PtrU;
-        return __details::static_ptr_cast_imp<_U, _PtrU>(p, 0);
+    template <typename _Ut>
+    static typename _REBIND(_Ut) static_pointer_cast(const _Ptr& p) noexcept {
+        (void) sizeof(static_cast<_Ut*>(declval<element_type*>()));
+        typedef typename _REBIND(_Ut) _PtrU;
+        return __details::static_ptr_cast_imp<_Ut, _PtrU>(p, 0);
     }
 
-    template <typename _U>
-    static typename _REBIND(_U) const_pointer_cast(const _Ptr& p) noexcept {
-        (void) sizeof(const_cast<_U*>(declval<element_type*>()));
-        // typedef typename _REBIND(_U) _PtrU;
-        // return __details::const_ptr_cast_imp<_U, _PtrU>(p, 0);
-        return p.template const_pointer_cast<_U>();
+    template <typename _Ut>
+    static typename _REBIND(_Ut) const_pointer_cast(const _Ptr& p) noexcept {
+        (void) sizeof(const_cast<_Ut*>(declval<element_type*>()));
+        // typedef typename _REBIND(_Ut) _PtrU;
+        // return __details::const_ptr_cast_imp<_Ut, _PtrU>(p, 0);
+        return p.template const_pointer_cast<_Ut>();
     }
 
-    template <typename _U>
-    static typename _REBIND(_U) dynamic_pointer_cast(const _Ptr& p) noexcept {
-        return p.template dynamic_pointer_cast<_U>();
+    template <typename _Ut>
+    static typename _REBIND(_Ut) dynamic_pointer_cast(const _Ptr& p) noexcept {
+        return p.template dynamic_pointer_cast<_Ut>();
     }
 };
 
@@ -146,10 +146,10 @@ struct pointer_traits<_Tp*>
     typedef std::ptrdiff_t difference_type;
 
 #ifdef TEMPLATE_ALIASES
-    template <class _U> using rebind = _U*;
+    template <class _Ut> using rebind = _Ut*;
 #else
-    template <class _U> struct rebind {
-        typedef _U* other;
+    template <class _Ut> struct rebind {
+        typedef _Ut* other;
     };
 #endif
 
@@ -157,15 +157,15 @@ struct pointer_traits<_Tp*>
     pointer pointer_to(typename __details::__unvoid<element_type>::type& r)
         { return xstd::addressof(r); }
 
-    template <typename _U>
-    static _U* static_pointer_cast(_Tp* p) noexcept
-        { return static_cast<_U*>(p); }
-    template <typename _U>
-    static _U* const_pointer_cast(_Tp* p) noexcept
-        { return const_cast<_U*>(p); }
-    template <typename _U>
-    static _U* dynamic_pointer_cast(_Tp* p) noexcept
-        { return dynamic_cast<_U*>(p); }
+    template <typename _Ut>
+    static _Ut* static_pointer_cast(_Tp* p) noexcept
+        { return static_cast<_Ut*>(p); }
+    template <typename _Ut>
+    static _Ut* const_pointer_cast(_Tp* p) noexcept
+        { return const_cast<_Ut*>(p); }
+    template <typename _Ut>
+    static _Ut* dynamic_pointer_cast(_Tp* p) noexcept
+        { return dynamic_cast<_Ut*>(p); }
 };
 
 //#define _PT(_Ptr) pointer_traits<typename std::remove_cv<typename std::remove_reference<_Ptr>::type>::type>
@@ -173,25 +173,25 @@ struct pointer_traits<_Tp*>
 //#define _PT(_Ptr) pointer_traits<_Ptr>
 #define _PT(_Ptr) pointer_traits<typename std::decay<_Ptr>::type>
 
-template <typename _U, typename _Ptr> inline
+template <typename _Ut, typename _Ptr> inline
 auto static_pointer_cast(_Ptr&& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U) 
+    typename _PT(_Ptr)::template _REBIND(_Ut)
 {
-    return _PT(_Ptr)::template static_pointer_cast<_U>(std::forward<_Ptr>(p));
+    return _PT(_Ptr)::template static_pointer_cast<_Ut>(std::forward<_Ptr>(p));
 }
 
-template <typename _U, typename _Ptr> inline
+template <typename _Ut, typename _Ptr> inline
 auto const_pointer_cast(_Ptr&& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U) 
+    typename _PT(_Ptr)::template _REBIND(_Ut)
 {
-    return _PT(_Ptr)::template const_pointer_cast<_U>(std::forward<_Ptr>(p));
+    return _PT(_Ptr)::template const_pointer_cast<_Ut>(std::forward<_Ptr>(p));
 }
 
-template <typename _U, typename _Ptr> inline
+template <typename _Ut, typename _Ptr> inline
 auto dynamic_pointer_cast(_Ptr&& p) noexcept ->
-    typename _PT(_Ptr)::template _REBIND(_U) 
+    typename _PT(_Ptr)::template _REBIND(_Ut)
 {
-    return _PT(_Ptr)::template dynamic_pointer_cast<_U>(std::forward<_Ptr>(p));
+    return _PT(_Ptr)::template dynamic_pointer_cast<_Ut>(std::forward<_Ptr>(p));
 }
 
 END_NAMESPACE_XSTD

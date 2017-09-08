@@ -64,10 +64,10 @@ struct __uses_allocator_imp
 template <typename _Alloc, typename _Tp>
 struct __alloc_has_rebind {
 
-    template <typename _X>
-    static char test(int, typename _X::template rebind<_Tp>::other*);
+    template <typename _Xt>
+    static char test(int, typename _Xt::template rebind<_Tp>::other*);
 
-    template <typename _X>
+    template <typename _Xt>
     static int test(_LowPriorityConversion<int>, void*);
 
     static const bool value = (1 == sizeof(test<_Alloc>(0, 0)));
@@ -75,11 +75,11 @@ struct __alloc_has_rebind {
 
 // Implementation of allocator_traits<_Alloc>::rebind if _Alloc has
 // its own rebind template.
-template <typename _Alloc, typename _U,
-          bool _HasRebind = __alloc_has_rebind<_Alloc,_U>::value >
+template <typename _Alloc, typename _Ut,
+          bool _HasRebind = __alloc_has_rebind<_Alloc,_Ut>::value >
 struct __alloc_rebinder
 {
-    typedef typename _Alloc::template rebind<_U>::other other;
+    typedef typename _Alloc::template rebind<_Ut>::other other;
 };
 
 // Specialization of allocator_traits<_Alloc>::rebind if _Alloc does not
@@ -88,10 +88,10 @@ struct __alloc_rebinder
 // fit this form, hence most allocators will get a reasonable default for
 // rebind.
 template <template <class, class...> class _Alloc, typename _Tp, class... _Tn,
-          class _U>
-struct __alloc_rebinder<_Alloc<_Tp, _Tn...>,_U,false>
+          class _Ut>
+struct __alloc_rebinder<_Alloc<_Tp, _Tn...>,_Ut,false>
 {
-    typedef _Alloc<_U, _Tn...> other;
+    typedef _Alloc<_Ut, _Tn...> other;
 };
 
 _DEFAULT_TYPE_TMPLT(pointer);

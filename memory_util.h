@@ -2,7 +2,7 @@
  *
  *            Copyright 2009 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
- *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *    (See accompanying file LICENSE_1_0.txt or copy at
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
@@ -52,10 +52,10 @@ struct _LowPriorityConversion
     template <typename _Tp, typename _Default>                                \
     struct __default_type_ ## tname {                                         \
                                                                               \
-        template <typename _X>                                                \
-        static char test(int, typename _X::tname*);                           \
+        template <typename _Xt>                                               \
+        static char test(int, typename _Xt::tname*);                          \
                                                                               \
-        template <typename _X>                                                \
+        template <typename _Xt>                                               \
         static int test(_LowPriorityConversion<int>, void*);                  \
                                                                               \
         struct _DefaultWrap { typedef _Default tname; };                      \
