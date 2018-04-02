@@ -23,7 +23,11 @@ using namespace std;
 
 typedef double max_align_t;
 
-namespace polyalloc {
+#if __cplusplus < 201703L
+enum byte : unsigned char { };
+#endif
+
+namespace pmr {
 
 // Abstract base class for allocator resources.
 class memory_resource
@@ -103,8 +107,8 @@ class resource_adaptor_imp : public memory_resource
 template <class Allocator>
 using resource_adaptor = resource_adaptor_imp<
     allocator_traits<Allocator>::rebind_alloc<char>>;
-#define POLYALLOC_RESOURCE_ADAPTOR(Alloc) \
-    XSTD::polyalloc::resource_adaptor<Alloc >
+#define PMR_RESOURCE_ADAPTOR(Alloc) \
+    XSTD::pmr::resource_adaptor<Alloc >
 #else
 template <class Allocator>
 struct resource_adaptor_mf
@@ -112,13 +116,13 @@ struct resource_adaptor_mf
     typedef resource_adaptor_imp<typename
         allocator_traits<Allocator>::template rebind_alloc<char>::_Base > type;
 };
-#define POLYALLOC_RESOURCE_ADAPTOR(Alloc) \
-    typename XSTD::polyalloc::resource_adaptor_mf<Alloc >::type
+#define PMR_RESOURCE_ADAPTOR(Alloc) \
+    typename XSTD::pmr::resource_adaptor_mf<Alloc >::type
 #endif
 
 // An allocator resource that uses '::operator new' and '::operator delete' to
 // manage memory is created by adapting 'std::allocator':
-typedef POLYALLOC_RESOURCE_ADAPTOR(std::allocator<char>) new_delete_resource;
+typedef PMR_RESOURCE_ADAPTOR(std::allocator<char>) new_delete_resource;
 
 // Return a pointer to a global instance of 'new_delete_resource'.
 new_delete_resource *new_delete_resource_singleton();
@@ -130,7 +134,7 @@ memory_resource *get_default_resource();
 memory_resource *set_default_resource(memory_resource *r);
 
 // STL allocator that holds a pointer to a polymorphic allocator resource.
-template <class Tp>
+template <class Tp = byte>
 class polymorphic_allocator
 {
     memory_resource* m_resource;
@@ -151,6 +155,21 @@ class polymorphic_allocator
 
     Tp *allocate(size_t n);
     void deallocate(Tp *p, size_t n);
+
+    void* allocate_bytes(size_t nbytes,
+                         size_t alignment = alignof(max_align_t));
+    void deallocate_bytes(void* p, size_t nbytes,
+                          size_t alignment = alignof(max_align_t));
+
+    template <class T>
+      T* allocate_object(size_t n = 1);
+    template <class T>
+      void deallocate_object(T* p, size_t n = 1);
+
+    template <class T, class... CtorArgs>
+      T* new_object(CtorArgs&&... ctor_args);
+    template <class T>
+      void delete_object(T* p);
 
     template <typename T, typename... Args>
       void construct(T* p, Args&&... args);
@@ -205,50 +224,50 @@ public:
     ~calc_alignment();
 };
 
-#define alignof(T) \
-    (sizeof(XSTD::polyalloc::__details::calc_alignment<T>) - sizeof(T))
+// #define alignof(T) \
+//     (sizeof(XSTD::pmr::__details::calc_alignment<T>) - sizeof(T))
 
 } // end namespace __details
-    
-} // end namespace polyalloc
+
+} // end namespace pmr
 
 ///////////////////////////////////////////////////////////////////////////////
 // INLINE AND TEMPLATE FUNCTION IMPLEMENTATIONS
 ///////////////////////////////////////////////////////////////////////////////
 
 inline
-polyalloc::memory_resource::~memory_resource()
+pmr::memory_resource::~memory_resource()
 {
 }
 
 inline
-polyalloc::memory_resource *
-polyalloc::get_default_resource()
+pmr::memory_resource *
+pmr::get_default_resource()
 {
     memory_resource *ret =
-        polyalloc::memory_resource::s_default_resource.load();
+        pmr::memory_resource::s_default_resource.load();
     if (nullptr == ret)
         ret = new_delete_resource_singleton();
     return ret;
 }
 
 inline
-polyalloc::memory_resource *
-polyalloc::set_default_resource(polyalloc::memory_resource *r)
+pmr::memory_resource *
+pmr::set_default_resource(pmr::memory_resource *r)
 {
     if (nullptr == r)
         r = new_delete_resource_singleton();
 
     // TBD, should use an atomic swap
-    polyalloc::memory_resource *prev = get_default_resource();
-    polyalloc::memory_resource::s_default_resource.store(r);
+    pmr::memory_resource *prev = get_default_resource();
+    pmr::memory_resource::s_default_resource.store(r);
     return prev;
 }
 
 template <class Allocator>
     template <class Allocator2>
 inline
-polyalloc::resource_adaptor_imp<Allocator>::resource_adaptor_imp(
+pmr::resource_adaptor_imp<Allocator>::resource_adaptor_imp(
     Allocator2&& a2, typename
     enable_if<is_convertible<Allocator2, Allocator>::value, int>::type)
     : m_alloc(forward<Allocator2>(a2))
@@ -257,11 +276,11 @@ polyalloc::resource_adaptor_imp<Allocator>::resource_adaptor_imp(
 
 template <class Allocator>
 template <size_t Align>
-void *polyalloc::resource_adaptor_imp<Allocator>::do_allocate(size_t bytes)
+void *pmr::resource_adaptor_imp<Allocator>::do_allocate(size_t bytes)
 {
     typedef __details::aligned_chunk<Align> chunk;
     size_t chunks = (bytes + Align - 1) / Align;
-    
+
     typedef  typename allocator_traits<Allocator>::
         template rebind_traits<chunk> chunk_traits;
     typename chunk_traits::allocator_type rebound(m_alloc);
@@ -270,12 +289,12 @@ void *polyalloc::resource_adaptor_imp<Allocator>::do_allocate(size_t bytes)
 
 template <class Allocator>
 template <size_t Align>
-void polyalloc::resource_adaptor_imp<Allocator>::do_deallocate(void   *p,
+void pmr::resource_adaptor_imp<Allocator>::do_deallocate(void   *p,
                                                                size_t  bytes)
 {
     typedef __details::aligned_chunk<Align> chunk;
     size_t chunks = (bytes + Align - 1) / Align;
-    
+
     typedef  typename allocator_traits<Allocator>::
         template rebind_traits<chunk> chunk_traits;
     typename chunk_traits::allocator_type rebound(m_alloc);
@@ -283,7 +302,7 @@ void polyalloc::resource_adaptor_imp<Allocator>::do_deallocate(void   *p,
 }
 
 template <class Allocator>
-void *polyalloc::resource_adaptor_imp<Allocator>::allocate(size_t bytes,
+void *pmr::resource_adaptor_imp<Allocator>::allocate(size_t bytes,
                                                            size_t alignment)
 {
     static const size_t max_natural_alignment = sizeof(max_align_t);
@@ -309,7 +328,7 @@ void *polyalloc::resource_adaptor_imp<Allocator>::allocate(size_t bytes,
           void *original = do_allocate<64>(chunkbytes);
 
           // Make room for original pointer storage
-          char *p  = static_cast<char*>(original) + sizeof(void*);  
+          char *p  = static_cast<char*>(original) + sizeof(void*);
 
           // Round up to nearest alignment boundary
           p += alignment - 1;
@@ -324,7 +343,7 @@ void *polyalloc::resource_adaptor_imp<Allocator>::allocate(size_t bytes,
 }
 
 template <class Allocator>
-void polyalloc::resource_adaptor_imp<Allocator>::deallocate(void   *p,
+void pmr::resource_adaptor_imp<Allocator>::deallocate(void   *p,
                                                             size_t  bytes,
                                                             size_t  alignment)
 {
@@ -349,14 +368,14 @@ void polyalloc::resource_adaptor_imp<Allocator>::deallocate(void   *p,
           size_t chunks = (bytes + sizeof(void*) + alignment - 1) / 64;
           size_t chunkbytes = chunks * 64;
           void *original = reinterpret_cast<void**>(p)[-1];
-          
+
           do_deallocate<64>(original, chunkbytes);
       }
     }
 }
 
 template <class Allocator>
-bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
+bool pmr::resource_adaptor_imp<Allocator>::is_equal(
     const memory_resource& other) const
 {
     const resource_adaptor_imp *other_p =
@@ -367,19 +386,19 @@ bool polyalloc::resource_adaptor_imp<Allocator>::is_equal(
     else
         return false;
 }
-                                                 
-                                                                
+
+
 template <class Tp>
 inline
-polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator()
+pmr::polymorphic_allocator<Tp>::polymorphic_allocator()
     : m_resource(get_default_resource())
 {
 }
 
 template <class Tp>
 inline
-polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
-    polyalloc::memory_resource *r)
+pmr::polymorphic_allocator<Tp>::polymorphic_allocator(
+    pmr::memory_resource *r)
     : m_resource(r ? r : get_default_resource())
 {
 }
@@ -387,29 +406,78 @@ polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
 template <class Tp>
     template <class U>
 inline
-polyalloc::polymorphic_allocator<Tp>::polymorphic_allocator(
-    const polyalloc::polymorphic_allocator<U>& other)
+pmr::polymorphic_allocator<Tp>::polymorphic_allocator(
+    const pmr::polymorphic_allocator<U>& other)
     : m_resource(other.resource())
 {
 }
 
 template <class Tp>
 inline
-Tp *polyalloc::polymorphic_allocator<Tp>::allocate(size_t n)
+Tp *pmr::polymorphic_allocator<Tp>::allocate(size_t n)
 {
     return static_cast<Tp*>(m_resource->allocate(n * sizeof(Tp), alignof(Tp)));
 }
 
 template <class Tp>
 inline
-void polyalloc::polymorphic_allocator<Tp>::deallocate(Tp *p, size_t n)
+void pmr::polymorphic_allocator<Tp>::deallocate(Tp *p, size_t n)
 {
     m_resource->deallocate(p, n * sizeof(Tp), alignof(Tp));
 }
 
+template <class Tp> inline
+void* pmr::polymorphic_allocator<Tp>::allocate_bytes(size_t nbytes,
+                                                     size_t alignment)
+{
+    return m_resource->allocate(nbytes, alignment);
+}
+
+template <class Tp> inline
+void pmr::polymorphic_allocator<Tp>::deallocate_bytes(void* p, size_t nbytes,
+                                                      size_t alignment)
+{
+    m_resource->deallocate(p, nbytes, alignment);
+}
+
+template <class Tp>
+template <class T> inline
+T* pmr::polymorphic_allocator<Tp>::allocate_object(size_t n)
+{
+    return static_cast<T*>(allocate_bytes(n * sizeof(T), alignof(T)));
+}
+
+template <class Tp>
+template <class T> inline
+  void pmr::polymorphic_allocator<Tp>::deallocate_object(T* p, size_t n)
+{
+    deallocate_bytes(p, n * sizeof(T), alignof(T));
+}
+
+template <class Tp>
+template <class T, class... CtorArgs>
+T* pmr::polymorphic_allocator<Tp>::new_object(CtorArgs&&... ctor_args)
+{
+    void* p = allocate_object<T>();
+    try {
+        construct(p, std::forward<CtorArgs>(ctor_args)...);
+    } catch (...) {
+        m_resource->deallocate(p, sizeof(T), alignof(T));
+        throw;
+    }
+}
+
+template <class Tp>
+template <class T>
+void pmr::polymorphic_allocator<Tp>::delete_object(T* p)
+{
+    destroy(p);
+    deallocate_object(p);
+}
+
 template <class Tp>
 template <typename T, typename... Args>
-void polyalloc::polymorphic_allocator<Tp>::construct(T* p, Args&&... args)
+void pmr::polymorphic_allocator<Tp>::construct(T* p, Args&&... args)
 {
     using XSTD::uses_allocator_construction_wrapper;
     typedef uses_allocator_construction_wrapper<T> Wrapper;
@@ -419,7 +487,7 @@ void polyalloc::polymorphic_allocator<Tp>::construct(T* p, Args&&... args)
 // Specializations to pass inner_allocator to pair::first and pair::second
 template <class Tp>
 template <class T1, class T2>
-void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p)
+void pmr::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p)
 {
     // TBD: Should really use piecewise construction here
     construct(addressof(p->first));
@@ -434,7 +502,7 @@ void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p)
 
 template <class Tp>
 template <class T1, class T2, class U, class V>
-void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+void pmr::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
                                                      U&& x, V&& y)
 {
     // TBD: Should really use piecewise construction here
@@ -450,7 +518,7 @@ void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
 
 template <class Tp>
 template <class T1, class T2, class U, class V>
-void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+void pmr::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
                                                      const std::pair<U, V>& pr)
 {
     // TBD: Should really use piecewise construction here
@@ -466,7 +534,7 @@ void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
 
 template <class Tp>
 template <class T1, class T2, class U, class V>
-void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
+void pmr::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
                                                      std::pair<U, V>&& pr)
 {
     // TBD: Should really use piecewise construction here
@@ -482,32 +550,32 @@ void polyalloc::polymorphic_allocator<Tp>::construct(std::pair<T1,T2>* p,
 
 template <class Tp>
 template <typename T>
-void polyalloc::polymorphic_allocator<Tp>::destroy(T* p)
+void pmr::polymorphic_allocator<Tp>::destroy(T* p)
 {
     p->~T();
 }
 
 template <class Tp>
 inline
-polyalloc::polymorphic_allocator<Tp>
-polyalloc::polymorphic_allocator<Tp>::select_on_container_copy_construction()
+pmr::polymorphic_allocator<Tp>
+pmr::polymorphic_allocator<Tp>::select_on_container_copy_construction()
     const
 {
-    return polyalloc::polymorphic_allocator<Tp>();
+    return pmr::polymorphic_allocator<Tp>();
 }
 
 template <class Tp>
 inline
-polyalloc::memory_resource *
-polyalloc::polymorphic_allocator<Tp>::resource() const
+pmr::memory_resource *
+pmr::polymorphic_allocator<Tp>::resource() const
 {
     return m_resource;
 }
 
 template <class T1, class T2>
 inline
-bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
-                           const polyalloc::polymorphic_allocator<T2>& b)
+bool pmr::operator==(const pmr::polymorphic_allocator<T1>& a,
+                           const pmr::polymorphic_allocator<T2>& b)
 {
     // 'operator==' for 'memory_resource' first checks for equality of
     // addresses and calls 'is_equal' only if the addresses differ.  The call
@@ -520,8 +588,8 @@ bool polyalloc::operator==(const polyalloc::polymorphic_allocator<T1>& a,
 
 template <class T1, class T2>
 inline
-bool polyalloc::operator!=(const polyalloc::polymorphic_allocator<T1>& a,
-                           const polyalloc::polymorphic_allocator<T2>& b)
+bool pmr::operator!=(const pmr::polymorphic_allocator<T1>& a,
+                           const pmr::polymorphic_allocator<T2>& b)
 {
     return *a.resource() != *b.resource();
 }

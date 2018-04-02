@@ -6,9 +6,9 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
-#include <xstd.h>
 #include <cstddef>
 #include <memory>
+#include <xstd.h>
 
 #ifndef INCLUDED_MEMORY_UTIL_DOT_H
 #define INCLUDED_MEMORY_UTIL_DOT_H

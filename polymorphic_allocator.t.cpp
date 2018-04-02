@@ -2,7 +2,7 @@
  *
  *            Copyright 2009 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
- *    (See accompanying file LICENSE_1_0.txt or copy at 
+ *    (See accompanying file LICENSE_1_0.txt or copy at
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
@@ -12,6 +12,13 @@
 #include <cstdlib>
 #include <climits>
 #include <cstring>
+
+BEGIN_NAMESPACE_XSTD
+namespace pmr {
+    using string = basic_string<char, char_traits<char>,
+                                polymorphic_allocator<char>>;
+}
+END_NAMESPACE_XSTD
 
 //==========================================================================
 //                  ASSERT TEST MACRO
@@ -82,8 +89,6 @@ enum { VERBOSE_ARG_NUM = 2, VERY_VERBOSE_ARG_NUM, VERY_VERY_VERBOSE_ARG_NUM };
 //=============================================================================
 //                  GLOBAL HELPER FUNCTIONS FOR TESTING
 //-----------------------------------------------------------------------------
-static inline int min(int a, int b) { return a < b ? a : b; }
-    // Return the minimum of the specified 'a' and 'b' arguments.
 
 //=============================================================================
 //                  CLASSES FOR TESTING USAGE EXAMPLES
@@ -183,12 +188,12 @@ void* operator new(std::size_t nbytes)
     return countedAllocate(nbytes, &newDeleteCounters);
 }
 
-void operator delete(void *p)
+void operator delete(void *p) noexcept
 {
     countedDeallocate(p, &newDeleteCounters);
 }
 
-class TestResource : public XSTD::polyalloc::memory_resource
+class TestResource : public XSTD::pmr::memory_resource
 {
     AllocCounters m_counters;
 
@@ -280,8 +285,8 @@ int func(const char* s)
 struct UniqDummyType { void zzzzz(UniqDummyType, bool) { } };
 typedef void (UniqDummyType::*UniqPointerType)(UniqDummyType);
 
-typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
-const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
+// typedef void (UniqDummyType::*ConvertibleToBoolType)(UniqDummyType, bool);
+// const ConvertibleToBoolType ConvertibleToTrue = &UniqDummyType::zzzzz;
 
 template <typename _Tp> struct unvoid { typedef _Tp type; };
 template <> struct unvoid<void> { struct type { }; };
@@ -297,7 +302,7 @@ class SimpleString
 
 public:
     typedef Alloc allocator_type;
-    
+
     SimpleString(const Alloc& a = Alloc()) : alloc_(a), data_(nullptr) { }
     SimpleString(const char* s, const Alloc& a = Alloc())
         : alloc_(a), data_(nullptr) { assign(s); }
@@ -350,7 +355,7 @@ public:
     void clear() {
         if (data_)
             AllocTraits::deallocate(alloc_, data_, std::strlen(&*data_) + 1);
-    }        
+    }
 
     void assign(const char* s) {
         clear();
@@ -553,11 +558,119 @@ void SimpleVector<Tp, Alloc>::pop_back()
 }
 
 // Force instantiation of whole classes
-template class XSTD::polyalloc::polymorphic_allocator<double>;
+template class XSTD::pmr::polymorphic_allocator<double>;
 template class SimpleVector<double,
-                            XSTD::polyalloc::polymorphic_allocator<double> >;
+                            XSTD::pmr::polymorphic_allocator<double> >;
 template class SimpleAllocator<double>;
 template class SimpleVector<double, SimpleAllocator<double> >;
+
+// List of strings using allocator template parameter.
+template <class Alloc = std::allocator<std::string>>
+class StringList1
+{
+    using alloc_traits = std::allocator_traits<Alloc>;
+
+public:
+    using allocator_type = Alloc;
+    using value_type =
+        std::basic_string<char, std::char_traits<char>,
+                          typename alloc_traits::template rebind_alloc<char>>;
+
+    // It is easy to get the allocator's value_type type wrong!  Better check.
+    static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
+                  "Alloc::value_type is not correct string type");
+
+private:
+    struct node {
+        node*           m_next = nullptr;
+        union {
+            value_type  m_value; // Not initialized when node is constructed
+        };
+    };
+
+    using node_alloc = typename alloc_traits::template rebind_alloc<node>;
+
+    node_alloc  m_alloc;
+    node       *m_head = nullptr;
+    node       *m_tail = nullptr;
+
+public:
+    StringList1(const allocator_type& a = {})
+        : m_alloc(a)
+        , m_head(nullptr) { }
+
+    ~StringList1() {
+        using alloc_node_traits =
+            typename alloc_traits::template rebind_traits<node>;
+
+        while (m_head) {
+            node *next = m_head->m_next;
+            alloc_node_traits::destroy(m_alloc, &m_head->m_value);
+            alloc_node_traits::deallocate(m_alloc, m_head, 1);
+            m_head = next;
+        }
+    }
+
+    void push_front(const value_type& v) {
+        using alloc_node_traits =
+            typename alloc_traits::template rebind_traits<node>;
+        node *n = alloc_node_traits::allocate(m_alloc, 1);
+        // NOTE: Exception safety elided for simplicity
+        alloc_node_traits::construct(m_alloc, &n->m_value, v);
+        n->m_next = m_head;
+        m_head = n;
+        if (! m_tail)
+            m_tail = n;
+    }
+
+    // ...
+};
+
+// List of strings using allocator template parameter.
+class StringList2
+{
+public:
+    using allocator_type = XSTD::pmr::polymorphic_allocator<>;
+    using value_type     = XSTD::pmr::string;
+
+private:
+    struct node {
+        node*           m_next = nullptr;
+        union {
+            value_type  m_value; // Not initialized when node is constructed
+        };
+    };
+
+    allocator_type  m_alloc;
+    node           *m_head = nullptr;
+    node           *m_tail = nullptr;
+
+public:
+    StringList2(const allocator_type& a = {})
+        : m_alloc(a)
+        , m_head(nullptr) { }
+
+    ~StringList2() {
+        while (m_head) {
+            node *next = m_head->m_next;
+            m_alloc.destroy(&m_head->m_value);
+            m_alloc.deallocate_object(m_head);
+            m_head = next;
+        }
+    }
+
+    void push_front(const value_type& v) {
+        node *n = m_alloc.allocate_object<node>(1);
+        // NOTE: Exception safety elided for simplicity
+        m_alloc.construct(&n->m_value, v);
+        n->m_next = m_head;
+        m_head = n;
+        if (! m_tail)
+            m_tail = n;
+    }
+
+    // ...
+};
 
 //=============================================================================
 //                              MAIN PROGRAM
@@ -565,7 +678,7 @@ template class SimpleVector<double, SimpleAllocator<double> >;
 
 int main(int argc, char *argv[])
 {
-    using namespace XSTD::polyalloc;
+    using namespace XSTD::pmr;
 
     int test = argc > 1 ? atoi(argv[1]) : 0;
 //     int verbose = argc > 2;
@@ -578,9 +691,26 @@ int main(int argc, char *argv[])
     else
         std::cout << " all cases" << std::endl;
 
-#define POLYALLOC XSTD::polyalloc::polymorphic_allocator
+#define PMR XSTD::pmr::polymorphic_allocator
 
     switch (test) { case 0: // Do all cases for test-case 0
+      case 2:
+      {
+          // Usage test
+
+          // Before polymorphic_allocator vocabulary type
+          using SaString = std::basic_string<char, std::char_traits<char>,
+                                             SimpleAllocator<char>>;
+          SimpleAllocator<SaString> sa;
+          StringList1<SimpleAllocator<SaString>> slst1(sa);
+          slst1.push_front("hello");
+
+          // After polymorphic_allocator vocabulary type
+          TestResource tr;
+          StringList2 slst2(&tr);
+          slst2.push_front("goodbye");
+      } if (test != 0) break;
+
       case 1:
       {
         // --------------------------------------------------------------------
@@ -596,7 +726,7 @@ int main(int argc, char *argv[])
             int expBytes = newDeleteCounters.bytes_outstanding();
 
             memory_resource *r = new_delete_resource_singleton();
-            ASSERT(XSTD::polyalloc::get_default_resource() == r);
+            ASSERT(XSTD::pmr::get_default_resource() == r);
 
             void *p = r->allocate(5);
             ++expBlocks;
@@ -607,30 +737,30 @@ int main(int argc, char *argv[])
             ASSERT(newDeleteCounters.bytes_outstanding() == expBytes);
         }
 
-        XSTD::polyalloc::set_default_resource(&dfltTestRsrc);
-        ASSERT(XSTD::polyalloc::get_default_resource() == &dfltTestRsrc);
+        XSTD::pmr::set_default_resource(&dfltTestRsrc);
+        ASSERT(XSTD::pmr::get_default_resource() == &dfltTestRsrc);
 
         // Test polymorphic allocator constructors
         {
             // Test construction with resource
             TestResource ar;
-            const POLYALLOC<double> a1(&ar);
+            const PMR<double> a1(&ar);
             ASSERT(a1.resource() == &ar);
 
             // Test conversion constructor
-            POLYALLOC<char> a2(a1);
+            PMR<char> a2(a1);
             ASSERT(a2.resource() == &ar);
 
             // Test default construction
-            POLYALLOC<char> a3;
+            PMR<char> a3;
             ASSERT(a3.resource() == &dfltTestRsrc);
 
             // Test construction with null pointer
-            POLYALLOC<char> a4(nullptr);
+            PMR<char> a4(nullptr);
             ASSERT(a4.resource() == &dfltTestRsrc);
 
             // Test copy constructoin
-            POLYALLOC<char> a5(a2);
+            PMR<char> a5(a2);
             ASSERT(a5.resource() == &ar);
         }
 
@@ -641,7 +771,7 @@ int main(int argc, char *argv[])
 
         // Simple use of vector with polymorphic allocator
         {
-            typedef POLYALLOC<int> Alloc;
+            typedef PMR<int> Alloc;
 
             SimpleVector<int, Alloc> vx(&x);
             ASSERT(1 == xc.blocks_outstanding());
@@ -660,12 +790,12 @@ int main(int argc, char *argv[])
         // Outer allocator is polymorphic, inner is not.
         {
             typedef SimpleString<SimpleAllocator<char> > String;
-            typedef POLYALLOC<String> Alloc;
+            typedef PMR<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
             ASSERT(1 == xc.blocks_outstanding());
             ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
-            
+
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
@@ -687,14 +817,14 @@ int main(int argc, char *argv[])
 
         // Inner allocator is polymorphic, outer is not.
         {
-            typedef SimpleString<POLYALLOC<char> > String;
+            typedef SimpleString<PMR<char> > String;
             typedef SimpleAllocator<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&xc);
             ASSERT(1 == xc.blocks_outstanding());
             ASSERT(0 == dfltTestCounters.blocks_outstanding());
             ASSERT(&xc == vx.get_allocator().counters())
-            
+
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
@@ -716,13 +846,13 @@ int main(int argc, char *argv[])
 
         // Both outer and inner allocators are polymorphic.
         {
-            typedef SimpleString<POLYALLOC<char> > String;
-            typedef POLYALLOC<String> Alloc;
+            typedef SimpleString<PMR<char> > String;
+            typedef PMR<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
             ASSERT(1 == xc.blocks_outstanding());
             ASSERT(0 == dfltTestCounters.blocks_outstanding());
-            
+
             vx.push_back("hello");
             ASSERT(1 == vx.size());
             ASSERT("hello" == vx.back());
@@ -744,8 +874,8 @@ int main(int argc, char *argv[])
 
         // Test container copy construction
         {
-            typedef SimpleString<POLYALLOC<char> > String;
-            typedef POLYALLOC<String> Alloc;
+            typedef SimpleString<PMR<char> > String;
+            typedef PMR<String> Alloc;
 
             SimpleVector<String, Alloc> vx(&x);
             ASSERT(1 == xc.blocks_outstanding());
@@ -785,14 +915,14 @@ int main(int argc, char *argv[])
 
         // Test resource_adaptor
         {
-            typedef SimpleString<POLYALLOC<char> > String;
-            typedef SimpleVector<String, POLYALLOC<String> > strvec;
-            typedef SimpleVector<strvec, POLYALLOC<strvec> > strvecvec;
+            typedef SimpleString<PMR<char> > String;
+            typedef SimpleVector<String, PMR<String> > strvec;
+            typedef SimpleVector<strvec, PMR<strvec> > strvecvec;
 
             SimpleAllocator<char> sax(&xc);
             SimpleAllocator<char> say(&yc);
-            POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) crx(sax);
-            POLYALLOC_RESOURCE_ADAPTOR(SimpleAllocator<char>) cry(say);
+            PMR_RESOURCE_ADAPTOR(SimpleAllocator<char>) crx(sax);
+            PMR_RESOURCE_ADAPTOR(SimpleAllocator<char>) cry(say);
 
             strvec    a(&crx);
             strvecvec b(&cry);
@@ -846,13 +976,13 @@ int main(int argc, char *argv[])
 
         // Test construct() using pairs
         {
-            typedef SimpleString<POLYALLOC<char> > String;
+            typedef SimpleString<PMR<char> > String;
             typedef std::pair<String, int> StrInt;
-            typedef POLYALLOC<StrInt> Alloc;
+            typedef PMR<StrInt> Alloc;
 
             SimpleVector<StrInt, SimpleAllocator<StrInt> > vx(&xc);
             SimpleVector<StrInt, Alloc> vy(&y);
-            
+
             vx.push_back(StrInt("hello", 5));
             ASSERT(1 == vx.size());
             ASSERT(1 == xc.blocks_outstanding());
@@ -883,9 +1013,9 @@ int main(int argc, char *argv[])
         ASSERT(0 == dfltSimpleCounters.blocks_outstanding());
         ASSERT(0 == newDeleteCounters.blocks_outstanding());
 
-        XSTD::polyalloc::set_default_resource(nullptr);
-        ASSERT(XSTD::polyalloc::new_delete_resource_singleton() ==
-               XSTD::polyalloc::get_default_resource());
+        XSTD::pmr::set_default_resource(nullptr);
+        ASSERT(XSTD::pmr::new_delete_resource_singleton() ==
+               XSTD::pmr::get_default_resource());
 
       } if (test != 0) break;
 

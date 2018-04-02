@@ -10,10 +10,10 @@
 
 BEGIN_NAMESPACE_XSTD
 
-atomic<polyalloc::memory_resource *>
-polyalloc::memory_resource::s_default_resource(nullptr);
+atomic<pmr::memory_resource *>
+pmr::memory_resource::s_default_resource(nullptr);
 
-polyalloc::new_delete_resource *polyalloc::new_delete_resource_singleton()
+pmr::new_delete_resource *pmr::new_delete_resource_singleton()
 {
     // TBD: I think the standard makes this exception-safe, otherwise, we need
     // to use 'call_once()' in '<mutex>'.

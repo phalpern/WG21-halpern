@@ -10,7 +10,7 @@
 #define INCLUDED_ALLOCATOR_TRAITS_DOT_H
 
 #include <xstd.h>
-#include <memory_util.h>
+// #include <memory_util.h>
 #include <pointer_traits.h>
 #include <type_traits>
 
