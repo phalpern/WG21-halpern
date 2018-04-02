@@ -568,108 +568,108 @@ template class SimpleVector<double, SimpleAllocator<double> >;
 template <class Alloc = std::allocator<std::string>>
 class StringList1
 {
-    using alloc_traits = std::allocator_traits<Alloc>;
+  using alloc_traits = std::allocator_traits<Alloc>;
 
 public:
-    using allocator_type = Alloc;
-    using value_type =
-        std::basic_string<char, std::char_traits<char>,
-                          typename alloc_traits::template rebind_alloc<char>>;
+  using allocator_type = Alloc;
+  using value_type =
+    std::basic_string<char, std::char_traits<char>,
+                      typename alloc_traits::template rebind_alloc<char>>;
 
-    // It is easy to get the allocator's value_type type wrong!  Better check.
-    static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
-                  "Alloc::value_type is not correct string type");
+  // It is easy to get the allocator's value_type type wrong!  Better check.
+  static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
+                "Alloc::value_type is not correct string type");
 
 private:
-    struct node {
-        node*           m_next = nullptr;
-        union {
-            value_type  m_value; // Not initialized when node is constructed
-        };
+  struct node {
+    node*           m_next = nullptr;
+    union {
+      value_type  m_value; // Not initialized when node is constructed
     };
+  };
 
-    using node_alloc = typename alloc_traits::template rebind_alloc<node>;
+  using node_alloc = typename alloc_traits::template rebind_alloc<node>;
 
-    node_alloc  m_alloc;
-    node       *m_head = nullptr;
-    node       *m_tail = nullptr;
+  node_alloc  m_alloc;
+  node       *m_head = nullptr;
+  node       *m_tail = nullptr;
 
 public:
-    StringList1(const allocator_type& a = {})
-        : m_alloc(a)
-        , m_head(nullptr) { }
+  StringList1(const allocator_type& a = {})
+    : m_alloc(a)
+    , m_head(nullptr) { }
 
-    ~StringList1() {
-        using alloc_node_traits =
-            typename alloc_traits::template rebind_traits<node>;
+  ~StringList1() {
+    using alloc_node_traits =
+      typename alloc_traits::template rebind_traits<node>;
 
-        while (m_head) {
-            node *next = m_head->m_next;
-            alloc_node_traits::destroy(m_alloc, &m_head->m_value);
-            alloc_node_traits::deallocate(m_alloc, m_head, 1);
-            m_head = next;
-        }
+    while (m_head) {
+      node *next = m_head->m_next;
+      alloc_node_traits::destroy(m_alloc, &m_head->m_value);
+      alloc_node_traits::deallocate(m_alloc, m_head, 1);
+      m_head = next;
     }
+  }
 
-    void push_front(const value_type& v) {
-        using alloc_node_traits =
-            typename alloc_traits::template rebind_traits<node>;
-        node *n = alloc_node_traits::allocate(m_alloc, 1);
-        // NOTE: Exception safety elided for simplicity
-        alloc_node_traits::construct(m_alloc, &n->m_value, v);
-        n->m_next = m_head;
-        m_head = n;
-        if (! m_tail)
-            m_tail = n;
-    }
+  void push_front(const value_type& v) {
+    using alloc_node_traits =
+      typename alloc_traits::template rebind_traits<node>;
+    node *n = alloc_node_traits::allocate(m_alloc, 1);
+    // NOTE: Exception safety elided for simplicity
+    alloc_node_traits::construct(m_alloc, &n->m_value, v);
+    n->m_next = m_head;
+    m_head = n;
+    if (! m_tail)
+      m_tail = n;
+  }
 
-    // ...
+  // ...
 };
 
-// List of strings using allocator template parameter.
+// List of strings using polymorphic_allocator<>
 class StringList2
 {
 public:
-    using allocator_type = XSTD::pmr::polymorphic_allocator<>;
-    using value_type     = XSTD::pmr::string;
+  using allocator_type = XSTD::pmr::polymorphic_allocator<>;
+  using value_type     = XSTD::pmr::string;
 
 private:
-    struct node {
-        node*           m_next = nullptr;
-        union {
-            value_type  m_value; // Not initialized when node is constructed
-        };
+  struct node {
+    node*           m_next = nullptr;
+    union {
+      value_type  m_value; // Not initialized when node is constructed
     };
+  };
 
-    allocator_type  m_alloc;
-    node           *m_head = nullptr;
-    node           *m_tail = nullptr;
+  allocator_type  m_alloc;
+  node           *m_head = nullptr;
+  node           *m_tail = nullptr;
 
 public:
-    StringList2(const allocator_type& a = {})
-        : m_alloc(a)
-        , m_head(nullptr) { }
+  StringList2(const allocator_type& a = {})
+    : m_alloc(a)
+    , m_head(nullptr) { }
 
-    ~StringList2() {
-        while (m_head) {
-            node *next = m_head->m_next;
-            m_alloc.destroy(&m_head->m_value);
-            m_alloc.deallocate_object(m_head);
-            m_head = next;
-        }
+  ~StringList2() {
+    while (m_head) {
+      node *next = m_head->m_next;
+      m_alloc.destroy(&m_head->m_value);
+      m_alloc.deallocate_object(m_head);
+      m_head = next;
     }
+  }
 
-    void push_front(const value_type& v) {
-        node *n = m_alloc.allocate_object<node>(1);
-        // NOTE: Exception safety elided for simplicity
-        m_alloc.construct(&n->m_value, v);
-        n->m_next = m_head;
-        m_head = n;
-        if (! m_tail)
-            m_tail = n;
-    }
+  void push_front(const value_type& v) {
+    node *n = m_alloc.allocate_object<node>();
+    // NOTE: Exception safety elided for simplicity
+    m_alloc.construct(&n->m_value, v);
+    n->m_next = m_head;
+    m_head = n;
+    if (! m_tail)
+      m_tail = n;
+  }
 
-    // ...
+  // ...
 };
 
 //=============================================================================
