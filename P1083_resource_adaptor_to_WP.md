@@ -1,6 +1,6 @@
-% P1271r0 | Move resource_adaptor from Library TS to the C++ WP
+% P1083r1 | Move resource_adaptor from Library TS to the C++ WP
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2018-10-05 | Target audience: Library Evolution
+% 2018-10-07 | Target audience: Library Evolution
 
 Abstract
 ========
@@ -14,6 +14,13 @@ hole that must be plugged for a smooth transition to the ubiquitous use of
 [P0987](http://wg21.link/p0987).  This paper proposes that
 `pmr::resource_adaptor` be moved from the LFTS and added to the C++20 working
 draft.
+
+Changes from R0
+===============
+
+Added a note for LWG to consider clarifying the alignment requirements for
+`resource_adaptor<A>::do_allocate()`. Changed rebind type from `char` to
+`byte`. Rebased to July 2018 draft of the C++ WP.
 
 Motivation
 ==========
@@ -57,6 +64,18 @@ Insert between sections 19.12.3 [mem.poly.allocator.class] and 19.12.4
 [mem.res.global] of the C++ WP, the whole of section 8.7
 [memory.resource.adaptor] from the LFTS v2, including all of its subsections,
 renumbered appropriately.
+
+**LWG NOTE:** There was some concern that alignment support was unclear for
+`resource_adaptor`.  We might consider replacing the _Returns_ clause of
+`do_allocate` with something like the following (note the use of normative
+encouragement in the last sentence:
+
+_Returns:_ a pointer to allocated storage obtained by calling the `allocate`
+member function on a suitably rebound copy of `m_alloc` such that the size and
+alignment of the allocated memory meet the requirements for a class derived
+from `memory_resource`. If the rebound `Allocator` supports over-aligned
+memory, then `resource_adaptor<Allocator>` should also support over-aligned
+memory.
 
 References
 ==========
