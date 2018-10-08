@@ -1,3 +1,27 @@
+Toronto:
+
+
+
+
+Kona:
+
+* Read network TS with eye towards understanding executors and for allocator
+  correctness.
+* Read executor paper:
+   * Will it support parent-stealing?
+   * Could it support SIMD?
+* Weigh in on Matthias's proposal:
+   * Name 'datapar'
+   * Name 'where'
+   * Criteria for max_datapar_size value and whether it should be type
+     dependent.
+      * Want to support 2 or 4 times maximum widening
+      * The above argues for non-data-type dependent, but doesn't actually
+        preclude that.
+* April Fools: Oxford comma
+   * f(a, b and c);  // OK
+     f(a, b, and c); // ill formed
+
 Issaquah:
 
 * Work with Peter & Lawrence on sync_stream: should be based on streambuf, not
