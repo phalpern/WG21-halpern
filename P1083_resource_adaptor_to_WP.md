@@ -1,6 +1,6 @@
-% D1083r2 | Move resource_adaptor from Library TS to the C++ WP
+% P1083r2 | Move resource_adaptor from Library TS to the C++ WP
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2018-11-07 | Target audience: LWG
+% 2018-11-13 | Target audience: LWG
 
 Abstract
 ========
@@ -18,15 +18,16 @@ draft.
 History
 =======
 
-Changes from R1 to R2
----------------------
+Changes from R1 to R2 (in San Diego)
+------------------------------------
 
- * Copied the formal wording from the LFTS directly into this paper.
- * Minor wording changes as per initial LWG review.
- * Rebased to October 2018 draft of the C++ WP.
+ * Paper was forwarded from LEWG to LWG on Tuesday, 2018-10-06
+ * Copied the formal wording from the LFTS directly into this paper
+ * Minor wording changes as per initial LWG review
+ * Rebased to the October 2018 draft of the C++ WP
 
-Changes from R0 to R1
----------------------
+Changes from R0 to R1 (pre-San Diego)
+-------------------------------------
 
  * Added a note for LWG to consider clarifying the alignment requirements for
    `resource_adaptor<A>::do_allocate()`.
@@ -88,45 +89,48 @@ that Allocator is rebound to a `byte` value type in every specialization of
 the class template. The requirements on this class template are defined
 below. The name _resource_adaptor_imp_ is for exposition only and is not
 normative, but the definitions of the members of that class, whatever its
-name, _are_ normative. In addition to the Cpp17Allocator requirements
+name, _are_ normative. In addition to the _Cpp17Allocator_ requirements
 (§15.5.3.5), the `Allocator` parameter to `resource_adaptor` shall meet the
 following additional requirements:
 
-    - `typename allocator_traits<Allocator>::pointer` shall be identical to  
-      `typename allocator_traits<Allocator>::value_type*`.
+ - `typename allocator_traits<Allocator>::pointer` shall be identical to  
+   `typename allocator_traits<Allocator>::value_type*`.
 
-    - `typename allocator_traits<Allocator>::const_pointer` shall be identical to
-      `typename allocator_traits<Allocator>::value_type const*`.
+ - `typename allocator_traits<Allocator>::const_pointer` shall be identical
+    to `typename allocator_traits<Allocator>::value_type const*`.
 
-    - `typename allocator_traits<Allocator>::void_pointer` shall be identical to `void*`.
+ - `typename allocator_traits<Allocator>::void_pointer` shall be identical to
+   `void*`.
 
-    - `typename allocator_traits<Allocator>::const_void_pointer` shall be
-      identical to `void const*`.
+ - `typename allocator_traits<Allocator>::const_void_pointer` shall be
+   identical to `void const*`.
 
-      // The name resource_adaptor_imp is for exposition only.
-      template <class Allocator>
-      class resource_adaptor_imp : public memory_resource {
-        Allocator m_alloc; // for exposition only
+```
+// The name resource_adaptor_imp is for exposition only.
+template <class Allocator>
+class resource_adaptor_imp : public memory_resource {
+  Allocator m_alloc; // for exposition only
 
-      public:
-        using allocator_type = Allocator;
+public:
+  using allocator_type = Allocator;
 
-        resource_adaptor_imp() = default;
-        resource_adaptor_imp(const resource_adaptor_imp&) = default;
-        resource_adaptor_imp(resource_adaptor_imp&&) = default;
+  resource_adaptor_imp() = default;
+  resource_adaptor_imp(const resource_adaptor_imp&) = default;
+  resource_adaptor_imp(resource_adaptor_imp&&) = default;
 
-        explicit resource_adaptor_imp(const Allocator& a2);
-        explicit resource_adaptor_imp(Allocator&& a2);
+  explicit resource_adaptor_imp(const Allocator& a2);
+  explicit resource_adaptor_imp(Allocator&& a2);
 
-        resource_adaptor_imp& operator=(const resource_adaptor_imp&) = default;
+  resource_adaptor_imp& operator=(const resource_adaptor_imp&) = default;
 
-        allocator_type get_allocator() const { return m_alloc; }
+  allocator_type get_allocator() const { return m_alloc; }
 
-      protected:
-        void* do_allocate(size_t bytes, size_t alignment) override;
-        void do_deallocate(void* p, size_t bytes, size_t alignment) override;
-        bool do_is_equal(const memory_resource& other) const noexcept override;
-      };
+protected:
+  void* do_allocate(size_t bytes, size_t alignment) override;
+  void do_deallocate(void* p, size_t bytes, size_t alignment) override;
+  bool do_is_equal(const memory_resource& other) const noexcept override;
+};
+```
 
 **19.12.x.2 resource_adaptor_imp constructors [memory.resource.adaptor.ctor]**
 
@@ -142,7 +146,7 @@ following additional requirements:
 
 `void* do_allocate(size_t bytes, size_t alignment);`
 
-> _Expects:_ `alignment` is a power of two.
+> _Expects:_ `alignment` shall be a power of two.
 
 > _Returns:_ a pointer to allocated storage obtained by calling the `allocate`
 > member function on a suitably rebound copy of `m_alloc` such that the
