@@ -6,5 +6,5 @@ optional_test = ssh://home/Documents/C++Standard/optional_test
 polymorphic_allocator = ssh://home/Documents/C++Standard/polymorphic_allocator
 vector-execution-models = ssh://home/Documents/C++Standard/vector-execution-models
 uses-allocator = [git]git@github.com:phalpern/uses-allocator.git
-task_region = [git]git@home:~Pablo/Documents/C++Standard/task_region
+task_region = [git]Pablo@home:~Pablo/Documents/C++Standard/task_region
 #task_region = [git]https://phalpernnh@git01.codeplex.com/goldenrod
