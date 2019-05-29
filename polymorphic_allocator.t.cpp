@@ -201,13 +201,14 @@ class TestResource : public XSTD::pmr::memory_resource
     TestResource(const TestResource&);
     TestResource operator=(const TestResource&);
 
+    virtual void* do_allocate(size_t bytes, size_t alignment);
+    virtual void  do_deallocate(void *p, size_t bytes, size_t alignment);
+    virtual bool do_is_equal(const memory_resource& other) const;
+
 public:
     TestResource() { }
 
     virtual ~TestResource();
-    virtual void* allocate(size_t bytes, size_t alignment = 0);
-    virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
-    virtual bool is_equal(const memory_resource& other) const;
 
     AllocCounters      & counters()       { return m_counters; }
     AllocCounters const& counters() const { return m_counters; }
@@ -220,17 +221,17 @@ TestResource::~TestResource()
     ASSERT(0 == m_counters.blocks_outstanding());
 }
 
-void* TestResource::allocate(size_t bytes, size_t alignment)
+void* TestResource::do_allocate(size_t bytes, size_t alignment)
 {
     return countedAllocate(bytes, &m_counters);
 }
 
-void  TestResource::deallocate(void *p, size_t bytes, size_t alignment)
+void  TestResource::do_deallocate(void *p, size_t bytes, size_t alignment)
 {
     countedDeallocate(p, bytes, &m_counters);
 }
 
-bool TestResource::is_equal(const memory_resource& other) const
+bool TestResource::do_is_equal(const memory_resource& other) const
 {
     // Two TestResource objects are equal only if they are the same object
     return this == &other;

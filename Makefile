@@ -9,7 +9,7 @@ CXX=clang++ -std=c++14
 CXXFLAGS=-I. -Wall
 WD := $(shell basename $(PWD))
 
-all : polymorphic_allocator.test uses_allocator_wrapper.test xfunction.test
+all : polymorphic_allocator.test uses_allocator_wrapper.test # xfunction.test
 
 .SECONDARY :
 

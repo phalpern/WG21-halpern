@@ -223,14 +223,16 @@ public:
     TestResource() { }
 
     virtual ~TestResource();
-    virtual void* allocate(size_t bytes, size_t alignment = 0);
-    virtual void  deallocate(void *p, size_t bytes, size_t alignment = 0);
-    virtual bool is_equal(const memory_resource& other) const;
 
     AllocCounters      & counters()       { return m_counters; }
     AllocCounters const& counters() const { return m_counters; }
 
     void clear() { m_counters.clear(); }
+
+private:
+    virtual void* do_allocate(size_t bytes, size_t alignment);
+    virtual void  do_deallocate(void *p, size_t bytes, size_t alignment);
+    virtual bool do_is_equal(const memory_resource& other) const;
 };
 
 TestResource::~TestResource()
@@ -238,17 +240,17 @@ TestResource::~TestResource()
     ASSERT(0 == m_counters.blocks_outstanding());
 }
 
-void* TestResource::allocate(size_t bytes, size_t alignment)
+void* TestResource::do_allocate(size_t bytes, size_t alignment)
 {
     return countedAllocate(bytes, &m_counters);
 }
 
-void  TestResource::deallocate(void *p, size_t bytes, size_t alignment)
+void  TestResource::do_deallocate(void *p, size_t bytes, size_t alignment)
 {
     countedDeallocate(p, bytes, &m_counters);
 }
 
-bool TestResource::is_equal(const memory_resource& other) const
+bool TestResource::do_is_equal(const memory_resource& other) const
 {
     // Two TestResource objects are equal only if they are the same object
     return this == &other;
@@ -546,9 +548,9 @@ void popDefaultResource()
 // Concerns:
 // - Constructed function uses correct allocator
 // - On construction, expected number of blocks are allocated from the
-//   specified allocator. 
+//   specified allocator.
 // - On destruction, expected number of blocks are deallocated from the
-//   specified allocator. 
+//   specified allocator.
 // - No memory is allocated or deallocated from the default allocator resource
 //   unless the specified allocator uses the default allocator resource.
 // - No memory is allocated or deallocated using global operator new/delete
@@ -599,7 +601,7 @@ void testCtor(const A& alloc, int expRet,
         ASSERT(dfltTstCounters.blocks_outstanding() == startDfltBlocks);
     if (counters != &newDelCounters)
         ASSERT(newDelCounters.blocks_outstanding() == startNewDelBlocks);
-}    
+}
 
 template <class F, class A, class Rhs, class... LhsCtorArgs>
 void testAssignment(const A& alloc, Rhs&& rhs, int expRet,
@@ -1205,7 +1207,7 @@ int main(int argc, char *argv[])
         // --------------------------------------------------------------------
         // NO ALLOCATOR
         // --------------------------------------------------------------------
-          
+
         std::cout << "\nNO ALLOCATOR"
                   << "\n============" << std::endl;
 
@@ -1244,7 +1246,7 @@ int main(int argc, char *argv[])
         // --------------------------------------------------------------------
         // STANDARD ALLOCATOR
         // --------------------------------------------------------------------
-          
+
         std::cout << "\nSTANDARD ALLOCATOR"
                   << "\n==================" << std::endl;
 
@@ -1256,9 +1258,9 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor but no additional blocks for
         // allocator.
 
-        //                                               Raw   
-        //   Ctor args                              Ret Blocks 
-        //   =====================================  === ====== 
+        //                                               Raw
+        //   Ctor args                              Ret Blocks
+        //   =====================================  === ======
         TEST((allocator_arg, stdAlloc)             ,  0, 0    );
         TEST((allocator_arg, stdAlloc, nullptr)    ,  0, 0    );
         TEST((allocator_arg, stdAlloc, nullFuncPtr),  0, 0    );
@@ -1275,7 +1277,7 @@ int main(int argc, char *argv[])
         // --------------------------------------------------------------------
         // TYPE-ERASED ALLOCATOR
         // --------------------------------------------------------------------
-          
+
         std::cout << "\nTYPE-ERASED ALLOCATOR"
                   << "\n=====================" << std::endl;
 
@@ -1287,9 +1289,9 @@ int main(int argc, char *argv[])
         // Always allocate one block for functor and one block for type-erased
         // allocator.
 
-        //                                                Raw   
-        //   Ctor args                               Ret Blocks 
-        //   ======================================  === ====== 
+        //                                                Raw
+        //   Ctor args                               Ret Blocks
+        //   ======================================  === ======
         TEST((allocator_arg, smplAlloc)             ,  0, 0    );
         TEST((allocator_arg, smplAlloc, nullptr)    ,  0, 0    );
         TEST((allocator_arg, smplAlloc, nullFuncPtr),  0, 0    );
@@ -1306,7 +1308,7 @@ int main(int argc, char *argv[])
         // --------------------------------------------------------------------
         // MEMORY_RESOURCE
         // --------------------------------------------------------------------
-          
+
         std::cout << "\nMEMORY_RESOURCE"
                   << "\n===============" << std::endl;
 
@@ -1346,7 +1348,7 @@ int main(int argc, char *argv[])
         // --------------------------------------------------------------------
         // POLYMORPHIC_ALLOCATOR
         // --------------------------------------------------------------------
-          
+
         std::cout << "\nPOLYMORPHIC_ALLOCATOR"
                   << "\n=====================" << std::endl;
 
