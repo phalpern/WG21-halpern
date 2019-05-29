@@ -1,6 +1,6 @@
-% P1083r2 | Move resource_adaptor from Library TS to the C++ WP
+% D1083r3 | Move resource_adaptor from Library TS to the C++ WP
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2018-11-13 | Target audience: LWG
+% 2019-05-29 | Target audience: LWG
 
 Abstract
 ========
@@ -17,6 +17,17 @@ draft.
 
 History
 =======
+
+Changes from R2 to R3 (in Kona and pre-Cologne)
+-----------------------------------------------
+
+ * Changed __`resource-adaptor-imp`__ to kabob case.
+ * Removed special member functions (copy/move ctors, etc.) and let them be
+   auto-generated.
+ * Added a requirement that the `Allocator` template parameter must support
+   rebinding to any non-class, non-over-aligned types. This allows the
+   implementation of `do_allocate` to dispatch to a suitably rebound copy of
+   the allocator as needed to support any builtin alignment argument.
 
 Changes from R1 to R2 (in San Diego)
 ------------------------------------
@@ -57,71 +68,71 @@ Formal Wording
 
 _This proposal is based on the Library Fundamentals TS v2,
 [N4617](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2016/n4617.pdf) and
-the October 2018 draft of the C++ WP,
-[N4778](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2018/n4778.pdf)._
+the March 2019 draft of the C++ WP,
+[N4810](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2019/n4810.pdf)._
 
 _In section 19.12.1 [mem.res.syn] of the C++ WP, add the following declaration
 immediately after the declaration of
 `operator!=(const polymorphic_allocator...)`:_
 
     // 19.12.x resource adaptor
-    // The name resource_adaptor_imp is for exposition only.
-    template <class Allocator> class resource_adaptor_imp;
+    // The name resource-adaptor-imp is for exposition only.
+    template <class Allocator> class resource-adaptor-imp;
 
     template <class Allocator>
-      using resource_adaptor = resource_adaptor_imp<
+      using resource_adaptor = resource-adaptor-imp<
         typename allocator_traits<Allocator>::template rebind_alloc<byte>>;
 
 _Insert between sections 19.12.3 [mem.poly.allocator.class] and 19.12.4
-[mem.res.global] of the C++ WP, the following section, taken from section 8.7
-of the LFTS v2:_
+[mem.res.global] of the C++ WP, the following section, taken with
+modifications from section 8.7 of the LFTS v2:_
 
 **19.12.x template alias resource_adaptor [memory.resource.adaptor]**
 
 **19.12.x.1 resource_adaptor [memory.resource.adaptor.overview]**
 
 An instance of `resource_adaptor<Allocator>` is an adaptor that wraps a
-`memory_resource` interface around `Allocator`.  To ensure that
-`resource_adaptor<X<T>>` and `resource_adaptor<X<U>>` are the same type for
-any allocator template `X` and types `T` and `U`,
-`resource_adaptor<Allocator>` is rendered as an alias to a class template such
-that Allocator is rebound to a `byte` value type in every specialization of
-the class template. The requirements on this class template are defined
-below. The name _resource_adaptor_imp_ is for exposition only and is not
-normative, but the definitions of the members of that class, whatever its
-name, _are_ normative. In addition to the _Cpp17Allocator_ requirements
+`memory_resource` interface around `Allocator`.  `resource_adaptor<X<T>>` and
+`resource_adaptor<X<U>>` are the same type for any allocator template `X` and
+types `T` and `U`. In addition to the _Cpp17Allocator_ requirements
 (§15.5.3.5), the `Allocator` parameter to `resource_adaptor` shall meet the
 following additional requirements:
 
- - `typename allocator_traits<Allocator>::pointer` shall be identical to  
-   `typename allocator_traits<Allocator>::value_type*`.
+ - `typename allocator_traits<Allocator>::pointer` shall denote the type
+   `allocator_traits< Allocator>::value_type*`.
 
- - `typename allocator_traits<Allocator>::const_pointer` shall be identical
-    to `typename allocator_traits<Allocator>::value_type const*`.
+ - `typename allocator_traits<Allocator>::const_pointer` shall denote the type
+    to `allocator_traits< Allocator>::value_type const*`.
 
- - `typename allocator_traits<Allocator>::void_pointer` shall be identical to
+ - `typename allocator_traits<Allocator>::void_pointer` shall denote the type
    `void*`.
 
- - `typename allocator_traits<Allocator>::const_void_pointer` shall be
-   identical to `void const*`.
+ - `typename allocator_traits<Allocator>::const_void_pointer` shall denote the
+    type `void const*`.
+
+ - Calls to
+   `allocator_traits<Allocator>::template rebind_traits<T>::allocate` and
+   `allocator_traits< Allocator>::template rebind_traits<T>::deallocate`
+   shall be well-formed for all non-class, non-over-aligned types `T`;
+   no diagnostic required.
 
 ```
-// The name resource_adaptor_imp is for exposition only.
+// The name resource-adaptor-imp is for exposition only.
 template <class Allocator>
-class resource_adaptor_imp : public memory_resource {
-  Allocator m_alloc; // for exposition only
+class resource-adaptor-imp : public memory_resource {
+  Allocator m_alloc; // exposition only
 
 public:
   using allocator_type = Allocator;
 
-  resource_adaptor_imp() = default;
-  resource_adaptor_imp(const resource_adaptor_imp&) = default;
-  resource_adaptor_imp(resource_adaptor_imp&&) = default;
+  resource-adaptor-imp() = default;
+  resource-adaptor-imp(const resource-adaptor-imp&) = default;
+  resource-adaptor-imp(resource-adaptor-imp&&) = default;
 
-  explicit resource_adaptor_imp(const Allocator& a2);
-  explicit resource_adaptor_imp(Allocator&& a2);
+  explicit resource-adaptor-imp(const Allocator& a2);
+  explicit resource-adaptor-imp(Allocator&& a2);
 
-  resource_adaptor_imp& operator=(const resource_adaptor_imp&) = default;
+  resource-adaptor-imp& operator=(const resource-adaptor-imp&) = default;
 
   allocator_type get_allocator() const { return m_alloc; }
 
@@ -132,21 +143,21 @@ protected:
 };
 ```
 
-**19.12.x.2 resource_adaptor_imp constructors [memory.resource.adaptor.ctor]**
+**19.12.x.2 `resource-adaptor-imp` constructors [memory.resource.adaptor.ctor]**
 
-`explicit resource_adaptor_imp(const Allocator& a2);`
+`explicit resource-adaptor-imp(const Allocator& a2);`
 
 > _Effects_: Initializes `m_alloc` with `a2`.
 
-`explicit resource_adaptor_imp(Allocator&& a2);`
+`explicit resource-adaptor-imp(Allocator&& a2);`
 
 > _Effects_: Initializes `m_alloc` with `std::move(a2)`.
 
-**19.12.x.3 resource_adaptor_imp member functions [memory.resource.adaptor.mem]**
+**19.12.x.3 `resource-adaptor-imp` member functions [memory.resource.adaptor.mem]**
 
 `void* do_allocate(size_t bytes, size_t alignment);`
 
-> _Expects:_ `alignment` shall be a power of two.
+> _Expects:_ `alignment` is a power of two.
 
 > _Returns:_ a pointer to allocated storage obtained by calling the `allocate`
 > member function on a suitably rebound copy of `m_alloc` such that the
@@ -159,7 +170,7 @@ protected:
 
 `void do_deallocate(void* p, size_t bytes, size_t alignment);`
 
-> _Expects_: `p` shall have been returned from a prior call to `allocate(bytes,
+> _Expects_: `p` has been returned from a prior call to `allocate(bytes,
 > alignment)` on a memory resource equal to `*this`, and the storage at `p` shall not
 > yet have been deallocated.
 
@@ -167,16 +178,16 @@ protected:
 
 `bool do_is_equal(const memory_resource& other) const noexcept;`
 
-> Let `p` be `dynamic_cast<const resource_adaptor_imp*>(&other)`.
+> Let `p` be `dynamic_cast<const resource-adaptor-imp*>(&other)`.
 
 > _Returns_: false if `p` is null; otherwise the value of `m_alloc == p->m_alloc`.
 
 References
 ==========
 
-[N4778](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2018/n4778.pdf):
+[N4810](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2019/n4810.pdf);
 Working Draft, Standard for Programming Language C++, Richard Smith, editor,
-2018-10-08.
+2019-03-15.
 
 [N4617](http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2016/n4617.pdf):
 Programming Languages - C++ Extensions for Library Fundamentals,
