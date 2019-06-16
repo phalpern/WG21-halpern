@@ -1,6 +1,6 @@
-% D1083r3 | Move resource_adaptor from Library TS to the C++ WP
+% P1083r3 | Move resource_adaptor from Library TS to the C++ WP
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2019-05-29 | Target audience: LWG
+% 2019-06-14 | Target audience: LWG
 
 Abstract
 ========
@@ -25,9 +25,9 @@ Changes from R2 to R3 (in Kona and pre-Cologne)
  * Removed special member functions (copy/move ctors, etc.) and let them be
    auto-generated.
  * Added a requirement that the `Allocator` template parameter must support
-   rebinding to any non-class, non-over-aligned types. This allows the
+   rebinding to any non-class, non-over-aligned type. This allows the
    implementation of `do_allocate` to dispatch to a suitably rebound copy of
-   the allocator as needed to support any builtin alignment argument.
+   the allocator as needed to support any native alignment argument.
 
 Changes from R1 to R2 (in San Diego)
 ------------------------------------
