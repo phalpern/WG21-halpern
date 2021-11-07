@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+*.t
+
+# Generated document files
+*.pdf
+*.html
+
+# Temp files
+*~
