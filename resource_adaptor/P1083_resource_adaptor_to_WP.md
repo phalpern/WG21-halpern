@@ -1,6 +1,6 @@
-% P1083r3 | Move resource_adaptor from Library TS to the C++ WP
+% D1083r4 | Move resource_adaptor from Library TS to the C++ WP
 % Pablo Halpern <phalpern@halpernwightsoftware.com>
-% 2019-06-14 | Target audience: LWG
+% 2021-11-05 | Target audience: LWG
 
 Abstract
 ========
@@ -17,6 +17,24 @@ draft.
 
 History
 =======
+
+Changes from R3 to R4
+---------------------
+
+Add component `aligned_type<a>`, which evaluates to a trivial type having size
+AND alignment of `a`.
+ - Always a simple struct?
+ - Metafunction that could be a scalar type simple struct
+
+Add extra template argument to `resource_adaptor`, specifying max alignment
+requirement (default `max_align_t`).
+
+Make sure that general requirements line up with Effects and Returns clauses
+
+ * Reworded _Returns_ clause for `do_allocate` and _Effects_ clause for
+   `do_deallocate` to more precisely define the rebind behavior.
+ * Changed _Expects_ to _Preconditions_ and got rid of "shall"
+ * Miscellaneous grammar edits
 
 Changes from R2 to R3 (in Kona and pre-Cologne)
 -----------------------------------------------
@@ -87,9 +105,9 @@ _Insert between sections 19.12.3 [mem.poly.allocator.class] and 19.12.4
 [mem.res.global] of the C++ WP, the following section, taken with
 modifications from section 8.7 of the LFTS v2:_
 
-**19.12.x template alias resource_adaptor [memory.resource.adaptor]**
+**19.12.x Alias template resource_adaptor [memory.resource.adaptor]**
 
-**19.12.x.1 resource_adaptor [memory.resource.adaptor.overview]**
+**19.12.x.1 `resource_adaptor` [memory.resource.adaptor.overview]**
 
 An instance of `resource_adaptor<Allocator>` is an adaptor that wraps a
 `memory_resource` interface around `Allocator`.  `resource_adaptor<X<T>>` and
@@ -126,11 +144,11 @@ public:
   using allocator_type = Allocator;
 
   resource-adaptor-imp() = default;
-  resource-adaptor-imp(const resource-adaptor-imp&) = default;
-  resource-adaptor-imp(resource-adaptor-imp&&) = default;
+  resource-adaptor-imp(const resource-adaptor-imp&) noexcept = default;
+  resource-adaptor-imp(resource-adaptor-imp&&) noexcept = default;
 
-  explicit resource-adaptor-imp(const Allocator& a2);
-  explicit resource-adaptor-imp(Allocator&& a2);
+  explicit resource-adaptor-imp(const Allocator& a2) noexcept;
+  explicit resource-adaptor-imp(Allocator&& a2) noexcept;
 
   resource-adaptor-imp& operator=(const resource-adaptor-imp&) = default;
 
@@ -145,11 +163,11 @@ protected:
 
 **19.12.x.2 `resource-adaptor-imp` constructors [memory.resource.adaptor.ctor]**
 
-`explicit resource-adaptor-imp(const Allocator& a2);`
+`explicit resource-adaptor-imp(const Allocator& a2) noexcept;`
 
 > _Effects_: Initializes `m_alloc` with `a2`.
 
-`explicit resource-adaptor-imp(Allocator&& a2);`
+`explicit resource-adaptor-imp(Allocator&& a2) noexcept;`
 
 > _Effects_: Initializes `m_alloc` with `std::move(a2)`.
 
@@ -157,30 +175,34 @@ protected:
 
 `void* do_allocate(size_t bytes, size_t alignment);`
 
-> _Expects:_ `alignment` is a power of two.
+> _Preconditions:_ `alignment` is a power of two.
 
-> _Returns:_ a pointer to allocated storage obtained by calling the `allocate`
-> member function on a suitably rebound copy of `m_alloc` such that the
-> expected size and alignment of the allocated memory are at least `bytes` and
-> `alignment`, respectively. If the rebound `Allocator` supports over-aligned
-> storage, then `resource_adaptor<Allocator>` should also support over-aligned
-> storage.
+> _Returns:_
+> `allocator_traits<Allocator>::rebind_alloc<U>(m_alloc).allocate(n)`, where
+> `U` is a type having the specified `alignment`, limited to an
+> implementation-defined maximum alignment not less than
+> `hardware_destructive_interference_size` and `n` is `bytes` divided by
+> `alignof(U)`, rounded up to the nearest integral value.
 
 > _Throws:_ nothing unless the underlying allocator throws.
 
 `void do_deallocate(void* p, size_t bytes, size_t alignment);`
 
-> _Expects_: `p` has been returned from a prior call to `allocate(bytes,
-> alignment)` on a memory resource equal to `*this`, and the storage at `p` shall not
-> yet have been deallocated.
+> _Preconditions_: `p` has been returned from a prior call to `allocate(bytes,
+> alignment)` on a memory resource equal to `*this`, and the storage at `p`
+> has not yet been deallocated.
 
-> _Effects_: Returns memory to the allocator using `m_alloc.deallocate`.
+> _Effects:_ Let `U` be a type having the specified `alignment`, limited to an
+> implementation-defined maximum alignment not less than
+> `hardware_destructive_interference_size` and let `n` be `bytes / alignof(U)`,
+> rounded up to the nearest integral value; Invoke
+> `allocator_traits<Allocator>::rebind_alloc<U>(m_alloc).deallocate(p, n)`
 
 `bool do_is_equal(const memory_resource& other) const noexcept;`
 
 > Let `p` be `dynamic_cast<const resource-adaptor-imp*>(&other)`.
 
-> _Returns_: false if `p` is null; otherwise the value of `m_alloc == p->m_alloc`.
+> _Returns_: `false` if `p` is null; otherwise the value of `m_alloc == p->m_alloc`.
 
 References
 ==========
