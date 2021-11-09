@@ -27,7 +27,7 @@ static void aSsErT(int c, const char *s, int i) {
 # define TEST_ASSERT(X) { aSsErT(!(X), #X, __LINE__); }
 
 //=============================================================================
-//                  CLASSES FOR TESTING USAGE EXAMPLES
+//                  CLASSES FOR TESTING
 //-----------------------------------------------------------------------------
 
 // Description of an allocated block.

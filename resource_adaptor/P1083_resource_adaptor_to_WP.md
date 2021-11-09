@@ -81,6 +81,16 @@ Impact on the standard
 `pmr::resource_adaptor` is a pure library extension requiring no changes to
 the core language nor to any existing classes in the standard library.
 
+Implementation Experience
+=========================
+
+A full implementation of the current proposal can be found in GitHub at
+https://github.com/phalpern/WG21-halpern/tree/P1083/resource_adaptor.
+
+The version described in the Library Fundamentals TS has been implemented by
+multiple vendors in the `std::experimental::pmr` namespace.
+
+
 Formal Wording
 ==============
 

@@ -1,4 +1,4 @@
-/* polymorphic_allocator.h                  -*-C++-*-
+/* resource_adaptor.h                  -*-C++-*-
  *
  *            Copyright 2012 Pablo Halpern.
  * Distributed under the Boost Software License, Version 1.0.
@@ -6,8 +6,12 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 
-#ifndef INCLUDED_POLYMORPHIC_ALLOCATOR_DOT_H
-#define INCLUDED_POLYMORPHIC_ALLOCATOR_DOT_H
+/* This component defines `std::pmr::resource_adaptor` as described in P1083
+ * (see http://wg21.link/P1083)
+ */
+
+#ifndef INCLUDED_RESOURCE_ADAPTOR_DOT_H
+#define INCLUDED_RESOURCE_ADAPTOR_DOT_H
 
 #include <xstd.h>
 #include <memory>
@@ -15,6 +19,7 @@
 #include <cstdlib>
 #include <utility>
 #include <experimental/memory_resource>
+#include <aligned_type.h>
 
 namespace std::pmr { using namespace std::experimental::pmr; }
 
@@ -73,20 +78,6 @@ using resource_adaptor = resource_adaptor_imp<
     typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>,
     MaxAlignment>;
 
-namespace __details {
-
-template <size_t Align>
-struct aligned_chunk {
-    alignas(Align) char x;
-};
-
-template <> struct aligned_chunk<1> { char x; };
-template <> struct aligned_chunk<2> { short x; };
-template <> struct aligned_chunk<4> { int x; };
-template <> struct aligned_chunk<8> { long long x; };
-
-} // end namespace __details
-
 END_NAMESPACE_XPMR
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,11 +99,11 @@ template <size_t Align>
 void *XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
              aligned_allocate(size_t bytes)
 {
-    typedef __details::aligned_chunk<Align> chunk;
+    typedef aligned_type<Align> chunk_t;
     size_t chunks = (bytes + Align - 1) / Align;
 
     typedef typename allocator_traits<Allocator>::
-        template rebind_traits<chunk> chunk_traits;
+        template rebind_traits<chunk_t> chunk_traits;
     typename chunk_traits::allocator_type rebound(m_alloc);
     return chunk_traits::allocate(rebound, chunks);
 }
@@ -122,13 +113,13 @@ template <size_t Align>
 void XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
 aligned_deallocate(void *p, size_t  bytes)
 {
-    typedef __details::aligned_chunk<Align> chunk;
+    typedef aligned_type<Align> chunk_t;
     size_t chunks = (bytes + Align - 1) / Align;
 
     typedef  typename allocator_traits<Allocator>::
-        template rebind_traits<chunk> chunk_traits;
+        template rebind_traits<chunk_t> chunk_traits;
     typename chunk_traits::allocator_type rebound(m_alloc);
-    return chunk_traits::deallocate(rebound, static_cast<chunk*>(p), chunks);
+    return chunk_traits::deallocate(rebound, static_cast<chunk_t*>(p), chunks);
 }
 
 template <class Allocator, size_t MaxAlignment>
@@ -322,4 +313,4 @@ do_is_equal(const memory_resource& other) const noexcept
         return false;
 }
 
-#endif // ! defined(INCLUDED_POLYMORPHIC_ALLOCATOR_DOT_H)
+#endif // ! defined(INCLUDED_RESOURCE_ADAPTOR_DOT_H)

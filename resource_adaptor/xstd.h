@@ -17,7 +17,7 @@
 #define USING_NAMESPACE_XSTD using namespace XSTD
 #define USING_FROM_NAMESPACE_XSTD(sym) using XSTD::sym
 
-#define XPMR xstd::pmr
+#define XPMR XSTD::pmr
 #define BEGIN_NAMESPACE_XPMR namespace XPMR {
 #define END_NAMESPACE_XPMR   }
 
