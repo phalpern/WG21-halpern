@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
         std::size_t a;
         for (a = 1; a <= max_align_v; a *= 2) {
             Block* b1 = static_cast<Block*>(crx.allocate(1, a));
-            TEST_ASSERT(b1->d_size == a);
+            TEST_ASSERT(b1->d_size == a);  // 1 rounded up to alignment
             TEST_ASSERT(b1->d_align == a);
             Block* b2 = static_cast<Block*>(crx.allocate(a, a));
             TEST_ASSERT(b2->d_size == a);
