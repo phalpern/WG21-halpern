@@ -58,15 +58,12 @@ class resource_adaptor_imp : public memory_resource
     allocator_type get_allocator() const { return m_alloc; }
 
   private:
+    template <size_t log2MinAlign, size_t log2MaxAlign, typename F>
+    void binary_search_alignments(size_t alignment, F&& f);
+
     void *do_allocate(size_t bytes, size_t alignment) override;
     void do_deallocate(void *p, size_t bytes, size_t alignment) override;
     bool do_is_equal(const memory_resource& other) const noexcept override;
-
-    template <size_t log2MinAlign, size_t log2MaxAlign>
-    void *do_allocate_imp(size_t bytes, size_t alignment);
-
-    template <size_t log2MinAlign, size_t log2MaxAlign>
-    void do_deallocate_imp(void *p, size_t bytes, size_t alignment);
 };
 
 // This alias ensures that 'resource_adaptor<SomeAlloc<T>>' and
@@ -108,8 +105,37 @@ XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::resource_adaptor_imp(
 {
 }
 
+// Perform a binary search for `alignment` among supported alignments.
 template <class Allocator, size_t MaxAlignment>
-void *XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
+template <size_t log2MinAlign, size_t log2MaxAlign, typename F>
+inline void XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
+binary_search_alignments(size_t alignment, F&& f)
+{
+    if constexpr (log2MinAlign == log2MaxAlign) {
+        constexpr size_t Align = 1ULL << log2MinAlign;
+        if constexpr (Align == MaxAlignment)
+            if (alignment > MaxAlignment)
+                throw bad_alloc{};
+
+        using chunk_alloc = typename allocator_traits<Allocator>::
+            template rebind_alloc<aligned_type<Align>>;
+        chunk_alloc rebound_alloc(m_alloc);
+        f(rebound_alloc, alignment);
+    }
+    else {
+        static constexpr size_t log2MidAlign = (log2MinAlign+log2MaxAlign) / 2;
+
+        if (alignment <= (1ULL << log2MidAlign))
+            binary_search_alignments<log2MinAlign,
+                                     log2MidAlign>(alignment, forward<F>(f));
+        else
+            binary_search_alignments<log2MidAlign + 1,
+                                     log2MaxAlign>(alignment, forward<F>(f));
+    }
+}
+
+template <class Allocator, size_t MaxAlignment>
+void* XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
 do_allocate(size_t bytes, size_t alignment)
 {
     static constexpr size_t log2MaxAlign = _Details::integralLog2(MaxAlignment);
@@ -121,37 +147,15 @@ do_allocate(size_t bytes, size_t alignment)
             alignment = MaxAlignment;
     }
 
-    return do_allocate_imp<0, log2MaxAlign>(bytes, alignment);
-}
+    void* ret;
+    binary_search_alignments<0, log2MaxAlign>(
+        alignment,
+        [bytes,&ret](auto alloc, size_t alignment) {
+            size_t chunks = (bytes + alignment - 1) / alignment;
+            ret = allocator_traits<decltype(alloc)>::allocate(alloc, chunks);
+        });
 
-template <class Allocator, size_t MaxAlignment>
-template <size_t log2MinAlign, size_t log2MaxAlign>
-void *XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
-do_allocate_imp(size_t bytes, size_t alignment)
-{
-    // Perform a binary search for `alignment` among supported alignments.
-    if constexpr (log2MinAlign == log2MaxAlign) {
-        constexpr size_t Align = 1ULL << log2MinAlign;
-        if constexpr (Align == MaxAlignment)
-            if (alignment > MaxAlignment)
-                throw bad_alloc{};
-
-        using chunk_alloc_traits = typename allocator_traits<Allocator>::
-            template rebind_traits<aligned_type<Align>>;
-        typename chunk_alloc_traits::allocator_type chunk_alloc(m_alloc);
-        size_t chunks = (bytes + Align - 1) / Align;
-        return chunk_alloc_traits::allocate(chunk_alloc, chunks);
-    }
-    else {
-        static constexpr size_t log2MidAlign = (log2MinAlign+log2MaxAlign) / 2;
-
-        if (alignment <= (1ULL << log2MidAlign))
-            return do_allocate_imp<log2MinAlign, log2MidAlign>(bytes,
-                                                               alignment);
-        else
-            return do_allocate_imp<log2MidAlign + 1, log2MaxAlign>(bytes,
-                                                                   alignment);
-    }
+    return ret;
 }
 
 template <class Allocator, size_t MaxAlignment>
@@ -170,36 +174,14 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
     // Assert that `alignment` is a power of 2
     assert(0 == (alignment & (alignment - 1)));
 
-    do_deallocate_imp<0, log2MaxAlign>(p, bytes, alignment);
-}
-
-template <class Allocator, size_t MaxAlignment>
-template <size_t log2MinAlign, size_t log2MaxAlign>
-void XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
-do_deallocate_imp(void *p, size_t bytes, size_t alignment)
-{
-    // Perform a binary search for `alignment` among supported alignments.
-    if constexpr (log2MinAlign == log2MaxAlign) {
-        constexpr size_t Align = 1ULL << log2MinAlign;
-        if constexpr (Align == MaxAlignment)
-            assert(alignment <= MaxAlignment);
-
-        using chunk_alloc_traits = typename allocator_traits<Allocator>::
-            template rebind_traits<aligned_type<Align>>;
-        typename chunk_alloc_traits::allocator_type chunk_alloc(m_alloc);
-        size_t chunks = (bytes + Align - 1) / Align;
-        chunk_alloc_traits::deallocate(chunk_alloc,
-                                       static_cast<aligned_type<Align>*>(p),
-                                       chunks);
-    }
-    else {
-        static constexpr size_t log2MidAlign = (log2MinAlign+log2MaxAlign) / 2;
-
-        if (alignment <= (1ULL << log2MidAlign))
-            do_deallocate_imp<log2MinAlign, log2MidAlign>(p, bytes, alignment);
-        else
-            do_deallocate_imp<log2MidAlign+1,log2MaxAlign>(p, bytes, alignment);
-    }
+    binary_search_alignments<0, log2MaxAlign>(
+        alignment,
+        [p,bytes](auto alloc, size_t alignment) {
+            size_t chunks = (bytes + alignment - 1) / alignment;
+            using chunk_alloc_traits = allocator_traits<decltype(alloc)>;
+            auto p2 = static_cast<typename chunk_alloc_traits::pointer>(p);
+            chunk_alloc_traits::deallocate(alloc, p2, chunks);
+        });
 }
 
 template <class Allocator, size_t MaxAlignment>
