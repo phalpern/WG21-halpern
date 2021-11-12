@@ -95,7 +95,7 @@ int main()
     testAlignedType<0x000002, unsigned short>();
     testAlignedType<0x000004, unsigned int>();
     testAlignedType<0x000008, unsigned long>();
-    testAlignedType<0x000010, std::max_align_t>();
+    testAlignedType<0x000010, long double>();
     testAlignedType<0x000020, aligned_object_storage<0x000020, 0x000020>>();
     testAlignedType<0x000040, aligned_object_storage<0x000040, 0x000040>>();
     testAlignedType<0x000080, aligned_object_storage<0x000080, 0x000080>>();

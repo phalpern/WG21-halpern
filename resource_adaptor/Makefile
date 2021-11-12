@@ -6,7 +6,7 @@
 TESTARGS +=
 
 CXX = g++
-CXXFLAGS = -std=c++20 -I. -Wall
+CXXFLAGS = -std=c++20 -I. -Wall $(VARIANT)
 WD := $(shell basename $(PWD))
 
 all : resource_adaptor.test
@@ -26,6 +26,10 @@ all : resource_adaptor.test
 %.o : %.cpp
 	$(CXX) $(CXXFLAGS) -c -g $<
 
+%.s : %.cpp
+	$(CXX) $(CXXFLAGS) -DQUICK_TEST -S -o $@.mangled -O2 $<
+	c++filt < $@.mangled > $@
+
 %.pdf : %.md
 	cd .. && make $(WD)/$@
 
@@ -33,4 +37,4 @@ all : resource_adaptor.test
 	cd .. && make $(WD)/$@
 
 clean :
-	rm -f *.t *.o
+	rm -f *.t *.o *.s
