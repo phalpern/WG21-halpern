@@ -18,16 +18,9 @@
 #include <cstddef> // max_align_t
 #include <cstdlib>
 #include <utility>
-#include <experimental/memory_resource>
+#include <cassert>
+#include <memory_resource>
 #include <aligned_type.h>
-
-namespace std::pmr { using namespace std::experimental::pmr; }
-
-#if __cplusplus < 201703L
-BEGIN_NAMESPACE_XSTD
-enum byte : unsigned char { };
-END_NAMESPACE_XSTD
-#endif
 
 BEGIN_NAMESPACE_XPMR
 
@@ -38,14 +31,6 @@ class resource_adaptor_imp : public memory_resource
 {
     static_assert(0 == (MaxAlignment & (MaxAlignment - 1)),
                   "MaxAlignment must be a power of 2");
-
-    Allocator m_alloc;
-
-    template <size_t Align>
-    void *aligned_allocate(size_t bytes);
-
-    template <size_t Align>
-    void aligned_deallocate(void *p, size_t bytes);
 
   public:
     typedef Allocator allocator_type;
@@ -64,9 +49,16 @@ class resource_adaptor_imp : public memory_resource
     allocator_type get_allocator() const { return m_alloc; }
 
   private:
+    Allocator m_alloc;
+
+    template <size_t Align>
+    void *aligned_allocate(size_t bytes);
+
+    template <size_t Align>
+    void aligned_deallocate(void *p, size_t bytes);
+
     void *do_allocate(size_t bytes, size_t alignment) override;
     void do_deallocate(void *p, size_t bytes, size_t alignment) override;
-
     bool do_is_equal(const memory_resource& other) const noexcept override;
 };
 
@@ -77,6 +69,27 @@ template <class Allocator, size_t MaxAlignment = alignof(max_align_t)>
 using resource_adaptor = resource_adaptor_imp<
     typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>,
     MaxAlignment>;
+
+namespace _details
+{
+
+// Compute the log2(n), rounded down, for n < 2^64.
+// Uses exactly 6 conditional checks and a maximum of 5 right-shift operations
+// (though each right-shift might be multiple bits).
+constexpr size_t integralLog2(size_t n)
+{
+    size_t result = 0;
+    if (n >= (1ULL << 32)) { result += 32; n >>= 32; }
+    if (n >= (1ULL << 16)) { result += 16; n >>= 16; }
+    if (n >= (1ULL <<  8)) { result +=  8; n >>=  8; }
+    if (n >= (1ULL <<  4)) { result +=  4; n >>=  4; }
+    if (n >= (1ULL <<  2)) { result +=  2; n >>=  2; }
+    if (n >= (1ULL <<  1)) { result +=  1;           }
+
+    return result;
+}
+
+} // Close namespace _details
 
 END_NAMESPACE_XPMR
 
@@ -96,8 +109,8 @@ XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::resource_adaptor_imp(
 
 template <class Allocator, size_t MaxAlignment>
 template <size_t Align>
-void *XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
-             aligned_allocate(size_t bytes)
+void* XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
+aligned_allocate(size_t bytes)
 {
     typedef aligned_type<Align> chunk_t;
     size_t chunks = (bytes + Align - 1) / Align;
@@ -132,12 +145,15 @@ do_allocate(size_t bytes, size_t alignment)
         if (alignment > MaxAlignment)
             alignment = MaxAlignment;
     }
+    else if (0 != (alignment & (alignment - 1)))
+        // Assert that `alignment` is a power of 2
+        assert(0 == (alignment & (alignment - 1)));
 
 #define ALLOC_CASE(n) \
-    case (1ULL << (n)): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
+    case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
         return aligned_allocate<(1ULL << (n))>(bytes)
 
-    switch (alignment) {
+    switch (_details::integralLog2(alignment)) {
         ALLOC_CASE(0);
         ALLOC_CASE(1);
         ALLOC_CASE(2);
@@ -220,15 +236,15 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
         if (alignment > MaxAlignment)
             alignment = MaxAlignment;
     }
-
-    // Assert that `alignment` is a power of 2
-    assert(0 == (alignment & (alignment - 1)));
+    else
+        // Assert that `alignment` is a power of 2
+        assert(0 == (alignment & (alignment - 1)));
 
 #define DEALLOC_CASE(n) \
-    case (1ULL << (n)): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
+    case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
         return aligned_deallocate<(1ULL << (n))>(p, bytes)
 
-    switch (alignment) {
+    switch (_details::integralLog2(alignment)) {
         DEALLOC_CASE(0);
         DEALLOC_CASE(1);
         DEALLOC_CASE(2);
@@ -294,7 +310,7 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
         DEALLOC_CASE(62);
         DEALLOC_CASE(63);
         default:
-            throw bad_alloc{};
+            assert(0 && "Alignment should be < MaxAlignment");
     } // end switch
 
 #undef DEALLOC_CASE

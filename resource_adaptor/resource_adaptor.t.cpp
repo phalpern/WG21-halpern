@@ -96,8 +96,6 @@ int main(int argc, char *argv[])
 {
     using namespace XPMR;
 
-    static constexpr size_t max_align_v = sizeof(std::max_align_t);
-
     {
         // Test with default `MaxAlignment`
 
@@ -105,15 +103,15 @@ int main(int argc, char *argv[])
 
         DummyAllocator<char> sax(&blocks);
 
-        // Shouldn't compile because 9 is now a power of 2
-        // XPMR::resource_adaptor<DummyAllocator<char>, 9> bad(sax);
-
         XPMR::resource_adaptor<DummyAllocator<char>> crx(sax);
 
+        // Shouldn't compile because 9 is not a power of 2
+        // XPMR::resource_adaptor<DummyAllocator<char>, 9> bad(sax);
+
         std::size_t a;
-        for (a = 1; a <= max_align_v; a *= 2) {
+        for (a = 1; a <= XSTD::max_align_v; a *= 2) {
             Block* b1 = static_cast<Block*>(crx.allocate(1, a));
-            TEST_ASSERT(b1->d_size == a);
+            TEST_ASSERT(b1->d_size == a);  // 1 rounded up to alignment
             TEST_ASSERT(b1->d_align == a);
             Block* b2 = static_cast<Block*>(crx.allocate(a, a));
             TEST_ASSERT(b2->d_size == a);
@@ -144,10 +142,11 @@ int main(int argc, char *argv[])
 
         DummyAllocator<char> sax(&blocks);
 
-        XPMR::resource_adaptor<DummyAllocator<short>, 4 * max_align_v> crx(sax);
+        XPMR::resource_adaptor<DummyAllocator<short>,
+                               4 * XSTD::max_align_v> crx(sax);
 
         std::size_t a;
-        for (a = 1; a <= 4 * max_align_v; a *= 2) {
+        for (a = 1; a <= 4 * XSTD::max_align_v; a *= 2) {
             Block* b1 = static_cast<Block*>(crx.allocate(1, a));
             TEST_ASSERT(b1->d_size == a);
             TEST_ASSERT(b1->d_align == a);

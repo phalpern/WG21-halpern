@@ -19,6 +19,8 @@
 
 BEGIN_NAMESPACE_XSTD
 
+constexpr size_t max_align_v = alignof(max_align_t);
+
 constexpr size_t natural_alignment(size_t sz)
 {
     const size_t x = sz | alignof(max_align_t);
