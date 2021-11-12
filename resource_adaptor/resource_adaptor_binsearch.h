@@ -67,7 +67,7 @@ using resource_adaptor = resource_adaptor_imp<
     typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>,
     MaxAlignment>;
 
-namespace _Details {
+namespace _details {
 
 // Return the log base 2 of `n`, rounded down. Precondition: `n > 0`
 constexpr int integralLog2(size_t n)
@@ -80,7 +80,7 @@ constexpr int integralLog2(size_t n)
     return result;
 }
 
-} // close namespace `_Details`
+} // close namespace `_details`
 
 END_NAMESPACE_XPMR
 
@@ -131,7 +131,7 @@ template <class Allocator, size_t MaxAlignment>
 void* XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
 do_allocate(size_t bytes, size_t alignment)
 {
-    static constexpr size_t log2MaxAlign = _Details::integralLog2(MaxAlignment);
+    static constexpr size_t log2MaxAlign = _details::integralLog2(MaxAlignment);
 
     if (0 == alignment) {
         // Choose natural alignment for 'bytes'
@@ -140,11 +140,12 @@ do_allocate(size_t bytes, size_t alignment)
             alignment = MaxAlignment;
     }
 
+    size_t chunks = (bytes + alignment - 1) / alignment;
+
     void* ret;
     binary_search_alignments<0, log2MaxAlign>(
         alignment,
-        [bytes,&ret](auto alloc, size_t alignment) {
-            size_t chunks = (bytes + alignment - 1) / alignment;
+        [chunks,&ret](auto alloc, size_t alignment) {
             ret = allocator_traits<decltype(alloc)>::allocate(alloc, chunks);
         });
 
@@ -155,7 +156,7 @@ template <class Allocator, size_t MaxAlignment>
 void XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
 do_deallocate(void *p, size_t  bytes, size_t  alignment)
 {
-    static constexpr size_t log2MaxAlign = _Details::integralLog2(MaxAlignment);
+    static constexpr size_t log2MaxAlign = _details::integralLog2(MaxAlignment);
 
     if (0 == alignment) {
         // Choose natural alignment for 'bytes'
@@ -167,10 +168,11 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
     // Assert that `alignment` is a power of 2
     assert(0 == (alignment & (alignment - 1)));
 
+    size_t chunks = (bytes + alignment - 1) / alignment;
+
     binary_search_alignments<0, log2MaxAlign>(
         alignment,
-        [p,bytes](auto alloc, size_t alignment) {
-            size_t chunks = (bytes + alignment - 1) / alignment;
+        [p,chunks](auto alloc, size_t alignment) {
             using chunk_alloc_traits = allocator_traits<decltype(alloc)>;
             auto p2 = static_cast<typename chunk_alloc_traits::pointer>(p);
             chunk_alloc_traits::deallocate(alloc, p2, chunks);
