@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 {
     using namespace XPMR;
 
-    static constexpr size_t max_align_v = sizeof(std::max_align_t);
+    static constexpr size_t max_align_v = alignof(std::max_align_t);
 
     {
         // Test with default `MaxAlignment`
