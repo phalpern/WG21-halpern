@@ -6,7 +6,7 @@
 TESTARGS +=
 
 CXX = g++
-CXXFLAGS = -std=c++20 -I. -Wall
+CXXFLAGS = -std=c++20 -I. -Wall -DUSE_SWITCH
 WD := $(shell basename $(PWD))
 
 all : resource_adaptor.test
@@ -25,6 +25,9 @@ all : resource_adaptor.test
 
 %.o : %.cpp
 	$(CXX) $(CXXFLAGS) -c -g $<
+
+%.s : %.cpp
+	$(CXX) $(CXXFLAGS) -DQUICK_TEST -s -O2 $<
 
 %.pdf : %.md
 	cd .. && make $(WD)/$@
