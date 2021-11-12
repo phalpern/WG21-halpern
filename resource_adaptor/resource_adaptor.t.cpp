@@ -96,17 +96,20 @@ int main(int argc, char *argv[])
 {
     using namespace XPMR;
 
+#ifdef QUICK_TEST
+    XPMR::resource_adaptor<std::allocator<char>> crx;
+    void *p = crx.allocate(1, 4);
+    crx.deallocate(p, 1, 4);
+#else
     {
         // Test with default `MaxAlignment`
 
         std::deque<Block> blocks;
 
-        DummyAllocator<char> sax(&blocks);
-
-        XPMR::resource_adaptor<DummyAllocator<char>> crx(sax);
+        XPMR::resource_adaptor<DummyAllocator<char>> crx(&blocks);
 
         // Shouldn't compile because 9 is not a power of 2
-        // XPMR::resource_adaptor<DummyAllocator<char>, 9> bad(sax);
+        // XPMR::resource_adaptor<DummyAllocator<char>, 9> bad(&blocks);
 
         std::size_t a;
         for (a = 1; a <= XSTD::max_align_v; a *= 2) {
@@ -140,10 +143,8 @@ int main(int argc, char *argv[])
 
         std::deque<Block> blocks;
 
-        DummyAllocator<char> sax(&blocks);
-
         XPMR::resource_adaptor<DummyAllocator<short>,
-                               4 * XSTD::max_align_v> crx(sax);
+                               4 * XSTD::max_align_v> crx(&blocks);
 
         std::size_t a;
         for (a = 1; a <= 4 * XSTD::max_align_v; a *= 2) {
@@ -172,6 +173,6 @@ int main(int argc, char *argv[])
         }
     }
 
-
     return testStatus;
+#endif // ! QUICK_TEST
 }

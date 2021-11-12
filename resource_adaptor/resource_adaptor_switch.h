@@ -52,10 +52,10 @@ class resource_adaptor_imp : public memory_resource
     Allocator m_alloc;
 
     template <size_t Align>
-    void *aligned_allocate(size_t bytes);
+    void *aligned_allocate(size_t chunks);
 
     template <size_t Align>
-    void aligned_deallocate(void *p, size_t bytes);
+    void aligned_deallocate(void *p, size_t chunks);
 
     void *do_allocate(size_t bytes, size_t alignment) override;
     void do_deallocate(void *p, size_t bytes, size_t alignment) override;
@@ -110,29 +110,26 @@ XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::resource_adaptor_imp(
 template <class Allocator, size_t MaxAlignment>
 template <size_t Align>
 void* XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
-aligned_allocate(size_t bytes)
+aligned_allocate(size_t chunks)
 {
-    typedef aligned_type<Align> chunk_t;
-    size_t chunks = (bytes + Align - 1) / Align;
+    using chunk_alloc_t = allocator_traits<Allocator>::
+        template rebind_alloc<aligned_type<Align>>;
 
-    typedef typename allocator_traits<Allocator>::
-        template rebind_traits<chunk_t> chunk_traits;
-    typename chunk_traits::allocator_type rebound(m_alloc);
-    return chunk_traits::allocate(rebound, chunks);
+    chunk_alloc_t chunk_alloc(m_alloc);
+    return allocator_traits<chunk_alloc_t>::allocate(chunk_alloc, chunks);
 }
 
 template <class Allocator, size_t MaxAlignment>
 template <size_t Align>
 void XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::
-aligned_deallocate(void *p, size_t  bytes)
+aligned_deallocate(void *p, size_t chunks)
 {
-    typedef aligned_type<Align> chunk_t;
-    size_t chunks = (bytes + Align - 1) / Align;
+    using chunk_alloc_t = allocator_traits<Allocator>::
+        template rebind_alloc<aligned_type<Align>>;
 
-    typedef  typename allocator_traits<Allocator>::
-        template rebind_traits<chunk_t> chunk_traits;
-    typename chunk_traits::allocator_type rebound(m_alloc);
-    return chunk_traits::deallocate(rebound, static_cast<chunk_t*>(p), chunks);
+    chunk_alloc_t chunk_alloc(m_alloc);
+    auto chunk_p = static_cast<aligned_type<Align> *>(p);
+    allocator_traits<chunk_alloc_t>::deallocate(chunk_alloc, chunk_p, chunks);
 }
 
 template <class Allocator, size_t MaxAlignment>
@@ -149,9 +146,11 @@ do_allocate(size_t bytes, size_t alignment)
         // Assert that `alignment` is a power of 2
         assert(0 == (alignment & (alignment - 1)));
 
+    size_t chunks = (bytes + alignment - 1) / alignment;
+
 #define ALLOC_CASE(n) \
     case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
-        return aligned_allocate<(1ULL << (n))>(bytes)
+        return aligned_allocate<(1ULL << (n))>(chunks)
 
     switch (_details::integralLog2(alignment)) {
         ALLOC_CASE(0);
@@ -240,9 +239,11 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
         // Assert that `alignment` is a power of 2
         assert(0 == (alignment & (alignment - 1)));
 
+    size_t chunks = (bytes + alignment - 1) / alignment;
+
 #define DEALLOC_CASE(n) \
     case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
-        return aligned_deallocate<(1ULL << (n))>(p, bytes)
+        return aligned_deallocate<(1ULL << (n))>(p, chunks)
 
     switch (_details::integralLog2(alignment)) {
         DEALLOC_CASE(0);
