@@ -17,17 +17,10 @@
 #include <memory>
 #include <cstddef> // max_align_t
 #include <cstdlib>
+#include <cassert>
 #include <utility>
-#include <experimental/memory_resource>
+#include <memory_resource>
 #include <aligned_type.h>
-
-namespace std::pmr { using namespace std::experimental::pmr; }
-
-#if __cplusplus < 201703L
-BEGIN_NAMESPACE_XSTD
-enum byte : unsigned char { };
-END_NAMESPACE_XSTD
-#endif
 
 BEGIN_NAMESPACE_XPMR
 
