@@ -5,11 +5,19 @@
 
 TESTARGS +=
 
-CXX = g++
-CXXFLAGS = -std=c++20 -I. -Wall -DUSE_SWITCH
-WD := $(shell basename $(PWD))
+# VARIANT should be one of BINARY_SEARCH, LINEAR, or SWITCH
+VARIANT ?= BINARY_SEARCH
 
-all : resource_adaptor.test
+CXX = g++
+CXXFLAGS = -std=c++20 -I. -Wall -DRA_$(VARIANT)
+WD := $(shell basename $(PWD))
+OUTDIR = obj.$(VARIANT)
+
+all : asm test
+
+asm : $(OUTDIR)/resource_adaptor.t.s
+
+test : resource_adaptor.test
 
 .SECONDARY :
 
@@ -17,17 +25,22 @@ all : resource_adaptor.test
 
 .PHONY : .FORCE clean
 
-%.t : %.t.cpp %.h
+$(OUTDIR)/%.t : %.t.cpp %.h
+	mkdir -p $(OUTDIR)
 	$(CXX) $(CXXFLAGS) -o $@ -g $*.t.cpp
 
-%.test : %.t
-	./$< $(TESTARGS)
+%.test : $(OUTDIR)/%.t
+	$< $(TESTARGS)
 
-%.o : %.cpp
-	$(CXX) $(CXXFLAGS) -c -g $<
+$(OUTDIR)/%.o : %.cpp
+	mkdir -p $(OUTDIR)
+	$(CXX) $(CXXFLAGS) -c -o $@ -g $<
 
-%.s : %.cpp
-	$(CXX) $(CXXFLAGS) -DQUICK_TEST -s -O2 $<
+$(OUTDIR)/%.s : %.cpp
+	mkdir -p $(OUTDIR)
+	$(CXX) $(CXXFLAGS) -DQUICK_TEST -S -o $@.mangled -O2 $<
+	c++filt < $@.mangled > $@
+	rm $@.mangled
 
 %.pdf : %.md
 	cd .. && make $(WD)/$@
@@ -36,4 +49,4 @@ all : resource_adaptor.test
 	cd .. && make $(WD)/$@
 
 clean :
-	rm -f *.t *.o
+	rm -rf $(OUTDIR)

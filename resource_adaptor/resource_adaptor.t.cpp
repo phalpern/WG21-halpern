@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     using namespace XPMR;
 
 #ifdef QUICK_TEST
-    XPMR::resource_adaptor<std::allocator<char>> crx;
+    XPMR::resource_adaptor<std::allocator<char>, 64> crx;
     void *p = crx.allocate(1, 4);
     crx.deallocate(p, 1, 4);
 #else
