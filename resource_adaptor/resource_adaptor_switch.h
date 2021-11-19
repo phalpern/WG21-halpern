@@ -49,6 +49,29 @@ class resource_adaptor_imp : public memory_resource
     allocator_type get_allocator() const { return m_alloc; }
 
   private:
+    // Compute the log2(n), rounded down, for n <= MaxAlignment.  Uses at most
+    // log2(log2(MaxAlignment)+1) right-shift operations (though each
+    // right-shift might be multiple bits) and the same number of conditinal
+    // branches plus one.
+    constexpr size_t integralLog2(size_t n)
+    {
+#       define LOG2_CHECK(e)                                            \
+            if constexpr ((1ULL << (e)) <= MaxAlignment)                \
+                if ((1ULL << (e)) <= n)
+
+        size_t result = 0;
+        LOG2_CHECK(32) { result += 32; n >>= 32; }
+        LOG2_CHECK(16) { result += 16; n >>= 16; }
+        LOG2_CHECK( 8) { result +=  8; n >>=  8; }
+        LOG2_CHECK( 4) { result +=  4; n >>=  4; }
+        LOG2_CHECK( 2) { result +=  2; n >>=  2; }
+        LOG2_CHECK( 1) { result +=  1;           }
+
+#       undef LOG2_CHECK
+
+        return result;
+    }
+
     Allocator m_alloc;
 
     template <size_t Align>
@@ -69,27 +92,6 @@ template <class Allocator, size_t MaxAlignment = alignof(max_align_t)>
 using resource_adaptor = resource_adaptor_imp<
     typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>,
     MaxAlignment>;
-
-namespace _details
-{
-
-// Compute the log2(n), rounded down, for n < 2^64.
-// Uses exactly 6 conditional checks and a maximum of 5 right-shift operations
-// (though each right-shift might be multiple bits).
-constexpr size_t integralLog2(size_t n)
-{
-    size_t result = 0;
-    if (n >= (1ULL << 32)) { result += 32; n >>= 32; }
-    if (n >= (1ULL << 16)) { result += 16; n >>= 16; }
-    if (n >= (1ULL <<  8)) { result +=  8; n >>=  8; }
-    if (n >= (1ULL <<  4)) { result +=  4; n >>=  4; }
-    if (n >= (1ULL <<  2)) { result +=  2; n >>=  2; }
-    if (n >= (1ULL <<  1)) { result +=  1;           }
-
-    return result;
-}
-
-} // Close namespace _details
 
 END_NAMESPACE_XPMR
 
@@ -152,7 +154,7 @@ do_allocate(size_t bytes, size_t alignment)
     case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
         return aligned_allocate<(1ULL << (n))>(chunks)
 
-    switch (_details::integralLog2(alignment)) {
+    switch (integralLog2(alignment)) {
         ALLOC_CASE(0);
         ALLOC_CASE(1);
         ALLOC_CASE(2);
@@ -245,7 +247,7 @@ do_deallocate(void *p, size_t  bytes, size_t  alignment)
     case (n): if constexpr ((1ULL << (n)) <= MaxAlignment)      \
         return aligned_deallocate<(1ULL << (n))>(p, chunks)
 
-    switch (_details::integralLog2(alignment)) {
+    switch (integralLog2(alignment)) {
         DEALLOC_CASE(0);
         DEALLOC_CASE(1);
         DEALLOC_CASE(2);
