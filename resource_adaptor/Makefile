@@ -17,7 +17,7 @@ all : asm test
 
 asm : $(OUTDIR)/resource_adaptor.t.s
 
-test : resource_adaptor.test
+test : aligned_type.test resource_adaptor.test
 
 .SECONDARY :
 
