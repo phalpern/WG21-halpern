@@ -21,14 +21,8 @@ BEGIN_NAMESPACE_XSTD
 
 constexpr size_t max_align_v = alignof(max_align_t);
 
-constexpr size_t natural_alignment(size_t sz)
-{
-    const size_t x = sz | alignof(max_align_t);
-    return ((x ^ (x - 1)) + 1) >> 1;
-}
-
-template <size_t N,
-          size_t Align = natural_alignment(N)>
+template <size_t Align,
+          size_t N = Align>
 struct aligned_object_storage
 {
     static constexpr size_t alignment = Align;
@@ -36,10 +30,10 @@ struct aligned_object_storage
 
     using type = aligned_object_storage;
 
-    constexpr       unsigned char* storage()       { return _filler; }
-    constexpr const unsigned char* storage() const { return _filler; }
+    constexpr       unsigned char* get_data()       { return data; }
+    constexpr const unsigned char* get_data() const { return data; }
 
-    alignas(alignment) unsigned char _filler[size];  // Private name
+    alignas(alignment) unsigned char data[size];  // Private name
 };
 
 template <size_t Align, typename... Tp> struct aligned_type_imp;
@@ -57,26 +51,26 @@ struct aligned_type_imp<A, T0, Tp...>
 template <size_t Align>
 struct aligned_type_imp<Align>
 {
-    using type = aligned_object_storage<Align, Align>;
+    using type = aligned_object_storage<Align>;
 };
 
 // Compute the first of a list of types to match the specified `Align`.
 template <size_t Align>
 using aligned_type = typename aligned_type_imp<Align,
-    max_align_t,
-    unsigned char,
-    unsigned short,
-    unsigned int,
-    unsigned long,
-    unsigned long long,
-    float,
-    double,
-    long double,
-    void*,
-    void (*)(),
-    bool true_type::*,
-    bool (true_type::*)()
-    >::type;
+                                               unsigned char,
+                                               unsigned short,
+                                               unsigned int,
+                                               unsigned long,
+                                               unsigned long long,
+                                               float,
+                                               double,
+                                               long double,
+                                               void*,
+                                               void (*)(),
+                                               bool true_type::*,
+                                               bool (true_type::*)(),
+                                               max_align_t
+                                           >::type;
 
 END_NAMESPACE_XSTD
 
