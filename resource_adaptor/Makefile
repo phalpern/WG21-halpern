@@ -25,7 +25,7 @@ test : aligned_type.test resource_adaptor.test
 
 .PHONY : .FORCE clean
 
-$(OUTDIR)/%.t : %.t.cpp %.h
+$(OUTDIR)/%.t : %.t.cpp %.h aligned_type.h
 	mkdir -p $(OUTDIR)
 	$(CXX) $(CXXFLAGS) -o $@ -g $*.t.cpp
 
