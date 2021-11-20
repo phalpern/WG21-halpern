@@ -16,14 +16,8 @@ This directory contains:
       type (in `resource_adaptor_switch.h`)
 * The text of P1083 in markdown format (`P1083_resource_adaptor_to_WP.md`)
 
-All new features have fairly complete test drivers (in `aligned_type.t.cpp` and
-`resource_adaptor.t.cpp`).  To build the and run the test drivers, use
-`make test`. By default, this tests the binary-search version; to test other
-versions, set the variable `VARIANT` to `LINEAR`, `SWITCH`, or `BINARY_SEARCH`,
-accordingly, e.g.:
-
-```sh
-$ make VARIANT=LINEAR test
-```
-
-The binary files are put into subdirectory `obj.$VARIANT`.
+All new features have fairly complete test drivers (in `aligned_type.t.cpp`,
+`resource_adaptor_*.t.cpp`, and `resource_adaptor.t.h`).  Typing `make` will
+build and run the test drivers and will also produce optimized and demangled
+assembly files for visual comparison of the different algorithms. The generated
+files are put into the `obj` subdirectory.

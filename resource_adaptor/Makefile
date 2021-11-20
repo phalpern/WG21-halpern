@@ -5,19 +5,21 @@
 
 TESTARGS +=
 
-# VARIANT should be one of BINARY_SEARCH, LINEAR, or SWITCH
-VARIANT ?= BINARY_SEARCH
-
 CXX = g++
-CXXFLAGS = -std=c++20 -I. -Wall -DRA_$(VARIANT)
+CXXFLAGS = -std=c++20 -I. -Wall
+TEST_OPT = -g
+ASM_OPT  = -O2
 WD := $(shell basename $(PWD))
-OUTDIR = obj.$(VARIANT)
+OUTDIR = obj
+MK_OUTDIR := $(shell mkdir -p $(OUTDIR))
+
+ALGORITHMS = binsearch linear switch
 
 all : asm test
 
-asm : $(OUTDIR)/resource_adaptor.t.s
+asm :  $(ALGORITHMS:%=$(OUTDIR)/resource_adaptor_%.t.s)
 
-test : aligned_type.test resource_adaptor.test
+test : aligned_type.test $(ALGORITHMS:%=resource_adaptor_%.test)
 
 .SECONDARY :
 
@@ -25,20 +27,20 @@ test : aligned_type.test resource_adaptor.test
 
 .PHONY : .FORCE clean
 
-$(OUTDIR)/%.t : %.t.cpp %.h aligned_type.h
-	mkdir -p $(OUTDIR)
-	$(CXX) $(CXXFLAGS) -o $@ -g $*.t.cpp
-
-%.test : $(OUTDIR)/%.t
+%.test : $(OUTDIR)/%.t .FORCE
 	$< $(TESTARGS)
 
-$(OUTDIR)/%.o : %.cpp
-	mkdir -p $(OUTDIR)
-	$(CXX) $(CXXFLAGS) -c -o $@ -g $<
+$(OUTDIR)/aligned_type.t : aligned_type.t.cpp aligned_type.h
+	$(CXX) $(CXXFLAGS) $(TEST_OPT) -o $@ $<
 
-$(OUTDIR)/%.s : %.cpp
-	mkdir -p $(OUTDIR)
-	$(CXX) $(CXXFLAGS) -DQUICK_TEST -S -o $@.mangled -O2 $<
+$(OUTDIR)/%.t : %.t.cpp %.h resource_adaptor.t.h aligned_type.h
+	$(CXX) $(CXXFLAGS) $(TEST_OPT) -o $@ $<
+
+$(OUTDIR)/%.o : %.cpp %.h resource_adaptor.t.h aligned_type.h
+	$(CXX) $(CXXFLAGS) $(TEST_OPT) -c -o $@ $<
+
+$(OUTDIR)/%.t.s : %.t.cpp %.h resource_adaptor.t.h aligned_type.h
+	$(CXX) $(CXXFLAGS) $(ASM_OPT) -DQUICK_TEST -S -o $@.mangled $<
 	c++filt < $@.mangled > $@
 	rm $@.mangled
 
@@ -50,3 +52,4 @@ $(OUTDIR)/%.s : %.cpp
 
 clean :
 	rm -rf $(OUTDIR)
+	mkdir -p $(OUTDIR)
