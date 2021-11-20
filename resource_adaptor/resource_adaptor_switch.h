@@ -39,14 +39,14 @@ class resource_adaptor_imp : public memory_resource
 
     resource_adaptor_imp() = default;
 
-    resource_adaptor_imp(const resource_adaptor_imp&) = default;
+    resource_adaptor_imp(const resource_adaptor_imp&) noexcept = default;
 
     template <class Allocator2>
     resource_adaptor_imp(Allocator2&& a2, typename
                          enable_if<is_convertible<Allocator2, Allocator>::value,
-                                   int>::type = 0);
+                                   int>::type = 0) noexcept;
 
-    allocator_type get_allocator() const { return m_alloc; }
+    allocator_type get_allocator() const noexcept { return m_alloc; }
 
   private:
     // Compute the log2(n), rounded down, for n <= MaxAlignment.  Uses at most
@@ -104,7 +104,7 @@ template <class Allocator2>
 inline
 XPMR::resource_adaptor_imp<Allocator, MaxAlignment>::resource_adaptor_imp(
     Allocator2&& a2, typename
-    enable_if<is_convertible<Allocator2, Allocator>::value, int>::type)
+    enable_if<is_convertible<Allocator2, Allocator>::value, int>::type) noexcept
     : m_alloc(forward<Allocator2>(a2))
 {
 }
