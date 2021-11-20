@@ -83,16 +83,11 @@ bool operator!=(const DummyAllocator<Tp1>& a, const DummyAllocator<Tp2>& b)
     return ! (a == b);
 }
 
-int func(const char* s)
-{
-    return std::atoi(s);
-}
-
 //=============================================================================
-//                              MAIN PROGRAM
+//                              MAIN TEST FUNCTION
 //-----------------------------------------------------------------------------
 
-int main(int argc, char *argv[])
+inline int test()
 {
     using namespace XPMR;
 
@@ -100,6 +95,7 @@ int main(int argc, char *argv[])
     XPMR::resource_adaptor<std::allocator<char>, 64> crx;
     void *p = crx.allocate(1, 4);
     crx.deallocate(p, 1, 4);
+    return 0;
 #else
     {
         // Test with default `MaxAlignment`
