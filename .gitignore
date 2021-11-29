@@ -39,3 +39,14 @@
 
 # Temp files
 *~
+\#*
+.\#*
+*.o
+*.s
+*.old
+*.sav
+*.orig
+.DS_store
+obj/
+build/
+results/

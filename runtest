@@ -1,0 +1,111 @@
+#! /bin/bash
+
+outdir=results
+exedir=obj
+
+# Convert time in XmY.YYYs format to seconds.
+# Examples: "1m12.051s" is converted to "72.051"
+function minsecToSec
+{
+    min=${1%m*}
+    sec=${1#*m}
+    sec=${sec%s}
+    echo $(echo "60*$min+$sec" | bc)
+}
+
+function catargs {
+    set -- "$@"
+    echo "$1,$2,$3,$4,$5,$6"
+}
+
+function runtests {
+    args="$*"
+
+    set -- $(($exedir/benchmark-CP "$@" && $exedir/benchmark-MV "$@" || exit 1) |
+                 sed -n -e '/^args *=/s/.*= //p' -e '/^elapsed *=/s/.*= //p')
+
+    if [ $# != 4 ]; then
+       echo >&2 "Something failed with args $args"
+       return 1
+    fi
+
+    cpargs=$1
+    cptime=$2
+    mvargs=$3
+    mvtime=$4
+
+    if [ "$cpargs" != "$mvargs" ]; then
+        echo >&2 "Argument mismatch, $cpargs != $mvargs"
+        return 1
+    fi
+
+    # Percent of CP time used by MV program
+    reltime=$(echo "100*$mvtime/$cptime" | bc)
+
+    echo $cpargs,$cptime,$mvtime,${reltime}%
+}
+
+for testnum in "$@"; do
+    case $testnum in
+        x)  shift; runtests "$@"; exit 0 ;;
+        8)  ####################################################################
+            # test8: Find breaks in preformance where each cache is exhausted
+            # Vary system size from 2^7 to 2^25
+            # Vary subsystem size from 2^0 bytes up to system size
+            # Hold element size constant at 2^6 (one cache line)
+            # Hold iteration count constant at 2^5
+            # Hold churn count at 2^0
+            # Repetition count varies inversely with system size (min 2^5)
+            ####################################################################
+            if [ -f $outdir/test$testnum.csv ]; then
+                mv -f $outdir/test$testnum.csv $outdir/test$testnum.csv.old
+            fi
+            eS=6
+            iC=5
+            cC=0
+            for (( S=7; S<=25; ++S )); do
+                let "rC = 25-S"
+                if (( rC<5 )); then
+                    rC=5
+                fi
+                for (( sS=0; sS<=S-eS; ++sS )); do
+                    if (( S-sS-eS >= 25 || sS >= 24 )); then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $S . $sS $eS $iC $cC $rC |
+                        tee -a $outdir/test$testnum.csv
+                done
+            done
+            ;;
+
+        9)  ####################################################################
+            # test9: Find breaks in preformance where page memory is exhausted
+            # Vary system size from 2^33 to 2^35
+            # Vary subsystem size from 2^2 bytes up to system size - 4
+            # Hold element size constant at 2^6 (one cache line)
+            # Hold iteration count constant at 2^4
+            # Hold churn count at 2^0
+            # Repetition count varies inversely with system size (min 2^3)
+            ####################################################################
+            if [ -f $outdir/test$testnum.csv ]; then
+                mv -f $outdir/test$testnum.csv $outdir/test$testnum.csv.old
+            fi
+            eS=6
+            iC=5
+            cC=0
+            for (( S=33; S<=35; ++S )); do
+                let "rC = 25-S"
+                if (( rC<3 )); then
+                    rC=3
+                fi
+                for (( sS=2; sS<=S-eS-4; ++sS )); do
+                    if (( S-sS-eS >= 25 || sS >= 24 )); then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $S . $sS $eS $iC $cC $rC |
+                        tee -a $outdir/test$testnum.csv
+                done
+            done
+            ;;
+    esac
+done
