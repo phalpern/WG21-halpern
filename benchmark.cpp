@@ -11,16 +11,28 @@
 #include <cstring>
 #include <cassert>
 
+namespace chrono = std::chrono;
+
 using Element   = std::pmr::vector<char>;
 using Subsystem = std::pmr::vector<Element>;
 using System    = std::pmr::vector<Subsystem>;
 
-void initializeSubsystem(Subsystem* ss, ptrdiff_t elemsPerSubsys,
-                         ptrdiff_t elemSize)
+bool verbose      = false;
+bool showProgress = false;
+
+std::ptrdiff_t systemSize    ;
+std::ptrdiff_t numSubsystems ;
+std::ptrdiff_t elemsPerSubsys;
+std::ptrdiff_t elemSize      ;
+std::ptrdiff_t iterationCount;
+std::ptrdiff_t churnCount    ;
+std::ptrdiff_t repCount      ;
+
+void initializeSubsystem(Subsystem* ss)
   // Initialize `ss` to `elemsPerSubsys` elements of `elemSize` length.
 {
     ss->reserve(elemsPerSubsys);
-    for (ptrdiff_t i = 0; i < elemsPerSubsys; ++i) {
+    for (std::ptrdiff_t i = 0; i < elemsPerSubsys; ++i) {
         char c = 'A' + (std::rand() & 31);
         Element& e = ss->emplace_back();
         e.reserve(elemSize);
@@ -29,13 +41,13 @@ void initializeSubsystem(Subsystem* ss, ptrdiff_t elemsPerSubsys,
     }
 }
 
-void accessSubsystem(Subsystem* ss, ptrdiff_t iterationCount)
+void accessSubsystem(Subsystem* ss, std::ptrdiff_t iterationCount)
     // Ping the subsystem, simulating read/write accesses proportional to the
     // specified `iterationCount`.
 {
     if (ss->empty()) return;  // nothing to access
 
-    for (ptrdiff_t i = 0; i < iterationCount; ++i) {
+    for (std::ptrdiff_t i = 0; i < iterationCount; ++i) {
         for (Element& e : *ss) {
             // XOR last 3 bits of each byte of element into first byte
             char x = 0;
@@ -47,8 +59,30 @@ void accessSubsystem(Subsystem* ss, ptrdiff_t iterationCount)
     }
 }
 
-void churn(System *system, ptrdiff_t churnCount)
+template <bool UseCopy>
+struct CopyOrMove_t;
+
+template <>
+struct CopyOrMove_t<true>
 {
+    void operator()(Element *to, const Element& from) const {
+        *to = from;
+    }
+};
+
+template <>
+struct CopyOrMove_t<false>
+{
+    void operator()(Element *to, Element& from) const {
+        *to = std::move(from);
+    }
+};
+
+template <bool UseCopy>
+void churn(System *system, std::ptrdiff_t churnCount)
+{
+    using std::ptrdiff_t;
+
     static std::mt19937 rengine;
     static std::uniform_int_distribution<ptrdiff_t> urand(0, system->size()-1);
 
@@ -61,17 +95,17 @@ void churn(System *system, ptrdiff_t churnCount)
         randomSeq[i] = i;
     }
 
-#if defined(USE_COPY)
-    // Make `tempElem` static, using the global allocator, to avoid an
-    // allocation from the buffer allocator on each call to this function.
-    static Element tempElem;
-#else
-    // To maximize move efficiency, use the same allocator as the rest of the
-    // system.  Cannot make `tempElem` static because it will outlive the
-    // allocator.  Fortunately, in the case of move, there are no extra
-    // allocations anyway.
-    Element tempElem(system->get_allocator());
-#endif
+    static constexpr CopyOrMove_t<UseCopy> copyOrMove{};
+
+    // When using copy assignment, use the global allocator for the temporary
+    // element, to avoid an allocation from the buffer allocator on each call
+    // to this function. When using move assignment use the same allocator as
+    // the rest of the system, to facilitate fast moves; no extra allocations
+    // occur as a result of the move assignments in this function.
+    std::pmr::polymorphic_allocator<char> tempAlloc = UseCopy ?
+        std::pmr::get_default_resource() : system->get_allocator();
+
+    Element tempElem(tempAlloc);
 
     // Repeat shuffle 'churnCount' times (default 1)
     for (ptrdiff_t c = 0; c < churnCount; ++c) {
@@ -81,36 +115,83 @@ void churn(System *system, ptrdiff_t churnCount)
             Element *hole = &tempElem;
             for (auto k : randomSeq) {
                 Element &fromElem = (*system)[k][e];
-
-#if defined(USE_COPY)
-                *hole = fromElem;               // Copy
-#elif defined(USE_MOVE)
-                *hole = std::move(fromElem);    // Move
-#else
-#  error "Either USE_COPY or USE_MOVE must be defined"
-#endif
+                copyOrMove(hole, fromElem);
                 hole = &fromElem;
             }
             // Finish rotation
-#if defined(USE_COPY)
-            *hole = tempElem;               // Copy
-#elif defined(USE_MOVE)
-            *hole = std::move(tempElem);    // Move
-#endif
+            copyOrMove(hole, tempElem);
         }
     }
 }
 
-bool verbose      = false;
-bool showProgress = false;
+template <typename TP>
+void progress(const char* label, TP& snapShot, std::ptrdiff_t rep,
+              std::ptrdiff_t ss, const char* msg)
+{
+    using namespace std::literals::chrono_literals;
+
+    auto now = chrono::steady_clock::now();
+    // auto elapsed =
+    //     chrono::duration_cast<chrono::milliseconds>(now - snapShot).count();
+
+    if (now - snapShot >= 5'000ms) {
+        std::cerr << label << " (rep " << rep << ", subsys " << ss << ") "
+                  << msg << std::endl;
+        snapShot = now;
+    }
+}
+
+template <bool UseCopy>
+chrono::milliseconds doTest(void* buffer, std::size_t totalBytes)
+{
+    static constexpr const char* label = UseCopy ? "[copy]" : "[move]";
+
+    auto startInit = chrono::steady_clock::now();
+    auto snapShot  = startInit;
+
+    std::pmr::monotonic_buffer_resource rsrc(buffer, totalBytes,
+                                             std::pmr::null_memory_resource());
+
+    System system(numSubsystems, &rsrc);
+
+    for (Subsystem& ss : system) {
+        initializeSubsystem(&ss);
+    }
+
+    if (showProgress) progress(label, snapShot, 0, 0, "initialized");
+
+    // // How long did initialization take?
+    // auto initElapsedMs = chrono::duration_cast<chrono::milliseconds>(
+    //     chrono::steady_clock::now() - startInit).count();
+
+    auto startTime = chrono::steady_clock::now();
+
+    for (std::ptrdiff_t n = 0; n < repCount; ++n) {
+        churn<UseCopy>(&system, churnCount);
+        if (showProgress) progress(label, snapShot, n, 0, "churned");
+        for (long ss = 0; ss < numSubsystems; ++ss) {
+	    accessSubsystem(&system[ss], iterationCount);
+            if (showProgress)
+                progress(label, snapShot, n, ss, "accessed");
+        }
+    }
+
+    auto stopTime = chrono::steady_clock::now();
+    auto elapsed =
+        chrono::duration_cast<chrono::milliseconds>(stopTime-startTime);
+
+    if (showProgress)
+        std::cerr << label << " finished in " << elapsed.count() << "ms\n";
+
+    return elapsed;
+}
 
 void processOptions(const char* argv[], int argc, int& arg)
 {
     for ( ; arg < argc; ++arg) {
         if ('-' != argv[arg][0]) return;
-        for (int i = 1;  ; ++i) {
+        for (int i = 1;  argv[arg][i] != '\0'; ++i) {
             switch (argv[arg][i]) {
-                case '\0': return;
                 case 'v' : verbose = true; break;
                 case 'p' : showProgress = true; break;
                 default  :
@@ -122,7 +203,8 @@ void processOptions(const char* argv[], int argc, int& arg)
     } // /end while
 }
 
-ptrdiff_t parseArg(const char* argv[], int argc, int& arg, ptrdiff_t dflt)
+std::ptrdiff_t parseArg(const char* argv[], int argc, int& arg,
+                        std::ptrdiff_t dflt)
     // Parse argument specified by `arg` into a number. If `argv[arg]` is
     // missing, then return the specified `dflt`. If `argv[arg]` specifies the
     // placeholder, ".", then return -1. Otherwise, return `argv[arg]`
@@ -139,37 +221,21 @@ ptrdiff_t parseArg(const char* argv[], int argc, int& arg, ptrdiff_t dflt)
         return dflt;
 }
 
-template <typename TP>
-void progress(TP& snapShot, ptrdiff_t rep, ptrdiff_t ss,
-              const char* msg)
-{
-    namespace chrono = std::chrono;
-    using namespace std::literals::chrono_literals;
-
-    auto now = chrono::steady_clock::now();
-    auto elapsed =
-        chrono::duration_cast<chrono::milliseconds>(now - snapShot).count();
-
-    if (elapsed >= 2000) {
-        std::cerr << '+' << elapsed
-                  << "ms (rep " << rep << ", subsys " << ss << ") " << msg
-                  << std::endl;
-        snapShot = now;
-    }
-}
-
+// Main program parses arguments and runs tests.  It prints three
+// newline-separated strings to standard out:
+// 1. The list of test parameters (comma separated with no whitespace)
+// 2. The time in ms for running the test using copy assingment
+// 3. The time in ms for running the test using move assingment
 int main(int argc, const char *argv[])
 {
-    namespace chrono = std::chrono;
-
     int a = 1;
-    ptrdiff_t systemSize       = parseArg(argv, argc, a, 18);
-    ptrdiff_t numSubsystems    = parseArg(argv, argc, a, 4);
-    ptrdiff_t elemsPerSubsys   = parseArg(argv, argc, a, 20);
-    ptrdiff_t elemSize         = parseArg(argv, argc, a, 3);
-    ptrdiff_t iterationCount   = parseArg(argv, argc, a, 18);
-    ptrdiff_t churnCount       = parseArg(argv, argc, a, 1);
-    ptrdiff_t repCount         = parseArg(argv, argc, a, 3);
+    systemSize       = parseArg(argv, argc, a, 18);
+    numSubsystems    = parseArg(argv, argc, a, 4);
+    elemsPerSubsys   = parseArg(argv, argc, a, 20);
+    elemSize         = parseArg(argv, argc, a, 3);
+    iterationCount   = parseArg(argv, argc, a, 18);
+    churnCount       = parseArg(argv, argc, a, 1);
+    repCount         = parseArg(argv, argc, a, 3);
 
     processOptions(argv, argc, a);
 
@@ -212,8 +278,7 @@ int main(int argc, const char *argv[])
         }
     }
 
-    std::cout << "args           = "
-              << systemSize     << ','
+    std::cout << systemSize     << ','
               << numSubsystems  << ','
               << elemsPerSubsys << ','
               << elemSize       << ','
@@ -232,7 +297,7 @@ int main(int argc, const char *argv[])
     repCount       = repCount       < 0 ? 1 : 1 << repCount;
 
     if (verbose) {
-        std::cout << "systemSize     = " << systemSize << '\n'
+        std::cerr << "systemSize     = " << systemSize << '\n'
                   << "numSubsystems  = " << numSubsystems << '\n'
                   << "elemsPerSubsys = " << elemsPerSubsys << '\n'
                   << "elementSize    = " << elemSize << '\n'
@@ -241,60 +306,20 @@ int main(int argc, const char *argv[])
                   << "repCount       = " << repCount << '\n';
     }
 
-    auto startInit = chrono::steady_clock::now();
-    auto snapShot = startInit;
-
-    static constexpr int CACHELINE_SIZE = 64;
+    static constexpr int cachelineSize = 64;
 
     // Compute total bytes allocated.
     std::size_t subsysBytes = (elemSize + sizeof(Element)) * elemsPerSubsys;
     std::size_t totalBytes = (subsysBytes + sizeof(Subsystem)) * numSubsystems;
     // Pad size with one cache line per subsystem
-    totalBytes += CACHELINE_SIZE * numSubsystems;
+    totalBytes += cachelineSize * numSubsystems;
 
     // Allocate a buffer for all allocations
     void* buffer = ::operator new(totalBytes);
 
-    std::pmr::monotonic_buffer_resource rsrc(buffer, totalBytes,
-                                             std::pmr::null_memory_resource());
+    chrono::milliseconds copyMs = doTest<true>(buffer, totalBytes);
+    std::cout << copyMs.count() << std::endl;
 
-    System system(numSubsystems, &rsrc);
-
-    for (Subsystem& ss : system) {
-        initializeSubsystem(&ss, elemsPerSubsys, elemSize);
-    }
-
-    if (showProgress) progress(snapShot, 0, 0, "initialized");
-
-    auto startTime = chrono::steady_clock::now();
-
-    // How long did initialization take?
-    auto initElapsedMs = chrono::duration_cast<chrono::milliseconds>(
-        startTime-startInit).count();
-
-    // If iniitialization took more than 10 seconds, then visit only log2(nS)
-    // subsystems, rather than all of them. This will siginficantly reduce the
-    // run time, while preserving sufficient measurement as to ensure an
-    // accurate measurement.
-    bool skipMostAccesses = initElapsedMs > 10'000;
-    # std::cerr << "InitElapsedMs == " << initElapsedMs << std::endl;
-    if (skipMostAccesses) std::cerr << "Go logarithmic!\n";
-
-    for (ptrdiff_t n = 0; n < repCount; ++n) {
-        churn(&system, churnCount);
-        if (showProgress) progress(snapShot, n, 0, "churned");
-        for (long ss = 0; ss < numSubsystems;
-             ss = skipMostAccesses ? ((ss + 1) * 2 - 1) : (ss + 1)) {
-	    accessSubsystem(&system[ss], iterationCount);
-            if (showProgress)
-                progress(snapShot, n, ss, "accessed");
-        }
-    }
-
-    auto stopTime = chrono::steady_clock::now();
-    auto elapsedMs =
-        chrono::duration_cast<chrono::milliseconds>(stopTime-startTime).count();
-    std::cout << "elapsed        = " << elapsedMs << std::endl;
-
-    if (showProgress) std::cerr << "Finished in " << elapsedMs << "ms\n";
+    chrono::milliseconds moveMs = doTest<false>(buffer, totalBytes);
+    std::cout << moveMs.count() << std::endl;
 }
