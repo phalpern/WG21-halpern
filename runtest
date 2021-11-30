@@ -3,6 +3,8 @@
 outdir=results
 exedir=obj
 
+
+
 function runtests {
     args="$*"
 
@@ -45,41 +47,72 @@ for testnum in "$@"; do
             # test 1: Find breaks in preformance where each cache is exhausted
             # Vary system size from 2^13 to 2^25 bytes
             # Vary subsystem size from 2^2 elements up to half system size
-            # Hold element size constant at 2^5 bytes (1/2 cache line)
-            # Hold iteration count constant at 2^5
-            # Hold churn count at 2^0
+            # Hold element size constant at 2^7 bytes (2 cache lines)
+            # Hold churn count at 1
+            # Hold access count constant at 4
             # Repetition count varies inversely with system size (min 2^5)
             ####################################################################
-            eS=5
-            iC=5
-            cC=0
-            for (( S=13; S<=25; ++S )); do
-                let "rC = 26-S"
+
+            eS=7
+            cC=1
+            aC=4
+            for (( Sx=13; Sx<=25; ++Sx )); do
+                let "rC = 30-Sx"
                 if (( rC<5 )); then
                     rC=5
                 fi
-                for (( sS=2; sS<=S-eS-1; ++sS )); do
-                    if (( S-sS-eS >= 25 || sS >= 24 )); then
+                for (( sSx=2; sSx<=Sx-eSx-1; ++sSx )); do
+                    if (( Sx-sSx-eSx >= 25 || sSx >= 24 )); then
                         continue  # No one vector<vector> larger than 2^25
                     fi
-                    runtests $xtraArgs $S . $sS $eS $iC $cC $rC |
+                    runtests $xtraArgs 2^$Sx . 2^$sSx 2^$eSx $cC $aC 2^$rC |
                         tee -a $testout
                 done
             done
             ;;
 
         2)  ####################################################################
-            # test9: Find breaks in preformance where page memory is exhausted
+            # test 3: Find breaks in preformance where each cache is exhausted
+            # Vary system size from 2^13 to 2^25 bytes
+            # Vary subsystem size from 2^2 elements up to half system size
+            # Hold element size constant at 96 bytes (1.5 cache lines)
+            # Hold churn count at 1
+            # Hold access count constant at 4
+            # Repetition count varies inversely with system size (min 2^5)
+            ####################################################################
+
+            eSx=7 # Rounded up
+            eS=96
+            cC=1
+            aC=4
+            for (( Sx=13; Sx<=25; ++Sx )); do
+                let "rC = 30-Sx"
+                if (( rC<5 )); then
+                    rC=5
+                fi
+                let "S = 2**Sx"
+                for (( sS=4; sS <= (S/eS)/2; sS *= 2 )); do
+                    if (( (S/sS/eS) >= 2**25 || sS >= 2**24 )); then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $xtraArgs 2^$Sx . $sS $eS $cC $aC 2^$rC |
+                        tee -a $testout
+                done
+            done
+            ;;
+
+        3)  ####################################################################
+            # test 3: Find breaks in preformance where page memory is exhausted
             # Vary system size from 2^33 to 2^35
             # Vary subsystem size from 2^2 bytes up to (system size/16)
             # Hold element size constant at 2^6 (one cache line)
-            # Hold iteration count constant at 2^4
             # Hold churn count at 2^0
+            # Hold access count constant at 2^4
             # Repetition count varies inversely with system size (min 2^3)
             ####################################################################
             eS=6
-            iC=5
             cC=0
+            aC=5
             for (( S=33; S<=35; ++S )); do
                 let "rC = 25-S"
                 if (( rC<3 )); then
@@ -89,7 +122,7 @@ for testnum in "$@"; do
                     if (( S-sS-eS >= 25 || sS >= 24 )); then
                         continue  # No one vector<vector> larger than 2^25
                     fi
-                    runtests $xtraArgs $S . $sS $eS $iC $cC $rC |
+                    runtests $xtraArgs $S . $sS $eS $cC $aC $rC |
                         tee -a $testout
                 done
             done
