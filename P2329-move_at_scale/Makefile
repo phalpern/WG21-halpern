@@ -14,12 +14,18 @@ DBG_BINARIES = $(OBJ)/dbg-benchmark
 
 MKDIRS := $(shell mkdir -p $(OBJ) $(RESULTS))
 
-all : $(BINARIES)
+all : smoke
 
 debug : $(DBG_BINARIES)
 
 smoke : $(BINARIES)
 	$(OBJ)/benchmark . 2^4 16 8 1 2^0 1k -vp
+
+pdf : $(OBJ)/P2329.pdf
+	open $<
+
+html : $(OBJ)/P2329.html
+	open $<
 
 $(OBJ)/% : %.cpp
 	$(CXX) $(CXXFLAGS) $(OPT) -o $@ $<
@@ -29,6 +35,15 @@ $(OBJ)/dbg-% : %.cpp
 
 test.%: $(BINARIES)
 	./runtest $(XTRA_ARGS) $*
+
+$(OBJ)/%.html : %.md
+	pandoc -s -f markdown $< -o $@
+
+$(OBJ)/%.pdf : %.md
+	pandoc -s --variable colorlinks=true -f markdown $< -o $@
+
+$(OBJ)/%.docx : %.md
+	pandoc -s -f markdown $< -o $@
 
 clean:
 	rm -f $(BINARIES) $(DBG_BINARIES)

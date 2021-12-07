@@ -82,13 +82,13 @@ for testnum in "$@"; do
         0)  shift; runtests $xtraArgs "$@"; exit 0 ;;
         1)  ####################################################################
             # test 1: Find breaks in preformance where each cache is exhausted.
-            #         Element size is a multiple of cache line size.
-            # Vary system size from 2^13 to 2^25 bytes
-            # Vary subsystem size from 4 elements up to half system size
-            # Hold element size constant at 128 bytes (2 cache lines)
-            # Hold churn count at 1
-            # Hold access count at 4
-            # Repetition count varies inversely with system size (min 32)
+            #         `elemSize` is a multiple of cache line size.
+            # Vary `systemSize` from 2^13 to 2^25 bytes
+            # Vary `elemsPerSubsys` from 4 elements up to half `systemSize`
+            # Hold `elemSize` constant at 128 bytes (2 cache lines)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 4
+            # Vary `repCount` inversely with `systemSize` (min 32)
             ####################################################################
 
             eS=128
@@ -111,13 +111,13 @@ for testnum in "$@"; do
 
         2)  ####################################################################
             # test 2: Find breaks in preformance where each cache is exhausted
-            #         Element size is NOT a multiple of cache line size.
-            # Vary system size from 2^13 to 2^25 bytes
-            # Vary subsystem size from 4 elements up to half system size
-            # Hold element size constant at 96 bytes (1.5 cache lines)
-            # Hold churn count at 1
-            # Hold access count at 4
-            # Repetition count varies inversely with system size (min 32)
+            #         `elemSize` is NOT a multiple of cache line size.
+            # Vary `systemSize` from 2^13 to 2^25 bytes
+            # Vary `elemsPerSubsys` from 4 elements to `systemSize/elemSize/2`
+            # Hold `elemSize` constant at 96 bytes (1.5 cache lines)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 4
+            # Vary `repCount` inversely with `systemSize` (min 32)
             ####################################################################
 
             eS=96
@@ -140,12 +140,12 @@ for testnum in "$@"; do
 
         3)  ####################################################################
             # test 3: Find breaks in preformance where page memory is exhausted
-            # Vary system size from 2^32 to 2^35
-            # Vary subsystem size from 8 elements up to (system size/16)
-            # Hold element size at 64 (one cache line)
-            # Hold churn count at 1
-            # Hold access count constant at 8
-            # Hold repetition count at 5
+            # Vary `systemSize` from 2^32 to 2^35
+            # Vary `elemsPerSubsys` from 8 elements up `systemSize/elemSize/16`
+            # Hold `elemSize` at 64 (one cache line)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 8
+            # Hold `repCount` at 5
             ####################################################################
 
             eS=64
