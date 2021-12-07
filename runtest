@@ -11,6 +11,8 @@ exedir=obj
 function runtests {
     args="$*"
 
+    echo -n $(date +%H:%M:%S)
+
     # echo >&2 $exedir/benchmark "$@"
     set -- $($exedir/benchmark "$@" || echo stop)
 
@@ -31,7 +33,7 @@ function runtests {
     # Percent of CP time used by MV program
     reltime=$(echo "100*$mvtime/$cptime" | bc)
 
-    echo $bargs,$cptime,$mvtime,${reltime}%
+    echo ,$bargs,$cptime,$mvtime,${reltime}%
 }
 
 # The standard library implementation has a limitation that a
@@ -143,13 +145,13 @@ for testnum in "$@"; do
             # Hold element size at 64 (one cache line)
             # Hold churn count at 1
             # Hold access count constant at 8
-            # Hold repetition count at 8
+            # Hold repetition count at 5
             ####################################################################
 
             eS=64
             cC=1
             aC=32
-            rC=8
+            rC=5
             for (( S = 2**32; S <= 2**35; S *= 2 )); do
                 for (( sS = 4; sS <= S/eS/16; sS *= 4 )); do
                     if vectorOverflow $S 0 $sS $eS; then
