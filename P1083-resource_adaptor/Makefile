@@ -21,6 +21,9 @@ asm :  $(ALGORITHMS:%=$(OUTDIR)/resource_adaptor_%.t.s)
 
 test : aligned_type.test $(ALGORITHMS:%=resource_adaptor_%.test)
 
+pdf : $(OUTDIR)/P1083.pdf
+	open $<
+
 .SECONDARY :
 
 .FORCE :
@@ -44,11 +47,11 @@ $(OUTDIR)/%.t.s : %.t.cpp %.h resource_adaptor.t.h aligned_type.h
 	c++filt < $@.mangled > $@
 	rm $@.mangled
 
-%.pdf : %.md
-	cd .. && make $(WD)/$@
+$(OUTDIR)/%.pdf : %.md
+	pandoc -s --variable colorlinks=true -f markdown $< -o $@
 
-%.html : %.md
-	cd .. && make $(WD)/$@
+$(OUTDIR)/%.html : %.md
+	pandoc -s -f markdown $< -o $@
 
 clean :
 	rm -rf $(OUTDIR)
