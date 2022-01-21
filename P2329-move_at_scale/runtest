@@ -1,0 +1,168 @@
+#! /bin/bash
+
+outdir=results
+exedir=obj
+
+
+# Run the benchmark with the specified arguments Prints to stdout,
+# comma-separated on one line, the benchmark parameters, copy-benchmark time
+# (ms), move benchmark time (ms), percent speedup (negative for slowdown) from
+# using move instead of copy.
+function runtests {
+    args="$*"
+
+    echo -n $(date +%H:%M:%S)
+
+    # echo >&2 $exedir/benchmark "$@"
+    set -- $($exedir/benchmark "$@" || echo stop)
+
+    if [ $# != 3 ]; then
+       echo >&2 "Something failed with args $args"
+       return 1
+    fi
+
+    bargs=$1
+    cptime=$2
+    mvtime=$3
+
+    if [ $cptime = 0 ]; then
+        echo >&2 "runtime is too short to get a meaningful result"
+        return 1
+    fi
+
+    # Percent of CP time used by MV program
+    reltime=$(echo "100*$mvtime/$cptime" | bc)
+
+    echo ,$bargs,$cptime,$mvtime,${reltime}%
+}
+
+# The standard library implementation has a limitation that a
+# `vector<vector<T>>` cannot have 2^25 elements or more (2^24 for
+# `vector<vector<char>>`).  Given a system size, number of subsystems,
+# subsystem size, and element size, return success (0) if any such vector would
+# be too large; otherwise failure.  A value of 0 can be supplied as a
+# placeholder for at most one of the four arguments.
+function vectorOverflow {
+    S=$1
+    nss=$2
+    sS=$3
+    eS=$4
+
+    let "maxVV = 2**25"
+    let "maxVVc = 2**24"
+
+    if (( nss >= maxVV )); then
+        return 0
+    elif (( sS >= maxVVc )); then
+        return 0
+    elif (( nss == 0 )); then
+        if (( S/(sS*eS) >= maxVV )); then
+            return 0
+        fi
+    elif (( sS == 0 )); then
+        if (( S/(nss*eS) >= maxVVc )); then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+xtraArgs=""
+
+for testnum in "$@"; do
+
+    testout=$outdir/test.$testnum.csv
+
+    if [ -f $testout ]; then
+        mv -f $testout $testout.old
+    fi
+
+    case $testnum in
+        0)  shift; runtests $xtraArgs "$@"; exit 0 ;;
+        1)  ####################################################################
+            # test 1: Find breaks in preformance where each cache is exhausted.
+            #         `elemSize` is a multiple of cache line size.
+            # Vary `systemSize` from 2^13 to 2^25 bytes
+            # Vary `elemsPerSubsys` from 4 elements up to half `systemSize`
+            # Hold `elemSize` constant at 128 bytes (2 cache lines)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 4
+            # Vary `repCount` inversely with `systemSize` (min 32)
+            ####################################################################
+
+            eS=128
+            cC=1
+            aC=4
+            for (( S= 2**13; S <= 2**25; S *= 2 )); do
+                let "rC = 2**31/S"
+                if (( rC < 32 )); then
+                    rC=32
+                fi
+                for (( sS = 4; sS <= S/eS/2; sS *= 2 )); do
+                    if vectorOverflow $S 0 $sS $eS; then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $xtraArgs $S . $sS $eS $cC $aC $rC |
+                        tee -a $testout
+                done
+            done
+            ;;
+
+        2)  ####################################################################
+            # test 2: Find breaks in preformance where each cache is exhausted
+            #         `elemSize` is NOT a multiple of cache line size.
+            # Vary `systemSize` from 2^13 to 2^25 bytes
+            # Vary `elemsPerSubsys` from 4 elements to `systemSize/elemSize/2`
+            # Hold `elemSize` constant at 96 bytes (1.5 cache lines)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 4
+            # Vary `repCount` inversely with `systemSize` (min 32)
+            ####################################################################
+
+            eS=96
+            cC=1
+            aC=4
+            for (( S = 2**13; S <= 2**25; S *= 2 )); do
+                let "rC = 2**31/S"
+                if (( rC < 32 )); then
+                    rC=32
+                fi
+                for (( sS = 4; sS <= S/eS/2; sS *= 2 )); do
+                    if vectorOverflow $S 0 $sS $eS; then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $xtraArgs $S . $sS $eS $cC $aC $rC |
+                        tee -a $testout
+                done
+            done
+            ;;
+
+        3)  ####################################################################
+            # test 3: Find breaks in preformance where page memory is exhausted
+            # Vary `systemSize` from 2^32 to 2^35
+            # Vary `elemsPerSubsys` from 8 elements up `systemSize/elemSize/16`
+            # Hold `elemSize` at 64 (one cache line)
+            # Hold `churnCount` at 1
+            # Hold `accessCount` at 8
+            # Hold `repCount` at 5
+            ####################################################################
+
+            eS=64
+            cC=1
+            aC=32
+            rC=5
+            for (( S = 2**32; S <= 2**35; S *= 2 )); do
+                for (( sS = 4; sS <= S/eS/16; sS *= 4 )); do
+                    if vectorOverflow $S 0 $sS $eS; then
+                        continue  # No one vector<vector> larger than 2^25
+                    fi
+                    runtests $xtraArgs $S . $sS $eS $cC $aC $rC |
+                        tee -a $testout
+                done
+            done
+            ;;
+
+        -*)  xtraArgs="$xtraArgs $1"; shift ;;
+    esac
+done
