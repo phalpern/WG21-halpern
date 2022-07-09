@@ -25,11 +25,10 @@ template <size_t Align, size_t Sz = Align>
 struct aligned_raw_storage
 {
   static_assert(0 == (Align & (Align - 1)), "Align must be a power of 2");
+  static_assert(Sz > 0, "Sz must be greater than zero");
 
   static constexpr size_t alignment = Align;
   static constexpr size_t size      = (Sz + Align - 1) & ~(Align - 1);
-
-  using type = aligned_raw_storage;
 
   constexpr       void* data()       noexcept { return buffer; }
   constexpr const void* data() const noexcept { return buffer; }
