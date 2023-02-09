@@ -33,9 +33,9 @@
 *.app
 *.t
 
-# Generated document files
-*.pdf
-*.html
+# Generated draft files
+D*.pdf
+D*.html
 
 # Temp files
 *~
@@ -47,3 +47,4 @@
 *.sav
 *.orig
 .DS_store
+tmp.mk
