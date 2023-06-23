@@ -77,7 +77,7 @@ class Relocator
 
 
     // HIDDEN FRIENDS
-    friend T& reloc_get_imp(const Relocator& dr)
+    friend T& reloc_get(const Relocator& dr)
     {
         assert(dr.m_state != RelocateState::released);
         return dr.m_source;
@@ -98,20 +98,17 @@ struct MoveRelocator : Relocator<T>
 {
     using Relocator<T>::Relocator;
 
-    operator T&&() const { return std::move(reloc_get_imp(*this)); }
+    operator T&&() const { return std::move(reloc_get(*this)); }
 
-    friend T& reloc_get_imp(const MoveRelocator& dr)
-        { return reloc_get_imp(static_cast<const Relocator<T>&>(dr)); }
+    friend T& reloc_get(const MoveRelocator& dr)
+        { return reloc_get(static_cast<const Relocator<T>&>(dr)); }
     friend T& release(MoveRelocator& dr)
         { return release(static_cast<Relocator<T>&>(dr)); }
 };
 
 template <class T>
 requires (! std::is_trivially_move_constructible_v<T>)
-inline constexpr const T& reloc_get_imp(const T& r) { return r; }
-
-template <class T>
-inline constexpr auto reloc_get(const T& r) { return reloc_get_imp(r); }
+inline constexpr const T& reloc_get(const T& r) { return r; }
 
 template <class T>
 requires (! is_explicitly_relocatable_v<T>)
@@ -129,6 +126,8 @@ void uninitialized_relocate(T* src, T* dest, std::size_t n = 1)
         for ( ; n > 0; --n)
             ::new (static_cast<void*>(dest++)) T(xstd::relocate(*src++));
 }
+
+
 
 }  // Close namespace xstd.
 
