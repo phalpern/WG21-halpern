@@ -1,13 +1,14 @@
 #include <iostream>
 #include <utility>
 #include <type_traits>
+#include <cstring>
 #include <cassert>
 
 namespace xstd {
 
 template <class T> class Relocator;
 template <class T> class MoveRelocator;
-template <class T> class TrivialRelocator;
+template <class T> class TrivialRelocator { };
 
 template <class T>
 struct is_explicitly_relocatable : std::is_convertible<Relocator<T>, T> {};
@@ -118,9 +119,20 @@ inline constexpr const T& release(const T& r) { return r; }
 
 #define RELOC_EXPLODE(R, MEMB_NAME) xstd::relocate(R.explode().MEMB_NAME)
 
+template <class T>
+void uninitialized_relocate(T* src, T* dest, std::size_t n = 1)
+    noexcept(noexcept(T(xstd::relocate(*src))))
+{
+    if constexpr (is_trivially_relocatable_v<T>)
+        std::memcpy(dest, src, n * sizeof(*src));
+    else
+        for ( ; n > 0; --n)
+            ::new (static_cast<void*>(dest++)) T(xstd::relocate(*src++));
+}
+
 }  // Close namespace xstd.
 
-// Class with no relocating constructor
+// Class without relocating constructor
 class W
 {
     W*  m_self;
@@ -134,13 +146,13 @@ class W
                   << " and data = " << m_data << std::endl;
     }
 
-    W(const W& other) : m_self(this), m_data(other.m_data)
+    W(const W& other) noexcept : m_self(this), m_data(other.m_data)
     {
         std::cout << "Copy constructing W with this = " << this
                   << " and data = " << m_data << std::endl;
     }
 
-    W(W&& other) : m_self(this), m_data(other.m_data)
+    W(W&& other) noexcept : m_self(this), m_data(other.m_data)
     {
         other.m_data = 0;
         std::cout << "Move constructing W with this = " << this
@@ -151,11 +163,14 @@ class W
     {
         std::cout << "Destroying W with this = " << this
                   << " and data = " << m_data << std::endl;
+        assert(this == m_self);
     }
 
     int value() const { return m_data; }
 };
 
+static_assert(! xstd::is_explicitly_relocatable_v<W>);
+static_assert(! xstd::is_trivially_relocatable_v<W>);
 
 // Class with explicit relocating constructor
 class X
@@ -171,23 +186,23 @@ class X
                   << " and data = (" << v1 << ", " << v2 << ')' << std::endl;
     }
 
-    X(const X& other) : m_data1(other.m_data1), m_data2(other.m_data2)
+    X(const X& other) noexcept : m_data1(other.m_data1), m_data2(other.m_data2)
     {
         std::cout << "Copy constructing X with this = " << this
                   << " and data = (" << m_data1.value() << ", "
                   << m_data2.value() << ')' << std::endl;
     }
 
-    X(X&& other)
-        : m_data1(std::move(other.m_data1)),
-          m_data2(std::move(other.m_data2))
+    X(X&& other) noexcept
+        : m_data1(std::move(other.m_data1))
+        , m_data2(std::move(other.m_data2))
     {
         std::cout << "Move constructing X with this = " << this
                   << " and data = (" << m_data1.value() << ", "
                   << m_data2.value() << ')' << std::endl;
     }
 
-    X(xstd::Relocator<X> other)
+    X(xstd::Relocator<X> other) noexcept
         : m_data1(RELOC_EXPLODE(other, m_data1))
         , m_data2(RELOC_EXPLODE(other, m_data2))
     {
@@ -203,6 +218,54 @@ class X
                   << m_data2.value() << ')' << std::endl;
     }
 };
+
+static_assert(  xstd::is_explicitly_relocatable_v<X>);
+static_assert(! xstd::is_trivially_relocatable_v<X>);
+
+// Trivially relocatable class
+class Y
+{
+    int m_data1;
+    int m_data2;
+    // ...
+
+  public:
+    explicit Y(int v1 = 0, int v2 = 0) : m_data1(v1), m_data2(v2)
+    {
+        std::cout << "Constructing Y with this = " << this
+                  << " and data = (" << v1 << ", " << v2 << ')' << std::endl;
+    }
+
+    Y(const Y& other) noexcept : m_data1(other.m_data1), m_data2(other.m_data2)
+    {
+        std::cout << "Copy constructing Y with this = " << this
+                  << " and data = (" << m_data1 << ", "
+                  << m_data2 << ')' << std::endl;
+    }
+
+    Y(Y&& other) noexcept : m_data1(other.m_data1), m_data2(other.m_data2)
+    {
+        other.m_data1 = other.m_data2 = 0;
+        std::cout << "Move constructing Y with this = " << this
+                  << " and data = (" << m_data1 << ", "
+                  << m_data2 << ')' << std::endl;
+    }
+
+    Y(xstd::TrivialRelocator<Y> other) noexcept;
+
+    ~Y()
+    {
+        std::cout << "Destroying Y with this = " << this
+                  << " and data = (" << m_data1 << ", "
+                  << m_data2 << ')' << std::endl;
+    }
+
+    constexpr int data1() const { return m_data1; }
+    constexpr int data2() const { return m_data2; }
+};
+
+static_assert(! xstd::is_explicitly_relocatable_v<Y>);
+static_assert(  xstd::is_trivially_relocatable_v<Y>);
 
 int main()
 {
@@ -232,5 +295,21 @@ int main()
         X *px1 = new X(2, 3);
         X x2 = xstd::relocate(*px1);
         ::operator delete(px1);
+    }
+
+    // Explicitly relocatable type
+    {
+        Y *py1 = new Y(2, 3);
+        Y y2 = xstd::relocate(*py1);
+        ::operator delete(py1);
+    }
+    {
+        Y *py3 = new Y(4, 5);
+        Y *py4 = static_cast<Y*>(::operator new(sizeof(Y)));
+        xstd::uninitialized_relocate(py3, py4);
+        std::cout << "Relocated Y at " << py4 << " with data = ("
+                  << py4->data1() << ", " << py4->data2() << ")\n";
+        ::operator delete(py3);
+        delete py4;
     }
 }
