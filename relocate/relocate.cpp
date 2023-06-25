@@ -86,24 +86,23 @@ public:
     return m_source;
   }
 
-
-  // HIDDEN FRIENDS
-  friend T& reloc_get(const Relocator& dr) {
-    assert(dr.m_state != RelocateState::released);
-    return dr.m_source;
+  T& get() const {
+    assert(m_state != RelocateState::released);
+    return m_source;
   }
 
-  friend T& release(Relocator& dr) {
-    assert(dr.m_state != RelocateState::exploded);
-    dr.m_state = RelocateState::released;
-    return dr.m_source;
+  T& release() {
+    assert(m_state != RelocateState::exploded);
+    m_state = RelocateState::released;
+    return m_source;
   }
-
-  friend T& release(Relocator&& dr) { return release(dr); }
-
-  friend constexpr Relocator relocate(Relocator& r) noexcept
-    { return std::move(r); }
 };
+
+template <class T>
+inline constexpr Relocator<T> relocate(Relocator<T>& r) noexcept
+{
+    return std::move(r);
+}
 
 template <class T>
 struct MoveRelocator : Relocator<T>
@@ -111,25 +110,35 @@ struct MoveRelocator : Relocator<T>
   using Relocator<T>::Relocator;
 
   operator T&&() const { return std::move(reloc_get(*this)); }
-
-  friend T& reloc_get(const MoveRelocator& dr)
-    { return reloc_get(static_cast<const Relocator<T>&>(dr)); }
-  friend T& release(MoveRelocator& dr)
-    { return release(static_cast<Relocator<T>&>(dr)); }
-
-  friend constexpr MoveRelocator relocate(MoveRelocator& r) noexcept
-    { return std::move(r); }
 };
 
 template <class T>
-requires (! std::is_trivially_move_constructible_v<T>)
-inline constexpr T& reloc_get(T& r) { return r; }
+inline constexpr MoveRelocator<T> relocate(MoveRelocator<T>& r) noexcept
+{
+    return std::move(r);
+}
+
+template <class TO, class FROM>
+inline constexpr decltype(auto) fwd_relocate(FROM&& v)
+{
+  if constexpr (std::is_reference_v<TO>)
+    return static_cast<TO>(v);
+  else
+    return relocate(static_cast<TO&>(v));
+}
 
 template <class T>
-requires (! is_explicitly_relocatable_v<T>)
-inline constexpr const T& release(const T& r) { return r; }
+requires std::is_trivially_move_constructible_v<T>
+inline constexpr T&& reloc_get(T&& r) { return std::forward<T>(r); }
 
-#define RELOC_EXPLODE(R, MEMB_NAME) xstd::relocate(R.explode().MEMB_NAME)
+template <class T>
+inline T& reloc_get(const Relocator<T>& dr) { return dr.get(); }
+
+template <class T>
+inline T& reloc_get(const MoveRelocator<T>& dr) { return dr.get(); }
+
+#define RELOCATE_MEMBER(R, MEMB_NAME) \
+  xstd::fwd_relocate<decltype(R.get().MEMB_NAME)>(R.explode().MEMB_NAME)
 
 template <class T>
 class Relocatable
@@ -154,7 +163,7 @@ public:
   template <class... Arg>
   explicit Relocatable(Arg&&... arg) : m_relocator(relocate(m_value)) {
     if constexpr (std::is_aggregate_v<T>)
-        std::construct_at(&m_value, T{std::forward<Arg>(arg)...});
+      std::construct_at(&m_value, T{std::forward<Arg>(arg)...});
     else
       std::construct_at(&m_value, std::forward<Arg>(arg)...);
   }
@@ -299,8 +308,8 @@ public:
   }
 
   X(xstd::Relocator<X> other) noexcept
-    : m_data1(RELOC_EXPLODE(other, m_data1))
-    , m_data2(RELOC_EXPLODE(other, m_data2)) {
+    : m_data1(RELOCATE_MEMBER(other, m_data1))
+    , m_data2(RELOCATE_MEMBER(other, m_data2)) {
     std::cout << "Reloc constructing X with this = " << this
               << " and data = (" << m_data1.value() << ", "
               << m_data2.value() << ')' << std::endl;
