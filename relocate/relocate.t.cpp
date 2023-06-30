@@ -2,6 +2,22 @@
 
 #include <relocate.h>
 
+inline const char* typeName(const int&) { return "int"; }
+
+template <class T>
+inline const char* typeName()
+{
+  union A {
+    char m_unused;
+    T    m_obj;
+
+    A() { }
+    ~A() { }
+  };
+
+  return typeName(A{}.m_obj);
+}
+
 // Class without relocating constructor
 class W
 {
@@ -33,7 +49,14 @@ public:
   }
 
   int value() const { return m_data; }
+
+  friend const char* typeName(const W&) { return "W"; }
 };
+
+std::ostream& operator<<(std::ostream& os, const W& w)
+{
+  return os << w.value();
+}
 
 static_assert(! xstd::is_explicitly_relocatable_v<W>);
 static_assert(! xstd::is_trivially_relocatable_v<W>);
@@ -78,7 +101,17 @@ public:
               << " and data = (" << m_data1.value() << ", "
               << m_data2.value() << ')' << std::endl;
   }
+
+  constexpr int data1() const { return m_data1.value(); }
+  constexpr int data2() const { return m_data2.value(); }
+
+  friend const char* typeName(const X&) { return "X"; }
 };
+
+std::ostream& operator<<(std::ostream& os, const X& x)
+{
+  return os << '(' << x.data1() << ", " << x.data2() << ')';
+}
 
 static_assert(  xstd::is_explicitly_relocatable_v<X>);
 static_assert(! xstd::is_trivially_relocatable_v<X>);
@@ -109,7 +142,10 @@ public:
               << m_data2 << ')' << std::endl;
   }
 
-  Y(xstd::TrivialRelocator<Y> other) noexcept;
+  Y(xstd::TrivialRelocator<Y> original) noexcept
+  {
+    original.relocateTo(this); // Uses `memcpy`
+  }
 
   ~Y() {
     std::cout << "Destroying Y with this = " << this
@@ -119,83 +155,105 @@ public:
 
   constexpr int data1() const { return m_data1; }
   constexpr int data2() const { return m_data2; }
+
+  friend const char* typeName(const Y&) { return "Y"; }
 };
+
+std::ostream& operator<<(std::ostream& os, const Y& y)
+{
+  return os << '(' << y.data1() << ", " << y.data2() << ')';
+}
 
 static_assert(! xstd::is_explicitly_relocatable_v<Y>);
 static_assert(  xstd::is_trivially_relocatable_v<Y>);
+
+struct Aggregate { int first; double second; };
+const char* typeName(const Aggregate&) { return "Aggregate"; }
+std::ostream& operator<<(std::ostream& os, const Aggregate& agg)
+{
+  return os << '(' << agg.first << ", " << agg.second << ')';
+}
+
+static_assert(! xstd::is_explicitly_relocatable_v<Aggregate>);
+static_assert(  xstd::is_trivially_relocatable_v<Aggregate>);
+
+template <class T, class... CtorArgs>
+void TestRelocateCtor(CtorArgs&&... args)
+{
+  std::cout << "Testing " << typeName<T>() << " relocate ctor\n";
+  T* src_p = new T{std::forward<CtorArgs>(args)...};
+  std::cout << "Relocating value: " << *src_p << '\n';
+  T dest = xstd::relocate(*src_p);
+  std::cout << "Relocated value: " << dest << std::endl;
+}
+
+template <class T, class... CtorArgs>
+void TestRelocatable(CtorArgs&&... args)
+{
+  std::cout << "Testing Relocatable<" << typeName<T>() << ">\n";
+  xstd::Relocatable<T> src(std::forward<CtorArgs>(args)...);
+  std::cout << "Relocating value: " << *src << '\n';
+  T dest = xstd::relocate(src);
+  std::cout << "Relocated value: " << dest << std::endl;
+}
+
+template <class T, class... CtorArgs>
+void TestUninitializedRelocate(CtorArgs&&... args)
+{
+  std::cout << "Testing `uninitialized_relocate(" << typeName<T>()
+            << "*, ...)`\n";
+  T* src_p = new T{std::forward<CtorArgs>(args)...};
+  std::cout << "Relocating value: " << *src_p << '\n';
+  T* dest_p = static_cast<T*>(::operator new(sizeof(T)));
+  xstd::uninitialized_relocate(src_p, dest_p);
+  std::cout << "Relocated value: " << *dest_p << std::endl;
+  ::operator delete(src_p);
+  delete dest_p;
+
+  std::cout << "Testing `uninitialized_relocate(Relocatable<" << typeName<T>()
+            << ">*, ...)`\n";
+  xstd::Relocatable<T> src(std::forward<CtorArgs>(args)...);
+  std::cout << "Relocating value: " << *src << '\n';
+  dest_p = static_cast<T*>(::operator new(sizeof(T)));
+  xstd::uninitialized_relocate(&src, dest_p);
+  std::cout << "Relocated value: " << *dest_p << std::endl;
+  delete dest_p;
+}
 
 int main()
 {
   // Test scenarios:
 
   // Trivially moveable types
-  std::cout << "Trivially movable types\n";
-  {
-    int x = 5;
-    int y = xstd::relocate(x);
-    std::cout << "y = " << y << std::endl;
-
-    struct Aggregate { int first; double second; };
-    Aggregate p1{ 8, 9.2 };
-    Aggregate p2 = xstd::relocate(p1);
-    std::cout << "p2 = (" << p2.first << ", " << p2.second << ")\n";
-
-    xstd::Relocatable<Aggregate> p3{ 4, 4.4 };
-    Aggregate p4 = xstd::relocate(p3);
-    std::cout << "p4 = (" << p4.first << ", " << p4.second << ")\n";
-  }
+  std::cout << "# Trivially movable types\n";
+  TestRelocateCtor<int>(1);
+  TestRelocatable<int>(2);
+  TestUninitializedRelocate<int>(3);
+  TestRelocateCtor<Aggregate>(4, 4.4);
+  TestRelocatable<Aggregate>(5, 5.5);
+  TestUninitializedRelocate<Aggregate>(6, 6.6);
 
   // Movable type
-  std::cout << std::endl << "Movable type\n";
-  {
-    W *pw1 = new W(1);
-    W w2 = xstd::relocate(*pw1);
-    ::operator delete(pw1);
-  }
-  {
-    xstd::Relocatable<W> w3(3);
-    W w4 = xstd::relocate(w3);
-    std::cout << "w4 exists\n";
-  }
+  std::cout << std::endl << "# Movable type\n";
+  TestRelocateCtor<W>(7);
+  TestRelocatable<W>(8);
+  TestUninitializedRelocate<W>(9);
 
   // Explicitly relocatable type
-  std::cout << std::endl << "Explicitly relocatable type\n";
-  {
-    X *px1 = new X(2, 3);
-    X x2 = xstd::relocate(*px1);
-    ::operator delete(px1);
-  }
-  {
-    xstd::Relocatable<X> x3(4, 5);
-    X x4 = xstd::relocate(x3);
-  }
+  std::cout << std::endl << "# Explicitly relocatable type\n";
+  TestRelocateCtor<X>(10, 11);
+  TestRelocatable<X>(12, 13);
+  TestUninitializedRelocate<X>(14, 15);
 
   // Trivially relocatable type
-  std::cout << std::endl << "Trivially relocatable type\n";
-  {
-    Y *py1 = new Y(2, 3);
-    Y y2 = xstd::relocate(*py1);
-    ::operator delete(py1);
-  }
-  {
-    xstd::Relocatable<Y> y3(4, 5);
-    Y y4 = xstd::relocate(y3);
-  }
-  {
-    Y *py3 = new Y(4, 5);
-    Y *py4 = static_cast<Y*>(::operator new(sizeof(Y)));
-    xstd::uninitialized_relocate(py3, py4);
-    std::cout << "Relocated Y at " << py4 << " with data = ("
-              << py4->data1() << ", " << py4->data2() << ")\n";
-    ::operator delete(py3);
-    delete py4;
-  }
-  {
-    xstd::Relocatable<Y> y5(6, 7);
-    Y *py6 = static_cast<Y*>(::operator new(sizeof(Y)));
-    xstd::uninitialized_relocate(&y5, py6);
-    std::cout << "Relocated Y at " << py6 << " with data = ("
-              << py6->data1() << ", " << py6->data2() << ")\n";
-    delete py6;
-  }
+  std::cout << std::endl << "# Trivially relocatable type\n";
+  TestRelocateCtor<Y>(16, 17);
+  TestRelocatable<Y>(18, 19);
+  TestUninitializedRelocate<Y>(20, 21);
 }
+
+/*
+ * Local Variables:
+ * c-basic-offset: 2
+ * End:
+ */
