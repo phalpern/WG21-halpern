@@ -18,7 +18,11 @@ $paper.pdf : $src
 	pandoc -s --variable colorlinks=true -f markdown \$< -o \$@
 
 $paper.html : $src
-	pandoc -s -f markdown -t html \$< -o \$@
+	sed -n -e '/^%/p' < \$< > $paper.htmlsrc.md
+	cat ~/WG21/html_header.html >> $paper.htmlsrc.md
+	sed -e '/^%/d' < \$< >> $paper.htmlsrc.md
+	pandoc -s -f markdown -t html $paper.htmlsrc.md -o \$@
+	rm $paper.htmlsrc.md
 
 EOF
 
