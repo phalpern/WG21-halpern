@@ -15,7 +15,7 @@ dest=$paper.$dest_ext
 cat > tmp.mk <<EOF
 
 $paper.pdf : $src
-	pandoc -s --variable colorlinks=true -f markdown \$< -o \$@
+	pandoc -s -V geometry:margin=1in -V colorlinks=true -f markdown \$< -o \$@
 
 $paper.html : $src
 	sed -n -e '/^%/p' < \$< > $paper.htmlsrc.md
