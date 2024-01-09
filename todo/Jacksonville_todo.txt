@@ -1,0 +1,24 @@
+X Make sure issue is filed to remove allocators from `function`. Present paper
+  for resolution?
+* Paper to change `function` in LFTS to use `polymorphic_allocator` instead of
+  type-erasure for allocators, including in `function`.
+* Update to P0075 for_loop
+* Update to P0076 vec policy
+* Update to P0209 make_from_tuple
+* Propose alternative names for `seq`, `unseq`, and `par_vec` for SG1/LEWG/LWG.
+
+   Move P0075 to LEWG
+
+   Remove ordered scatters from P0076, move to LEWG, EWG/Core
+
+   P0209 Remove uninitialized_construct_from_tuple, Add an example, move to LWG
+
+   Changes to P0208:
+      * Move `copy_assign` into main part of proposal.  Consider renaming to
+       `copy_swap`.
+      * Alternative for `copy_swap_helper`: `copy_swap_transaction` that makes
+        a copy and calls a lambda.
+      * Add use in `std::experimental::function`
+      * Add example in wording
+
+  CWG 2159

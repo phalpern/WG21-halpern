@@ -1,0 +1,84 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Pablo Halpern phalpern@halpernwightsoftware.com" />
+  <title>PO4116r0 | Completing support for emotive programming in C++</title>
+  <style type="text/css">code{white-space: pre;}</style>
+</head>
+<body>
+<div id="header">
+<h1 class="title">PO4116r0 | Completing support for emotive programming in C++</h1>
+<h2 class="author">Pablo Halpern <script type="text/javascript">
+<!--
+h='&#104;&#x61;&#108;&#112;&#x65;&#114;&#110;&#x77;&#x69;&#x67;&#104;&#116;&#x73;&#x6f;&#102;&#116;&#x77;&#x61;&#114;&#x65;&#46;&#x63;&#x6f;&#x6d;';a='&#64;';n='&#112;&#104;&#x61;&#108;&#112;&#x65;&#114;&#110;';e=n+a+h;
+document.write('<a h'+'ref'+'="ma'+'ilto'+':'+e+'">'+e+'<\/'+'a'+'>');
+// -->
+</script><noscript>&#112;&#104;&#x61;&#108;&#112;&#x65;&#114;&#110;&#32;&#x61;&#116;&#32;&#104;&#x61;&#108;&#112;&#x65;&#114;&#110;&#x77;&#x69;&#x67;&#104;&#116;&#x73;&#x6f;&#102;&#116;&#x77;&#x61;&#114;&#x65;&#32;&#100;&#x6f;&#116;&#32;&#x63;&#x6f;&#x6d;</noscript></h2>
+<h3 class="date">2016-04-01 | Target audience: Evolution Working Group (EWG)</h3>
+</div>
+<h1 id="motivation"><span class="header-section-number">1</span> Motivation</h1>
+<p>There can be no doubt that C++ is an unusually expressive language. A significant part of that expressiveness comes from the ability to use emoticons, not just in comments and string literals, but in the code itself. For example the following (do-nothing) program compiles, links, and runs in all versions of C++:</p>
+<pre><code>int main(int argc, char* argv[])
+{
+    int D = 0, P = 0, O = 0, J = 0, I = 0, _8 = 0, heart = 0;
+#   define C +D
+
+// Name                 emoticon        suffix
+// ----------------     --------        ------
+  laughing              :-D             ;
+  sad                   :-(             0);
+  tongue                :-P             ;
+  wink:                 ;-D             ;
+  glasses:              8-D             ;
+  surprise              :-O             ;
+  kiss                  :-*             &amp;D;
+  tongue_in_cheek       :-J             ;
+  heart                 &lt;3              ;
+  homer_simpson:        ~(_8^(I)        );
+
+  I_love_cpp:           I &lt;3 C++        ;
+}</code></pre>
+<p>Notably absent from the emoticons available to the C++ programmer is the most common emoticon of all: “<code>:-)</code>”. There is simply no valid code where the three tokens can appear in sequence. This omission has been generating complaints for years, and is even more glaring as emotive programming becomes more established and takes its place alongside object-oriented programming, generic programming, and stream-of-consciousness programming, all of which are paradigms currently supported in C++. We (and by “we” I mean, “I”) believe it is time to correct this flaw and make the canonical emoticon a legal token sequence in the language.</p>
+<h1 id="proposed-solutions"><span class="header-section-number">2</span> Proposed solutions</h1>
+<p>We propose making <code>:-)</code> a single token in the language. Unfortunately, that means that <code>:)</code> would still not be accepted. We consider this to be an acceptable compromise because studies show that people who use <code>:)</code> are less intelligent than those who use <code>:-)</code>, and we can assume that they are not programming in advanced C++.</p>
+<p>The community is split on the best meaning for this new token. Two of the most popular (but by no means only) meanings are described in <strong>Option #1</strong> and <strong>Option #2</strong>, below.</p>
+<h2 id="option-1-literal-value-of-a-unique-type"><span class="header-section-number">2.1</span> Option #1: Literal value of a unique type</h2>
+<p>Like <code>nullptr</code>, <code>:-)</code> could be a reserved word representing a literal value of unique type. Such a type could then be used for overloading, as follows:</p>
+<pre><code>namespace std {
+    typedef decltype( :-) ) emoticon_t;
+}
+
+void foo(int);
+void foo(std::emoticon_t);
+
+foo( :-) ); // Call foo(std::emoticon_t)</code></pre>
+<p>The standard library would overload <code>ostream::operator&lt;&lt;(emoticon_t)</code> to print out the emoticon, itself, or an equivalent emoji, as determined by an obscure setting in <code>locale</code>.</p>
+<h2 id="option-2-overloadable-operator"><span class="header-section-number">2.2</span> Option #2: Overloadable operator</h2>
+<p>Our preferred option is to make <code>:-)</code> an overloadable operator with no default meaning, not even for built-in types. The precedence of the operator would logically be between the precedence of <code>operator-</code> and <code>operator()</code>. Both unary-postfix and binary overloads would be permitted. A common use would be as a “just kidding” operator to, for example, undo a previous operation that wasn’t really intended. The impact of its use would be to make code less offensive. Applying unary <code>operator:-)</code> to an <code>chrono::type_point</code> value would return the date, April 1, 2016.</p>
+<h1 id="impact-on-the-standard"><span class="header-section-number">3</span> Impact on the standard</h1>
+<p>We do not yet have formal wording, but known areas impacted are:</p>
+<ul>
+<li>Numerous examples could be improved through use of the emoticon.</li>
+<li>A happier standard, in general.</li>
+<li>Greater acceptance of C++ for facetious applications</li>
+</ul>
+<h1 id="implementation-experience"><span class="header-section-number">4</span> Implementation experience</h1>
+<p>Our experience is that implementing <code>operator:-)</code> is a lot of fun.</p>
+<h1 id="alternatives-considered"><span class="header-section-number">5</span> Alternatives considered</h1>
+<h2 id="rejected-alternative-1-give-a-meaning-to---followed-by"><span class="header-section-number">5.1</span> Rejected alternative #1: Give a meaning to <code>-</code> followed by <code>)</code></h2>
+<p>The minimal approach is to allow an unbalanced closing parenthesis to have a meaning when preceded by a dash. While workable linguistically, it is far from clear what meaning can be ascribed to such a construct. Moreover, unbalanced parenthesis cause problems for text editors, which already have difficulties matching up angle brackets in templates. In contrast, a text editor can easily recognize <code>:-)</code> as a single token, and not try to match it to an open parenthesis. (We use the term, “easily” here to mean anything solvable in polynomial time or better.)</p>
+<h2 id="rejected-alternative-2-use-unicode-emoji-to-show-emotion-in-code"><span class="header-section-number">5.2</span> Rejected alternative #2: Use unicode emoji to show emotion in code</h2>
+<p>It was pointed out by our smart alec summer intern that Unicode has many emoji, useful for expressing almost every kind of emotion. If these emoji could be used as either identifiers or overloadable operators, there would be no need for a <code>:-)</code> emoticon. We find this to be an unacceptable solution for several reasons:</p>
+<ol style="list-style-type: decimal">
+<li>The existing emoticons in common use by C++ programmers do not use characters outside the basic character set.</li>
+<li>Once Unicode is allowed, people will begin to question why <code>@</code> and <code>$</code> are not permitted – a question we <em>do not</em> want asked (because we don’t know the answer).</li>
+<li>The idea of Unicode in C++ is, frankly, preposterous.</li>
+</ol>
+<h1 id="references"><span class="header-section-number">6</span> References</h1>
+<p><em>An Introduction to Emotive Programming</em>, Joe King and Kih Ding Yu, OOPSLA, April 1, 2014</p>
+<p><em>Emoticons in the Age of Aquarius</em>, Justin Funn, Journal of Spiritual Computing, April 1, 2015</p>
+</body>
+</html>

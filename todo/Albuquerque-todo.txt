@@ -1,0 +1,76 @@
+copy-swap paper:
+
+   Editorial approac to last argument
+
+   Ill-formed if not enough args
+
+   Target C++20, not TS
+
+   consider Change from swap to move, else swap
+
+   Check if transaction is zero-overhead
+
+P0507 allocators for sstring
+
+30.8.2 Fix indentation (first two definitions are less indented than rest)
+
+30.8.2 Add one more constructor
+
+    template <class SAllocator>
+    explicit basic_stringbuf(
+          const basic_string<charT, traits, SAllocator>& str,
+          const Allocator& a);
+
+        openmode is initialized to `ios_base::in | ios_base::out`, in this
+        constructor.
+
+30.8.2 move paragraph 3 to before paragraph 2
+
+30.8.2.1 paragraph 1: add the word "initializing" before "buf". Same for
+paragraph 3
+
+30.8.2.1 paragraph 4: It's a little strange to say that buf is initialized
+from rhs.buf but that it is implementation defined whether the read and write
+areas are re-established. Actually, I don't know why the read and write areas
+couldn't be re-established, but perhaps there's some implementation that
+doesn't want to do it. Also, the allocator for the first case is
+underspecified. I think you need to say that, in the first overload, buf is
+initialized with std::move(rhs.buf). That establishes that, when the allocator
+is not specified, that it comes from rhs.
+
+
+30.8.3 You need a third allocator-aware constructor for istringstream similar
+to the one for stringbuf, that supplies a string and allocator, but no
+openmode.
+
+30.8.3 Can't the new paragraph be simplified by just stating that the
+allocator is passed on to the stringbuf constructor? In fact, it looks like
+that is already the case in the per-constructor description. Maybe this
+paragraph is unnecessary.
+
+30.8.4 You need a third allocator-aware constructor for ostringstream similar
+to the one for stringbuf, that supplies a string and allocator, but no
+openmode.
+
+30.8.5 You need a third allocator-aware constructor for stringstream similar
+to the one for stringbuf, that supplies a string and allocator, but no
+openmode.
+
+30.8.5 Again, the added paragraph is overly-complex and doesn't add much.
+
+
+Other (PMM = Post Meeting Mailing, JV = Jacksonville):
+
+* PMM update copy-swap as above
+
+* PMM finish review ofP0507
+
+* PMM Review Parallelism TS changes
+
+* JV: Write an identity<T> paper for Jacksonville.
+
+* Look at polymorphic_object<T> to see if allocator is really impossible.
+
+* JV? Write reduction clause for task_block
+
+* JV: Propose polymorphic_adaptor moved from TS to IS

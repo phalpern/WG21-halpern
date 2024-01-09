@@ -1,0 +1,10 @@
+   * Update task region as per LEWG notes
+   * Fix destructive-move:
+      * Propose a "do-nothing" constructor-call and destructor-call syntax
+          ::new(p, nop) T();
+          ::new(p) T(nop);  <-- preferred because useful for sub-objects:
+              atomic<T>::atomic() : m_val(noop) { } === uninitialized member
+          ~t(nop);
+   * Define the type of execution agent created by task_region_handle::run()
+   * Define the type of execution agent used by vector lanes
+
