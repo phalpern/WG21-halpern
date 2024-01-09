@@ -1,6 +1,0 @@
-[submodule "uses-allocator"]
-	path = uses-allocator
-	url = git@github.com:phalpern/uses-allocator.git
-[submodule "task_region"]
-	path = task_region
-	url = Pablo@home:~Pablo/Documents/C++Standard/task_region
