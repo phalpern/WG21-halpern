@@ -47,3 +47,4 @@ D*.html
 *.orig
 .DS_store
 tmp.mk
+*:Zone.Identifier
