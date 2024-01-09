@@ -3,24 +3,33 @@
 # Copyright 2014 Pablo Halpern.
 # Free to use and redistribute (See accompanying file license.txt.)
 
-DOCNAME=vec_policy
+CXXFLAGS = -std=c++11 -g
+CXXFLAGS += -DUSE_DESTRUCTIVE_MOVE
+
+DOCNAME=vector-execution-models
+
+pdf: $(DOCNAME).pdf
+	:
 
 html: $(DOCNAME).html
 	:
 
-pdf: $(DOCNAME).pdf
+docx: $(DOCNAME).docx
 	:
 
 %.html : %.md
 	pandoc --number-sections -s -S $< -o $@
 
 %.pdf : %.md header.tex
-	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H header.tex $< -o $@
+	$(eval DOCNUM=$(shell sed -n  -e '/^% .*[ND][0-9x][0-9x][0-9x][0-9x]/s/^.*\([ND][0-9x][0-9x][0-9x][0-9x]\).*/\1/p' -e '/^[ND][0-9x][0-9x][0-9x][0-9x]$$/q' $<))
+	sed -e s/DOCNUM/$(DOCNUM)/g header.tex > $*.hdr.tex
+	pandoc --number-sections -f markdown+footnotes+definition_lists -s -S -H $*.hdr.tex $< -o $@
+	rm -f $*.hdr.tex
 
-header.tex : header.tmplt.tex $(DOCNAME).md
-	sed -e s/DOCNUM/$$(sed -n  -e '/[ND][0-9][0-9][0-9][0-9]/s/.*\([ND][0-9][0-9][0-9][0-9]\).*/\1/p' -e '/[ND][0-9][0-9][0-9][0-9]/q' $(DOCNAME).md)/g $< > $@
+%.docx : %.md
+	pandoc --number-sections -s -S $< -o $@
 
 clean:
-	rm -f $(DOCNAME).html $(DOCNAME).pdf header.tex
+	rm -f $(DOCNAME).t $(DOCNAME).html $(DOCNAME).pdf $(DOCNAME).docx
 
 .FORCE:
