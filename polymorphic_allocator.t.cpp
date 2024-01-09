@@ -922,8 +922,8 @@ int main(int argc, char *argv[])
 
             SimpleAllocator<char> sax(&xc);
             SimpleAllocator<char> say(&yc);
-            PMR_RESOURCE_ADAPTOR(SimpleAllocator<char>) crx(sax);
-            PMR_RESOURCE_ADAPTOR(SimpleAllocator<char>) cry(say);
+            pmr::resource_adaptor<SimpleAllocator<char>> crx(sax);
+            pmr::resource_adaptor<SimpleAllocator<char>> cry(say);
 
             strvec    a(&crx);
             strvecvec b(&cry);

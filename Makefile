@@ -5,7 +5,7 @@
 
 TESTARGS +=
 
-CXX=clang++ -std=c++14
+CXX=clang++ -std=c++17
 CXXFLAGS=-I. -Wall
 WD := $(shell basename $(PWD))
 
