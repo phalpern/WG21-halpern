@@ -1,5 +1,9 @@
 #! /bin/bash
 
+# Dependencies (use `sudo apt install <package>):
+# 1. pandoc
+# 2. texlive-latex-recommended
+
 if [ $# -ne 1 ]; then
     echo >&2 Usage: "make_from_md [ file.pdf | file.html | file.pdf.show | file.html.show ]"
     exit 1
