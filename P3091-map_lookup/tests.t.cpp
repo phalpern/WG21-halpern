@@ -185,7 +185,6 @@ void test_replace()
 {
   {
     xmap<int, NotDefaultConstructible>        m4;
-    xmap<int, NotDefaultConstructible> const &M4 = m4;
 
     auto [ iter1, isNew ] = m4.try_emplace(0, 5);
     assert(isNew);
@@ -202,7 +201,6 @@ void test_replace()
   // Repeat with std::less<void>
   {
     xmap<int, NotDefaultConstructible, std::less<>>        m4;
-    xmap<int, NotDefaultConstructible, std::less<>> const &M4 = m4;
 
     auto [ iter1, isNew ] = m4.try_emplace(0, 5);
     assert(isNew);

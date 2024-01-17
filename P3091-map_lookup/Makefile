@@ -1,6 +1,6 @@
 
 CXX = g++
-CXX_FLAGS=-g -std=c++23 -I.
+CXX_FLAGS=-g -Wall -std=c++23 -I.
 
 %.test : %.t
 	./$<
