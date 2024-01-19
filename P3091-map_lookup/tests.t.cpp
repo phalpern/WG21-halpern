@@ -132,7 +132,89 @@ void test_get()
   }
 }
 
-void test_get_ref()
+void test_get_as()
+{
+  {
+    xmap<std::string, std::string>        m3;
+    xmap<std::string, std::string> const& M3 = m3;
+    m3.emplace("hello", "world");
+    assert(1 == M3.size());
+
+    std::string_view dummy("dummy");
+
+    assert("world" == m3.get_as<std::string_view>("hello", "dummy"));
+    assert("dummy" == m3.get_as<std::string_view>("goodbye", "dummy"));
+    assert("dummy" == m3.get_as<std::string_view>("goodbye", dummy));
+  }
+
+  // Repeat with std::less<void>
+  {
+    xmap<std::string, std::string, std::less<>>        m3;
+    xmap<std::string, std::string, std::less<>> const& M3 = m3;
+    m3.emplace("hello", "world");
+    assert(1 == M3.size());
+
+    std::string_view dummy("dummy");
+
+    assert("world" == m3.get_as<std::string_view>("hello", "dummy"));
+    assert("dummy" == m3.get_as<std::string_view>("goodbye", "dummy"));
+    assert("dummy" == m3.get_as<std::string_view>("goodbye", dummy));
+  }
+}
+
+void test_get_as_ref()
+{
+  {
+    xmap<std::string, std::string>        m3;
+    xmap<std::string, std::string> const& M3 = m3;
+    m3.emplace("hello", "world");
+    assert(1 == M3.size());
+
+    std::string& world = m3["hello"];
+    std::string  dummy("dummy");
+
+    assert(&world == &m3.get_as<std::string&>("hello", dummy));
+    assert(&dummy == &m3.get_as<std::string&>("goodbye", dummy));
+    // The following are unsafe and would yield a warning or deliberate error:
+    // (void) m3.get_as<const std::string&>("goodbye", "dummy");
+    // (void) m3.get_as<const std::string&>("goodbye", std::string("dummy"));
+  }
+
+  {
+    NonCopyable zero{0};
+
+    xmap<int, NonCopyable>        m4;
+    xmap<int, NonCopyable> const& M4 = m4;
+    m4.emplace(3, 33);
+    const NonCopyable& e3 = M4.at(3);
+
+    // (void) m4.get(3, zero);      // Won't compile
+    assert(&e3   == &m4.get_as<NonCopyable&>(3, zero));
+    assert(&zero == &m4.get_as<NonCopyable&>(1, zero));
+
+    assert(33 == m4.get_as<NonCopyable&>(3, zero).value());
+    assert(0  == m4.get_as<NonCopyable&>(1, zero).value());
+  }
+
+  // Repeat with std::less<void>
+  {
+    xmap<std::string, std::string, std::less<>>        m3;
+    xmap<std::string, std::string, std::less<>> const& M3 = m3;
+    m3.emplace("hello", "world");
+    assert(1 == M3.size());
+
+    std::string& world = m3["hello"];
+    std::string  dummy("dummy");
+
+    assert(&world == &m3.get_as<std::string&>("hello", dummy));
+    assert(&dummy == &m3.get_as<std::string&>("goodbye", dummy));
+    // The following are unsafe and would yield a warning or deliberate error:
+    (void) m3.get_as<std::string&>("goodbye", "dummy");
+    (void) m3.get_as<std::string&>("goodbye", std::string("dummy"));
+  }
+}
+
+void test_get_as_const_ref()
 {
   {
     xmap<std::string, std::string>        m3;
@@ -143,10 +225,11 @@ void test_get_ref()
     const std::string& world = m3["hello"];
     const std::string  dummy("dummy");
 
-    assert(&world == &M3.get_ref("hello", dummy));
-    assert(&dummy == &M3.get_ref("goodbye", dummy));
-    // M3.get_ref("goodbye", "dummy");              // deliberate error
-    // M3.get_ref("goodbye", std::string("dummy")); // deliberate error
+    assert(&world == &M3.get_as<const std::string&>("hello", dummy));
+    assert(&dummy == &M3.get_as<const std::string&>("goodbye", dummy));
+    // The following are unsafe and would yield a warning or deliberate error:
+    // (void) M3.get_as<const std::string&>("goodbye", "dummy");
+    // (void) M3.get_as<const std::string&>("goodbye", std::string("dummy"));
   }
 
   {
@@ -155,13 +238,14 @@ void test_get_ref()
     xmap<int, NonCopyable>        m4;
     xmap<int, NonCopyable> const& M4 = m4;
     m4.emplace(3, 33);
+    const NonCopyable& e3 = M4.at(3);
 
-    // int v = M4.get(3, zero).value();      // Won't compile
-    int v = M4.get_ref(3, zero).value();  // OK
-    int z = M4.get_ref(1, zero).value();  // OK
+    // (void) m4.get(3, zero);      // Won't compile
+    assert(&e3   == &M4.get_as<const NonCopyable&>(3, zero));
+    assert(&zero == &M4.get_as<const NonCopyable&>(1, zero));
 
-    assert(v == 33);
-    assert(z == 0);
+    assert(33 == M4.get_as<const NonCopyable&>(3, zero).value());
+    assert(0  == M4.get_as<const NonCopyable&>(1, zero).value());
   }
 
   // Repeat with std::less<void>
@@ -174,50 +258,18 @@ void test_get_ref()
     const std::string& world = m3["hello"];
     const std::string  dummy("dummy");
 
-    assert(&world == &M3.get_ref("hello", dummy));
-    assert(&dummy == &M3.get_ref("goodbye", dummy));
-    // M3.get_ref("goodbye", "dummy");              // deliberate error
-    // M3.get_ref("goodbye", std::string("dummy")); // deliberate error
-  }
-}
-
-void test_replace()
-{
-  {
-    xmap<int, NotDefaultConstructible>        m4;
-
-    auto [ iter1, isNew ] = m4.try_emplace(0, 5);
-    assert(isNew);
-    auto& item0 = iter1->second;
-    assert(5 == item0);
-    assert(1 == m4.size());
-
-    auto iter2 = m4.replace(0, 6);
-    assert(1 == m4.size());
-    assert(6 == item0);
-    assert(iter2 == iter1);
-  }
-
-  // Repeat with std::less<void>
-  {
-    xmap<int, NotDefaultConstructible, std::less<>>        m4;
-
-    auto [ iter1, isNew ] = m4.try_emplace(0, 5);
-    assert(isNew);
-    auto& item0 = iter1->second;
-    assert(5 == item0);
-    assert(1 == m4.size());
-
-    auto iter2 = m4.replace(0, 6);
-    assert(1 == m4.size());
-    assert(6 == item0);
-    assert(iter2 == iter1);
+    assert(&world == &M3.get_as<const std::string&>("hello", dummy));
+    assert(&dummy == &M3.get_as<const std::string&>("goodbye", dummy));
+    // The following are unsafe and would yield a warning or deliberate error:
+    // (void) M3.get_as<const std::string&>("goodbye", "dummy");
+    // (void) M3.get_as<const std::string&>("goodbye", std::string("dummy"));
   }
 }
 
 int main()
 {
   test_get();
-  test_get_ref();
-  test_replace();
+  test_get_as();
+  test_get_as_ref();
+  test_get_as_const_ref();
 }

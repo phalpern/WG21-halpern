@@ -16,11 +16,11 @@ class map : public ::std::map<Key, T, Compare, Allocator>
 {
   using StdMap = ::std::map<Key, T, Compare, Allocator>;
 
-  template <class Self, class K, class... Args>
-  static T do_get(Self&& self, const K&, Args&&... args);
+  template <class R, class Self, class K, class... Args>
+  static R do_get_as(Self& self, const K& k, Args&&... args);
 
-  template <class K, class... Args>
-  auto do_replace(K&& k, Args&&... args) -> StdMap::iterator;
+  template <class R, class Self, class K, class... Args>
+  static R do_get_as(Self&& self, const K& k, Args&&... args);
 
 public:
   using key_type    = typename StdMap::key_type;
@@ -31,116 +31,146 @@ public:
   using StdMap::map;
 
 #ifdef __cpp_explicit_this_parameter
-  template <class Self, class... Args>
-  [[nodiscard]] T get(this Self&& m, const key_type& k, Args&&... args)
-    { return do_get(m, k, std::forward<Args>(args)...); }
 
-  template <class K, class... Args>
-  [[nodiscard]] T get(this auto&& m, const K& k, Args&&... args)
+  // get(key_type, Args...) -> mapped_type
+  template <class Self, class... Args> [[nodiscard]]
+  auto get(this Self&& m, const key_type& k, Args&&... args) -> mapped_type
+    { return do_get_as<mapped_type>(m, k, std::forward<Args>(args)...); }
+
+  // get(K, Args...) -> mapped_type
+  template <class Self, class K, class... Args> [[nodiscard]]
+  auto get(this Self&& m, const K& k, Args&&... args) -> mapped_type
     requires requires { typename Compare::is_transparent; };
-    { return do_get(m, k, std::forward<Args>(args)...); }
-#else
-  template <class... Args>
-  [[nodiscard]] T get(const key_type& k, Args&&... args) &
-    { return do_get(*this, k, std::forward<Args>(args)...); }
-  template <class... Args>
-  [[nodiscard]] T get(const key_type& k, Args&&... args) const &
-    { return do_get(*this, k, std::forward<Args>(args)...); }
-  template <class... Args>
-  [[nodiscard]] T get(const key_type& k, Args&&... args) &&
-    { return do_get(std::move(*this), k, std::forward<Args>(args)...); }
+    { return do_get_as<mapped_type>(m, k, std::forward<Args>(args)...); }
 
-  template <class K, class... Args>
-  [[nodiscard]] T get(const K& k, Args&&... args) &
-    requires requires { typename Compare::is_transparent; }
-    { return do_get(*this, k, std::forward<Args>(args)...); }
-  template <class K, class... Args>
-  [[nodiscard]] T get(const K& k, Args&&... args) const &
-    requires requires { typename Compare::is_transparent; }
-    { return do_get(*this, k, std::forward<Args>(args)...); }
-  template <class K, class... Args>
-  [[nodiscard]] T get(const K& k, Args&&... args) &&
-    requires requires { typename Compare::is_transparent; }
-    { return do_get(std::move(*this), k, std::forward<Args>(args)...); }
-#endif
+  // get_as<R>(key_type, Args...) -> R
+  template <class R, class Self, class... Args> [[nodiscard]]
+  auto get_as(this Self&& m, const key_type& k, Args&&... args) -> R
+    { return do_get_as<R>(m, k, std::forward<Args>(args)...); }
 
-  [[nodiscard]] const T& get_ref(const key_type& k, const T& dflt) const &;
-  [[nodiscard]] const T& get_ref(const key_type& k, T&& dflt) const & = delete;
-
-  template <class K> [[nodiscard]] const T&
-  get_ref(const K& k, const T& dflt) const &
+  // get_as<R>(K, Args...) -> R
+  template <class R, class Self, class K, class... Args> [[nodiscard]]
+  auto get_as(this Self&& m, const K& k, Args&&... args) -> R
     requires requires { typename Compare::is_transparent; };
-  template <class K> [[nodiscard]] const T&
-  get_ref(const K& k, T&& dflt) const & = delete;
+    { return do_get_as<R>(m, k, std::forward<Args>(args)...); }
 
-  template <class... Args>
-  iterator replace(const key_type& k, Args&&... args)
-    { return do_replace(k, std::forward<Args>(args)...); }
+#else // if ! __cpp_explicit_this_parameter
 
-  template <class... Args>
-  iterator replace(key_type&& k, Args&&... args)
-    { return do_replace(std::move(k), std::forward<Args>(args)...); }
+  // get(key_type, Args...) -> mapped_type
+  template <class... Args> [[nodiscard]]
+  auto get(const key_type& k, Args&&... args) & -> mapped_type
+    { return do_get_as<mapped_type>(*this, k, std::forward<Args>(args)...); }
 
-  template <class K, class... Args>
-  iterator replace(K&& k, Args&&... args)
+  template <class... Args> [[nodiscard]]
+  auto get(const key_type& k, Args&&... args) const & -> mapped_type
+    { return do_get_as<mapped_type>(*this, k, std::forward<Args>(args)...); }
+
+  template <class... Args> [[nodiscard]]
+  auto get(const key_type& k, Args&&... args) && -> mapped_type
+  {
+    return do_get_as<mapped_type>(std::move(*this), k,
+                                  std::forward<Args>(args)...);
+  }
+
+  // get(K, Args...) -> mapped_type
+  template <class K, class... Args> [[nodiscard]]
+  auto get(const K& k, Args&&... args) & -> mapped_type
     requires requires { typename Compare::is_transparent; }
-    { return do_replace(std::forward<K>(k), std::forward<Args>(args)...); }
+    { return do_get_as<mapped_type>(*this, k, std::forward<Args>(args)...); }
+
+  template <class K, class... Args> [[nodiscard]]
+  auto get(const K& k, Args&&... args) const & -> mapped_type
+    requires requires { typename Compare::is_transparent; }
+    { return do_get_as<mapped_type>(*this, k, std::forward<Args>(args)...); }
+
+  template <class K, class... Args> [[nodiscard]]
+  auto get(const K& k, Args&&... args) && -> mapped_type
+    requires requires { typename Compare::is_transparent; }
+  {
+    return do_get_as<mapped_type>(std::move(*this), k,
+                                  std::forward<Args>(args)...);
+  }
+
+  // get_as<R>(key_type, Args...) -> R
+  template <class R, class... Args> [[nodiscard]]
+  auto get_as(const key_type& k, Args&&... args) & -> R
+    { return do_get_as<R>(*this, k, std::forward<Args>(args)...); }
+
+  template <class R, class... Args> [[nodiscard]]
+  auto get_as(const key_type& k, Args&&... args) const & -> R
+    { return do_get_as<R>(*this, k, std::forward<Args>(args)...); }
+
+  template <class R, class... Args> [[nodiscard]]
+  auto get_as(const key_type& k, Args&&... args) && -> R
+  {
+    return do_get_as<R>(std::move(*this), k,
+                                  std::forward<Args>(args)...);
+  }
+
+  // get_as<R>(K, Args...) -> R
+  template <class R, class K, class... Args> [[nodiscard]]
+  auto get_as(const K& k, Args&&... args) & -> R
+    requires requires { typename Compare::is_transparent; }
+    { return do_get_as<R>(*this, k, std::forward<Args>(args)...); }
+
+  template <class R, class K, class... Args> [[nodiscard]]
+  auto get_as(const K& k, Args&&... args) const & -> R
+    requires requires { typename Compare::is_transparent; }
+    { return do_get_as<R>(*this, k, std::forward<Args>(args)...); }
+
+  template <class R, class K, class... Args> [[nodiscard]]
+  auto get_as(const K& k, Args&&... args) && -> R
+    requires requires { typename Compare::is_transparent; }
+    { return do_get_as<R>(std::move(*this), k, std::forward<Args>(args)...); }
+
+#endif // else ! __cpp_explicit_this_parameter
+
 };
 
-template <class Key, class T, class Compare, class Allocator>
-template <class Self, class K, class... Args>
-T map<Key, T, Compare, Allocator>::do_get(Self&& m, const K& k, Args&&... args)
+template <class R, class... Args>
+struct __unsafe_ref : std::false_type { };
+
+// Yield `true_type` if `Arg` is an xvalue and is convertible to `const R&`
+// without invoking a conversion operator (i.e., it is the same as `R` or
+// derived from `R`.)
+template <class R, class Arg>
+struct __unsafe_ref<const R&, Arg> :
+    std::bool_constant<(!std::is_lvalue_reference_v<Arg> &&
+                        std::is_base_of_v<R, std::remove_reference_t<Arg>>)>
 {
-  auto iter = m.find(k);
-  if (iter != m.end())
-  {
-    if constexpr (is_lvalue_reference_v<Self>)
-      return iter->second;
-    else
-      return std::move(iter->second);
-  }
-  else
-    return T(std::forward<Args>(args)...);
-}
+};
 
-template <class Key, class T, class Compare, class Allocator>
-template <class K, class... Args>
-auto map<Key, T, Compare, Allocator>::do_replace(K&& k, Args&&... args)
-  -> iterator
-{
-  auto [ iter, is_new ] =
-    this->try_emplace(std::forward<K>(k), std::forward<Args>(args)...);
-
-  if (! is_new)
-    iter->second = mapped_type(std::forward<Args>(args)...);
-
-  return iter;
-}
+template <class R, class... Args>
+inline constexpr bool __unsafe_ref_v = __unsafe_ref<R, Args...>::value;
 
 template <class Key, class T, class Compare, class Allocator>
-const T& map<Key, T, Compare, Allocator>::get_ref(const key_type& k,
-                                                  const T& dflt) const &
+template <class R, class Self, class K, class... Args>
+R map<Key, T, Compare, Allocator>::do_get_as(Self& self, const K& k,
+                                             Args&&... args)
 {
-  auto iter = this->find(k);
-  if (iter != this->end())
+  static_assert(! __unsafe_ref_v<R, Args...>,
+                "Can't bind return reference to rvalue");
+
+  auto iter = self.find(k);
+  if (iter != self.end())
     return iter->second;
   else
-    return dflt;
+    return R(std::forward<Args>(args)...);
 }
 
 template <class Key, class T, class Compare, class Allocator>
-template <class K>
-const T& map<Key, T, Compare, Allocator>::get_ref(const K& k,
-                                                  const T& dflt) const &
-  requires requires { typename Compare::is_transparent; }
+template <class R, class Self, class K, class... Args>
+R map<Key, T, Compare, Allocator>::do_get_as(Self&& self, const K& k,
+                                             Args&&... args)
 {
-  auto iter = this->find(k);
-  if (iter != this->end())
-    return iter->second;
+  static_assert(std::is_convertible_v<mapped_type&&, R>,
+                "Mapped type must be convertible to return type");
+
+  auto iter = self.find(k);
+  if (iter != self.end())
+    return std::move(iter->second);
   else
-    return dflt;
+    return R(std::forward<Args>(args)...);
 }
-
-
 
 }  // Close namespace std::experimental

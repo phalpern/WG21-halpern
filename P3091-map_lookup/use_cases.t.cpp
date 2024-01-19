@@ -95,59 +95,14 @@ void bigValue()
   unsigned id = 0;
 
   Person        p1 = id_to_person.get(id);              // Copies element
-  Person const& p2 = id_to_person.get_ref(id, nobody);  // No copies made
+  Person const& p2 = id_to_person.get_as<Person const&>(id, nobody);  // No copies made
 
   assert(p1.first_name.empty());
   assert(&p1 != &nobody);
   assert(p2.first_name.empty());
   assert(&p2 == &nobody);
 
-//  Person const& p3 = id_to_person.get_ref(id, Person{});  // Won't compile
-}
-
-void replaceEfficiently()
-{
-  map<std::string, Person, std::less<>> regions;
-
-  Person js{ "John", "Smith", "15 Birch St." };
-  Person jd{ "Jane", "Doe", "9 Whisteria Ln." };
-  Person bc{ "Betty", "Crocker", "44 Baker Rd." };
-  Person fr{ "Fred", "Rogers", "Neighborly Ct" };
-  Person mw{ "Marth", "Washington", "Virginia Ave" };
-
-  regions.try_emplace("Eastern", js);
-  assert(js == regions["Eastern"]);
-
-  // Doesn't replace the value
-  regions.try_emplace("Eastern", jd);
-  assert(js == regions["Eastern"]);
-
-  regions["Eastern"] = jd;  // OK
-  assert(jd == regions["Eastern"]);
-
-  // OK, but default-constructs Person only to overwrite it
-  regions["Western"] = bc;
-  assert(bc == regions["Western"]);
-
-  // Same effiency as `try_emplace`.  More efficient than indexing.
-  regions.replace("Central", fr);
-  assert(fr == regions["Central"]);
-
-  // Same efficiency as indexing.
-  regions.replace("Eastern", mw);
-  assert(mw == regions["Eastern"]);
-}
-
-void replaceNoDefaultCtor()
-{
-  map<std::string, NotDefaultConstructible> m;
-
-  m.try_emplace("hello", 5);
-
-//  m["hello"] = 6;         // Won't compile
-  m.replace("hello", 6);  // OK
-
-  assert(6 == m.at("hello"));
+//  Person const& p3 = id_to_person.get_as<Person const&>(id, Person{});  // Won't compile
 }
 
 int main()
@@ -156,6 +111,4 @@ int main()
   constMap();
   noDefaultCtor();
   bigValue();
-  replaceEfficiently();
-  replaceNoDefaultCtor();
 }
