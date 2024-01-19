@@ -12,10 +12,6 @@
 #include <utility>
 #include <cassert>
 
-template <class Key, class T, class Compare = std::less<Key>,
-          class Allocator = std::allocator<std::pair<const Key, T>>>
-using xmap = std::experimental::map<Key, T, Compare, Allocator>;
-
 using std::experimental::map;
 
 class NotDefaultConstructible
@@ -102,7 +98,26 @@ void bigValue()
   assert(p2.first_name.empty());
   assert(&p2 == &nobody);
 
-//  Person const& p3 = id_to_person.get_as<Person const&>(id, Person{});  // Won't compile
+  // Person const& p3 = id_to_person.get_as<Person const&>(id, Person{});  // Won't compile
+}
+
+void convertedValue()
+{
+  const map<int, std::string> m{
+    { 1, "one one one one one one one one one one one one one" },
+    { 2, "two two two two two two two two two two two two two" },
+    { 3, "three three three three three three three three three" }
+  };
+
+  std::string_view sv1 = m.get(1, "none");  // Dangling reference
+  std::string_view sv2 = m.get_as<std::string_view>(2, "none");  // OK
+  std::string_view sv3 = m.get_as<std::string_view>(5, "none");  // OK
+
+  (void) sv1;
+
+  // assert("one"  == sv1.substr(0, 3));  // Fails in gcc
+  assert("two"  == sv2.substr(0, 3));
+  assert("none" == sv3);
 }
 
 int main()
@@ -111,4 +126,5 @@ int main()
   constMap();
   noDefaultCtor();
   bigValue();
+  convertedValue();
 }
