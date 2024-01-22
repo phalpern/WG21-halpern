@@ -33,6 +33,7 @@
 *.t
 
 # Generated draft files
+generated
 D*.pdf
 D*.html
 
