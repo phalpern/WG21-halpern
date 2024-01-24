@@ -21,4 +21,10 @@ PAPERNUM_FROM_MD := $(GIT_ROOT)/papernum_from_md.py
 	make -f $(MPARK_MAKEFILE) $@
 	cp -p generated/$@ $$($(PAPERNUM_FROM_MD) $<).pdf
 
+%.html.show : %.md .FORCE
+	make $*.html
+	browser $$(wslpath -w $$($(PAPERNUM_FROM_MD) $<)).html
+
+.FORCE:
+
 .PRECIOUS: %.t %.html %.pdf

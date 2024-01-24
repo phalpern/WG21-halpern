@@ -26,10 +26,9 @@ public:
 
   friend std::strong_ordering operator<=>(NotDefaultConstructible a,
                                           NotDefaultConstructible b) = default;
-
-  friend bool operator==(NotDefaultConstructible a, int b)
-    { return a.value() == b; }
 };
+
+bool operator==(NotDefaultConstructible a, int b) { return a.value() == b; }
 
 void nonZero()
 {
@@ -91,14 +90,14 @@ void bigValue()
   unsigned id = 0;
 
   Person        p1 = id_to_person.get(id);              // Copies element
-  Person const& p2 = id_to_person.get_as<Person const&>(id, nobody);  // No copies made
+  Person const& p2 = id_to_person.get_ref(id, nobody);  // No copies made
 
   assert(p1.first_name.empty());
   assert(&p1 != &nobody);
   assert(p2.first_name.empty());
   assert(&p2 == &nobody);
 
-  // Person const& p3 = id_to_person.get_as<Person const&>(id, Person{});  // Won't compile
+  // Person const& p3 = id_to_person.get_ref(id, Person{});  // Won't compile
 }
 
 void convertedValue()
@@ -111,11 +110,11 @@ void convertedValue()
 
   std::string_view sv1 = m.get(1, "none");  // Dangling reference
   std::string_view sv2 = m.get_as<std::string_view>(2, "none");  // OK
-  std::string_view sv3 = m.get_as<std::string_view>(5, "none");  // OK
+  std::string_view sv3 = m.get_as<std::string_view>(5, "nonex", 4);  // OK
 
   (void) sv1;
 
-  // assert("one"  == sv1.substr(0, 3));  // Fails in gcc
+  // assert("one"  == sv1.substr(0, 3));  // Fails (as expected) in gcc
   assert("two"  == sv2.substr(0, 3));
   assert("none" == sv3);
 }
