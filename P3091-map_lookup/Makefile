@@ -8,7 +8,10 @@ GIT_ROOT := $(shell git rev-parse --show-toplevel)
 PAPERNUM_FROM_MD := $(GIT_ROOT)/papernum_from_md.py
 
 %.test : %.t
-	./$<
+	./$< $(TEST_ARGS)
+
+%.vg : %.t
+	valgrind ./$< $(TEST_ARGS)
 
 %.t : %.t.cpp xmap.h
 	$(CXX) $(CXX_FLAGS) -o $@ $<
@@ -24,6 +27,10 @@ PAPERNUM_FROM_MD := $(GIT_ROOT)/papernum_from_md.py
 %.html.show : %.md .FORCE
 	make $*.html
 	browser $$(wslpath -w $$($(PAPERNUM_FROM_MD) $<)).html
+
+%.pdf.show : %.md .FORCE
+	make $*.pdf
+	foxit $$(wslpath -w $$($(PAPERNUM_FROM_MD) $<)).pdf
 
 .FORCE:
 
