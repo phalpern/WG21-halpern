@@ -35,50 +35,50 @@ public:
   // Delegate all constructors to base class
   using StdMap::map;
 
-  // get(K, Args...) -> mapped_type
+  // mapped_type get(K, Args...)
   template <class K, class... Args>
-  [[nodiscard]] auto get(const K& k, Args&&... args) const -> mapped_type
+  [[nodiscard]] mapped_type get(const K& k, Args&&... args) const
     requires _IsMapKeyType<Key, Compare, K>
     { return do_get<mapped_type>(*this, k, std::forward<Args>(args)...); }
 
-  // get_ref(K, U&) -> ref
+  // ref get_ref(K, U&)
   template <class K, class U>
-  [[nodiscard]] auto get_ref(const K& k, U& ref) -> decltype(auto)
+  [[nodiscard]] common_reference_t<mapped_type&, U&> get_ref(const K& k, U& ref)
     requires _IsMapKeyType<Key, Compare, K>
   {
     return do_get_ref<common_reference_t<mapped_type&, U&>>(*this, k, ref);
   }
 
   template <class K, class U>
-  [[nodiscard]] auto get_ref(const K& k, U& ref) const -> decltype(auto)
+  [[nodiscard]] common_reference_t<const mapped_type&, U&> get_ref(const K& k, U& ref) const
     requires _IsMapKeyType<Key, Compare, K>
   {
     return do_get_ref<common_reference_t<const mapped_type&, U&>>(*this, k,
                                                                   ref);
   }
 
-  // get_as<R>(K, Args...) -> R
+  // R get_as<R>(K, Args...)
   template <class R, class K, class... Args>
   requires (! is_lvalue_reference_v<R>)
-  [[nodiscard]] auto get_as(const K& k, Args&&... args) -> R
+  [[nodiscard]] R get_as(const K& k, Args&&... args)
     requires _IsMapKeyType<Key, Compare, K>
     { return do_get<R>(*this, k, std::forward<Args>(args)...); }
 
   template <class R, class K, class... Args>
   requires (is_lvalue_reference_v<R>)
-  [[nodiscard]] auto get_as(const K& k, Args&&... args) -> R
+  [[nodiscard]] R get_as(const K& k, Args&&... args)
     requires _IsMapKeyType<Key, Compare, K>
     { return do_get_ref<R>(*this, k, std::forward<Args>(args)...); }
 
   template <class R, class K, class... Args>
   requires (! is_lvalue_reference_v<R>)
-  [[nodiscard]] auto get_as(const K& k, Args&&... args) const -> R
+  [[nodiscard]] R get_as(const K& k, Args&&... args) const
     requires _IsMapKeyType<Key, Compare, K>
     { return do_get<R>(*this, k, std::forward<Args>(args)...); }
 
   template <class R, class K, class... Args>
   requires (is_lvalue_reference_v<R>)
-  [[nodiscard]] auto get_as(const K& k, Args&&... args) const -> R
+  [[nodiscard]] R get_as(const K& k, Args&&... args) const
     requires _IsMapKeyType<Key, Compare, K>
     { return do_get_ref<R>(*this, k, std::forward<Args>(args)...); }
 
