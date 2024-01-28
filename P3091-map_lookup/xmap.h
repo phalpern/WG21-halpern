@@ -102,7 +102,7 @@ template <class Key, class T, class Compare, class Allocator>
 template <class R, class Self, class K, class U>
 R map<Key, T, Compare, Allocator>::do_get_ref(Self& self, const K& k, U& ref)
 {
-  static_assert(is_lvalue_reference_v<R>, "Must return lvalue reference");
+  static_assert(is_lvalue_reference_v<R>, "No common reference type");
 
   auto iter = self.find(k);
   if (iter != self.end())
