@@ -1,6 +1,6 @@
-/* copy_swap_transaction.h                  -*-C++-*-
+/* xmap.h                  -*-C++-*-
  *
- * Copyright (C) 2016 Pablo Halpern <phalpern@halpernwightsoftware.com>
+ * Copyright (C) 2024 Pablo Halpern <phalpern@halpernwightsoftware.com>
  * Distributed under the Boost Software License - Version 1.0
  *
  * Implementation of P3091: Better lookups for `map` and `unordered_map`

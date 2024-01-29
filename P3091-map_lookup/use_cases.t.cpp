@@ -1,9 +1,9 @@
 /* use_cases.t.cpp                  -*-C++-*-
  *
- * Copyright (C) 2016 Pablo Halpern <phalpern@halpernwightsoftware.com>
+ * Copyright (C) 2024 Pablo Halpern <phalpern@halpernwightsoftware.com>
  * Distributed under the Boost Software License - Version 1.0
  *
- * Use cases/tests for PXXXX Non-mutating lookups for `map` and `unordered_map`
+ * Use cases for P3091 Better lookups for `map` and `unordered_map`
  */
 
 #include <xmap.h>
