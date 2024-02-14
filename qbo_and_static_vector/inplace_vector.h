@@ -19,21 +19,26 @@ union __uninitialized
 };
 
 #ifdef INPLACE_VECTOR_WITH_ALLOC
-template <class T, class Alloc>
+template <class T>
+struct __default_alloc { using type = void; };
+
+template <class T>
+requires requires { typename T::allocator_type; }
+struct __default_alloc<T> { using type = typename T::allocator_type; };
+
+template <class T, class Alloc, bool UsesAlloc = uses_allocator_v<T, Alloc>>
 class __inplace_vector_base
 {
-  static_assert(is_same_v<typename Alloc::value_type, T>);
-
   [[no_unique_address]] Alloc m_alloc;
 
 protected:
   using AllocTraits = allocator_traits<Alloc>;
 
   template <class... Args>
-  constexpr void construct_elem(T& elem, Args&&... args)
+  constexpr void construct_elem(T* elem, Args&&... args)
     { AllocTraits::construct(m_alloc, elem, std::forward<Args>(args)...); }
 
-  constexpr void destroy_elem(T& elem) { AllocTraits::destroy(m_alloc, elem); }
+  constexpr void destroy_elem(T* elem) { AllocTraits::destroy(m_alloc, elem); }
 
   __inplace_vector_base() = default;
   constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
@@ -44,15 +49,15 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-template <class T>
-class __inplace_vector_base<T, void>
+template <class T, class Alloc>
+class __inplace_vector_base<T, Alloc, false>
 {
 protected:
   template <class... Args>
-  constexpr static void construct_elem(T& elem, Args&&... args)
-    { construct_at(&elem, std::forward<Args>(args)...); }
+  constexpr static void construct_elem(T* elem, Args&&... args)
+    { construct_at(elem, std::forward<Args>(args)...); }
 
-  constexpr static void destroy_elem(T& elem) { elem.~T(); }
+  constexpr static void destroy_elem(T* elem) { elem->~T(); }
 };
 #endif  // INPLACE_VECTOR_WITH_ALLOC
 
@@ -60,7 +65,8 @@ protected:
 template <class T, size_t N>
 class inplace_vector
 #else
-template <class T, size_t N, class Alloc = void>
+template <class T, size_t N,
+          class Alloc = typename __default_alloc<T>::type>
 class inplace_vector : public __inplace_vector_base<T, Alloc>
 #endif
 {
@@ -71,6 +77,7 @@ class inplace_vector : public __inplace_vector_base<T, Alloc>
     ArrayType                    value;
 
     constexpr Data() { }
+    constexpr ~Data() { }
   };
 
   Data   m_data;
@@ -117,7 +124,7 @@ public:
 #ifndef INPLACE_VECTOR_WITH_ALLOC
       elem.~T();
 #else
-      this->destroy_elem(elem);
+      this->destroy_elem(&elem);
 #endif
   }
 
@@ -219,7 +226,7 @@ public:
 #ifndef INPLACE_VECTOR_WITH_ALLOC
     construct_at(&m_data.value[m_size], std::forward<Args>(args)...);
 #else
-    this->construct_elem(m_data.value[m_size], std::forward<Args>(args)...);
+    this->construct_elem(&m_data.value[m_size], std::forward<Args>(args)...);
 #endif
     return m_data.value[m_size++];
   }
@@ -233,7 +240,7 @@ public:
 #ifndef INPLACE_VECTOR_WITH_ALLOC
     m_data.value[--m_size].~T();
 #else
-    this->destroy_elem(m_data.value[--m_size]);
+    this->destroy_elem(&m_data.value[--m_size]);
 #endif
   }
 
@@ -250,7 +257,7 @@ public:
 #ifndef INPLACE_VECTOR_WITH_ALLOC
     construct_at(&m_data.value[m_size], std::forward<Args>(args)...);
 #else
-    this->construct_elem(m_data.value[m_size], std::forward<Args>(args)...);
+    this->construct_elem(&m_data.value[m_size], std::forward<Args>(args)...);
 #endif
     return m_data.value[m_size++];
   }
