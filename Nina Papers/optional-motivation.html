@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>optional-motivation.htmlsrc</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+  </style>
+</head>
+<body>
+<head>
+<style type="text/css">
+  body { max-width: 54em; }
+  ins { text-decoration:none; background-color:#A0FFA0 }
+  .new { text-decoration:none; background-color:#D0FFD0 }
+  del { text-decoration:line-through; background-color:#FFA0A0 }
+  strong { font-weight: inherit; color: #2020ff }
+  table, td, th { border: 1px solid black; border-collapse:collapse; padding: 5px }
+  blockquote { margin: 1em 0 1em 1.7em; padding-left: 1em; border-left: 0; }
+  pre { left-margin: 50px; line-height: 1.1; }
+  pre code { font-size: 80%; }
+  del pre code { text-decoration: inherit; background-color:#FFA0A0 }
+  ins pre code { text-decoration: inherit; background-color:#A0FFA0 }
+</style>
+</head>
+<h1 id="motivation">Motivation</h1>
+<h2 id="general-motivation-for-allocator-aware-types">General Motivation for allocator-aware types</h2>
+<p><em>Note: The text below is borrowed nearly verbetim from <a href="http://wg21.link/P3002R1">P3002</a>, which proposes a general policy for when types should use allocators</em></p>
+<p>Memory management is a major part of building software. Numerous facilities in the C++ Standard library exist to give the programmer maximum control over how their program uses memory:</p>
+<ul>
+<li><p><code>std::unique_ptr</code> and <code>std::shared_ptr</code> are parameterized with <em>deleter</em> objects that control, among other things, how memory resources are reclaimed.</p></li>
+<li><p><code>std::vector</code> is preferred over other containers in many cases because its use of contiguous memory provides optimal cache locality and minimizes allocate/deallocate operations. Indeed, the LEWG has spent a lot of time on <code>flat_set</code> (<a href="http://wg21.link/P1222R0">P1222R0</a>) and <code>flat_map</code> (<a href="http://wg21.link/P0429R3">P0429R3</a>), whose underlying structure defaults to <code>vector</code> for this reason.</p></li>
+<li><p>Operators <code>new</code> and <code>delete</code> are replaceable, giving programmers global control over how memory is allocated.</p></li>
+<li><p>The C++ object model makes a clear distinction between an object’s memory footprint and it’s lifetime.</p></li>
+<li><p>Language constructs such as <code>void*</code> and <code>reinterpet_cast</code> provide fine-grained access to objects’ underlying memory.</p></li>
+<li><p>Standard containers and strings are parameterized with allocators, providing object-level control over memory allocation and element construction.</p></li>
+</ul>
+<p>This fine-grained control over memory that C++ gives the programmer is a large part of why C++ is applicable to so many domains — from embedded systems with limited memory budgets to games, high-frequency trading, and scientific simulations that require cache locality, thread affinity, and other memory-related performance optimizations.</p>
+<p>An in-depth description of the value proposition for allocator-aware software can be found in <a href="http://wg21.link/P2035R0">P2035R0</a>. Standard containers are the most ubiquitous examples of <em>allocator-aware</em> types. Their <code>allocator_type</code> and <code>get_allocator</code> members and allocator-parameterized constructors allow them to be used like Lego® parts that can be combined and nested as necessary while retaining full programmer control over how the whole assembly allocates memory. For <em>scoped allocators</em> — those that apply not only to the top-level container, but also to its elements — having each element of a container support a predictable allocator-aware interface is crucial to giving the programmer the ability to allocate all memory from a single memory resource, such as an arena or pool. Note that the allocator is a <em>configuration</em> parameter of an object and does not contribute to its value.</p>
+<p>In short, the principles underlying this policy proposal are:</p>
+<ol type="1">
+<li><p><strong>The Standard Library should be general and flexible</strong>. To the extent possible, the user of a library class should have control over how memory is allocated.</p></li>
+<li><p><strong>The Standard Library should be consistent</strong>. The use of allocators should be consistent with the existing allocator-aware classes and class templates, especially those in the containers library.</p></li>
+<li><p><strong>The parts of the Standard Library should work together</strong>. If one part of the library gives the user control over memory allocation but another part does not, then the second part undermines the utility of the first.</p></li>
+<li><p><strong>The Standard Library should encapsulate complexity</strong>. Fully general application of allocators is potentially complex and is best left to the experts implementing the Standard Library. Users can choose their own subset of desirable allocator behavior only if the underlying Library classes allow them to choose their preferred approach, whether it be stateless allocators, statically typed allocators, polymorphic allocators, or no allocators.</p></li>
+</ol>
+<h2 id="motivation-for-an-allocator-aware-optional">Motivation for an Allocator-aware <code>optional</code></h2>
+<p>Although the engaged object in an <code>std::optional</code> can be initialized with any set of valid constructor arguments, including allocator arguments, the fact that the <code>optional</code> itself is not allocator-aware prevents it from working consistently with other parts of the standard library, specifically those parts that depend on <em>uses-allocator construction</em> (section [allocator.uses.construction]) in the standard). For example:</p>
+<pre><code>pmr::monotonic_buffer_resource rsrc;
+pmr::polymorphic_allocator&lt;&gt; alloc{ &amp;rsrc };
+using Opt = optional&lt;pmr::string&gt;;
+Opt o = make_obj_using_allocator&lt;Opt&gt;(alloc, in_place, &quot;hello&quot;);
+assert(o-&gt;get_allocator() == alloc);  // FAILS</code></pre>
+<p>Even though an allocator is supplied, it is not used to construct the <code>pmr::string</code> within the resulting <code>optional</code> object because <code>optional</code> does not have the necessary hooks for <code>make_obj_using_allocator</code> to recognize it as being allocator-aware. Note that, although this example and the ones that follow use <code>pmr::polymorphic_allocator</code>, the same issues would apply to any scoped allocator.</p>
+<p><em>Uses-allocator construction</em> is rarely used directly in user code. Instead, it is used within the implementation of standard containers and scoped allocators to ensure that the allocator used to construct the container is also used to construct its elements. Continuing the example above, consider what happens if an <code>optional</code> is stored in a <code>pmr::vector</code>, compared to storing a truly allocator-aware type (<code>pmr::string</code>):</p>
+<pre><code>pmr::vector&lt;pmr::string&gt; vs(alloc);
+pmr::vector&lt;Opt&gt;         vo(alloc);
+
+vs.emplace_back(&quot;hello&quot;);
+vo.emplace_back(&quot;hello&quot;);
+
+assert(vs.back().get_allocator() == alloc);   // OK
+assert(vo.back()-&gt;get_allocator() == alloc);  // FAILS</code></pre>
+<p>An important invariant when using a scoped allocator such as <code>pmr::polymorphic_allocator</code> is that the same allocator is used throughout an object hierarchy. It is impossible to ensure that this invariant is preserved when using <code>std::optional</code>, even if the element is originally inserted with the correct allocator, because <code>optional</code> does not remember the allocator used to construct it and cannot therefore re-instate the allocator going from disengaged to engaged:</p>
+<pre><code>vo.emplace_back(in_place, &quot;hello&quot;, alloc);
+assert(vo.back()-&gt;get_allocator() == alloc);  // OK
+
+vo.back() = nullopt;    // Disengage
+vo.back() = &quot;goodbye&quot;;  // Re-engage
+assert(vo.back()-&gt;get_allocator() == alloc);  // FAILS</code></pre>
+<p>Finally, when using assignment, the value stored in the <code>optional</code> is set sometimes by construction and other times by assignment. Depending on the allocator type’s propagation traits, it is difficult to reason about the resulting allocator:</p>
+<pre><code>Opt o1{nullopt};    // Disengaged -- does not use an allocator
+Opt o2{ &quot;hello&quot; };  // String uses a default-constructed allocator
+o1 = pmr::string(&quot;goodbye&quot;, alloc);    // Constructs the string
+o2 = pmr::string(&quot;goodbye&quot;, alloc);    // Assigns to the string
+assert(o1-&gt;get_allocator() == alloc);  // OK, set by move construction
+assert(o2-&gt;get_allocator() == alloc);  // ERROR, set by assignment</code></pre>
+<h1 id="summary-of-the-proposed-feature">Summary of the proposed feature</h1>
+<p>This paper proposes an allocator-aware <code>optional</code>. Unfortunately, it would be complicated to add an allocator to the current <code>std::optional</code> without causing API and ABI compatibility issues and/or imposing long compile times on code that does not benefit from the change. For this reason, we are proposing a new class template, <code>basic_optional</code>, which works like <code>optional</code>, but adds allocator support.</p>
+<p>The key attributes of <code>basic_optional</code> that make it different from <code>optional</code> are:</p>
+<ul>
+<li><p>It has an optional <code>Allocator</code> template parameter. If not supplied, <code>Allocator</code> is determined from <code>T::allocator_type</code> if that exists, otherwise <code>std::allocator&lt;byte&gt;</code>.</p></li>
+<li><p>It has a public <code>allocator_type</code> member to advertise that it is allocator-aware.</p></li>
+<li><p>There are allocator-enabled versions of every constructor.</p></li>
+<li><p>The supplied allocator is forwarded to the constructor of the engaged object, if that object uses a compatible allocator type. The allocator is retained so that it can be supplied to the contained object whenever the <code>basic_optional</code> goes from disengaged to engaged. Allocator traits, including propagation traits, are respected.</p></li>
+<li><p>It has an alias, <code>pmr::optional</code>, for which <code>Allocator</code> is hard-coded to <code>pmr::polymorphic_allocator&lt;&gt;</code>.</p></li>
+</ul>
+</body>
+</html>
