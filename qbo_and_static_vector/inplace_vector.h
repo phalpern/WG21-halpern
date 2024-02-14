@@ -36,9 +36,7 @@ protected:
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
-    { AllocTraits::construct(m_alloc, elem, std::forward<Args>(args)...); }
-
-  constexpr void destroy_elem(T* elem) { AllocTraits::destroy(m_alloc, elem); }
+    { uninitialized_construct_using_allocator(elem, m_alloc, std::forward<Args>(args)...); }
 
   __inplace_vector_base() = default;
   constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
@@ -56,8 +54,6 @@ protected:
   template <class... Args>
   constexpr static void construct_elem(T* elem, Args&&... args)
     { construct_at(elem, std::forward<Args>(args)...); }
-
-  constexpr static void destroy_elem(T* elem) { elem->~T(); }
 };
 #endif  // INPLACE_VECTOR_WITH_ALLOC
 
@@ -121,11 +117,7 @@ public:
   constexpr ~inplace_vector()
   {
     for (T& elem : *this)
-#ifndef INPLACE_VECTOR_WITH_ALLOC
       elem.~T();
-#else
-      this->destroy_elem(&elem);
-#endif
   }
 
   constexpr inplace_vector& operator=(const inplace_vector& other)
@@ -237,11 +229,7 @@ public:
   // constexpr void append_range(R&& rg);
   constexpr void pop_back()
   {
-#ifndef INPLACE_VECTOR_WITH_ALLOC
     m_data.value[--m_size].~T();
-#else
-    this->destroy_elem(&m_data.value[--m_size]);
-#endif
   }
 
   template<class... Args>
