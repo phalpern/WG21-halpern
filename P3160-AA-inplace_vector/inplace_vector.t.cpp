@@ -30,31 +30,27 @@ void test()
 {
   resetVal();
 
+  // Construct with 10 elements
   xstd::inplace_vector<Tp, 30> iv1(10);
   assert(10 == iv1.size());
 
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
-  iv1.push_back(nextVal());
+  // Push-back 10 elements
+  for (int i = 0; i < 10; ++i)
+    iv1.push_back(nextVal());
 
   assert(20 == iv1.size());
 
+  // Copy construct
   auto iv2 = iv1;
   assert(20 == iv2.size());
-  assert(iv1 == iv2);
 
-  if (iv2.back() != 0) iv2.pop_back();
-  if (iv2.back() != 0) iv2.pop_back();
-  if (iv2.back() != 0) iv2.pop_back();
-  if (iv2.back() != 0) iv2.pop_back();
-  if (iv2.back() != 0) iv2.pop_back();
+  // Equality operator
+  bool is_eq = (iv1 == iv2);
+  assert(is_eq);
+
+  // Test `back` and `pop_back`
+  for (int i = 0; i < 5; ++i)
+    if (iv2.back() != 0) iv2.pop_back();
 
   assert(15 == iv2.size());
 }
