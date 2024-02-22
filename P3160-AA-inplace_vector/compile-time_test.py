@@ -17,9 +17,9 @@ options = (( "P0843R10", "NON_AA" ),
 compilers = (["g++", "-std=c++23"], ["clang++", "-std=c++2b"])
 flags = [ "-Wall", "-O2", "-I.", "-I.." ]
 
-tests = (( "Non-AA `T`",   "NON_AA_ONLY" ),
-         ( "AA `T`",       "AA_ONLY" ),
-         ( "Blended `T`s", "BLENDED" ))
+tests = (( "Non-Allocator-Aware",  "NON_AA_ONLY" ),
+         ( "Allocator-Aware",      "AA_ONLY" ),
+         ( "Some AA, Some non-AA", "BLENDED" ))
 
 srcfiles = [ ]
 
@@ -44,11 +44,11 @@ for optionName, optionMacro in options:
     print(f"\n**Compile times for {optionName}**\n")
 
     if len(referenceTimes) == 0:
-        print('| Compiler | Test Name | Compile time |\n' +
-              '| -------- | --------- | -----------: |')
+        print("| Compiler | Element Types (`T`) | Compile Time (s) |\n" +
+              "| -------- | ------------------- | ---------------: |")
     else:
-        print('| Compiler | Test Name | Compile time | Increase |\n' +
-              '| -------- | --------- | -----------: | -------: |')
+        print("| Compiler | Element Types (`T`) | Compile Time (s) | Increase |\n"+
+              "| -------- | ------------------- | ---------------: | -------: |")
 
     rowNum = -1
 
