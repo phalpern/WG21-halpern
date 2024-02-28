@@ -39,6 +39,7 @@ D*.html
 
 # Temp files
 *~
+~*
 \#*
 .\#*
 *.o

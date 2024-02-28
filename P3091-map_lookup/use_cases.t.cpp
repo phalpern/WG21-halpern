@@ -50,7 +50,7 @@ void nonZero()
   // Find the minimum of value for odd-numbered keys
   unsigned smallest = 100;
   for (int i = 1; i < 15; i += 2)
-    smallest = std::min(smallest, data.get(i, 100));
+    smallest = std::min(smallest, data.get(i).or_construct(100));
 
   assert(data.size() == 5);  // No new items added
   assert(2 == smallest);     // Correctly computed smallest value
@@ -61,7 +61,7 @@ void constMap()
   const map<const char*, int> m{ { "one", 1 }, { "two", 2}, { "three", 3 }};
 
 //  int v = m["two"];  // Won't compile
-  int v = m.get("two");  // OK
+  int v = m.get("two").or_construct();  // OK
 
   assert(2 == v);
 }
@@ -73,7 +73,7 @@ void noDefaultCtor()
   m.try_emplace("hello", 5);
 
 //  auto e = m["hello"];          // Won't compile
-  auto e = m.get("hello", 99);  // OK
+  auto e = m.get("hello").or_construct(99);  // OK
 
   assert(5 == e);
 }
@@ -94,15 +94,15 @@ void bigValue()
   map<unsigned, Person> id_to_person;
   unsigned id = 0;
 
-  Person        p1 = id_to_person.get(id);              // Copies element
-  Person const& p2 = id_to_person.get_ref(id, nobody);  // No copies made
+  Person        p1 = id_to_person.get(id).or_construct();    // Copies element
+  Person const& p2 = id_to_person.get(id).value_or(nobody);  // No copies made
 
   assert(p1.first_name.empty());
   assert(&p1 != &nobody);
   assert(p2.first_name.empty());
   assert(&p2 == &nobody);
 
-  // Person const& p3 = id_to_person.get_ref(id, Person{});  // Won't compile
+  // Person const& p3 = id_to_person.get(id).value_or(Person{});  // Won't compile
 }
 
 void convertedValue()
@@ -113,9 +113,9 @@ void convertedValue()
     { 3, "three three three three three three three three three" }
   };
 
-  std::string_view sv1 = m.get(1, "none");  // Dangling reference
-  std::string_view sv2 = m.get_as<std::string_view>(2, "none");  // OK
-  std::string_view sv3 = m.get_as<std::string_view>(5, "nonex", 4);  // OK
+  std::string_view sv1 = m.get(1).or_construct("none");  // Dangling reference
+  std::string_view sv2 = m.get(2).or_construct<std::string_view>("none");  // OK
+  std::string_view sv3 = m.get(5).or_construct<std::string_view>("nonex", 4);  // OK
 
   (void) sv1;
 
@@ -155,7 +155,7 @@ struct map {
 template <class Map, class K, class... Args>
 auto get(Map& m, const K& k, Args&&... args) -> typename Map::mapped_type
 {
-  return m.get(k, std::forward<Args>(args)...);
+  return m.get(k).or_construct(std::forward<Args>(args)...);
 }
 }
 
@@ -232,7 +232,7 @@ void fromPaper()
     // Increment the entries matching `names`, but only if they are already in `theMap`.
     for (const auto& name : names) {
       int temp = 0;  // Value is irrelevant
-      ++theMap.get_ref(name, temp);  // increment through reference
+      ++theMap.get(name).value_or(temp);  // increment through reference
       // Possibly-modified value of `temp` is discarded here.
     }
     assert(3 == theMap.at("hello"));
@@ -242,7 +242,7 @@ void fromPaper()
 #if 0 // Test compilation error
   {
     const map<int, std::string> theMap{};
-    const std::string& ref = theMap.get_ref(0, "zero");  // ERROR: temporary `std::string("zero")`
+    const std::string& ref = theMap.get(0).value_or("zero");  // ERROR: temporary `std::string("zero")`
   }
 #endif
   {
@@ -252,7 +252,7 @@ void fromPaper()
 
     // ...
     int alt = 0;
-    auto& ref = theMap.get_ref(key, alt);  // `ref` has type `const int&`
+    auto& ref = theMap.get(key).value_or(alt);  // `ref` has type `const int&`
     static_assert(std::is_same_v<const int&, decltype((ref))>);
   }
 
@@ -261,7 +261,7 @@ void fromPaper()
     map<int, Derived> theMap;
     // ...
     Base alt{  };
-    auto& ref = theMap.get_ref(key, alt);  // `ref` has type `Base&`
+    auto& ref = theMap.get(key).value_or(alt);  // `ref` has type `Base&`
     static_assert(std::is_same_v<Base&, decltype((ref))>);
   }
 
@@ -269,22 +269,22 @@ void fromPaper()
     int key = 0;
     map<int, std::string> theMap;
     // ...
-    std::string_view sv = theMap.get_as<std::string_view>(key, "none");
+    std::string_view sv = theMap.get(key).or_construct<std::string_view>("none");
     assert("none" == sv);
 
     // Dangling reference: convert returned temporary `string` to `string_view`
-    std::string_view sv2 = theMap.get(key, "none");
+    std::string_view sv2 = theMap.get(key).or_construct("none");
     (void) sv2;
 
     // ERROR: cannot bind temporary `string` to `string&` parameter
-    // std::string_view sv3 = theMap.get_ref(key, "none");
+    // std::string_view sv3 = theMap.get(key).value_or("none");
   }
   {
     map<int, int> theMap;
     const int zero = 0;
 
-    // auto& v1 = theMap.get_as<int&>(0, zero);       // ERROR: `const` mismatch
-    auto& v2 = theMap.get_as<const int&>(0, zero); // OK
+    // auto& v1 = theMap.get(0).or_construct<int&>(zero);       // ERROR: `const` mismatch
+    auto& v2 = theMap.get(0).or_construct<const int&>(zero); // OK
     (void) v2;
   }
 
@@ -301,7 +301,7 @@ void fromPaper()
     (void) x;
   }
   {
-    T x = m.get(k);
+    T x = m.get(k).or_construct();
     (void) x;
   }
 
@@ -313,7 +313,7 @@ void fromPaper()
   }
   {
     int a1 = 1;
-    T x = m.get(k, a1);
+    T x = m.get(k).or_construct(a1);
     (void) x;
   }
 
@@ -325,7 +325,7 @@ void fromPaper()
   }
   {
     T v;
-    T& x = m.get_ref(k, v);
+    T& x = m.get(k).value_or(v);
     (void) x;
   }
 
@@ -337,7 +337,7 @@ void fromPaper()
   }
   {
     map<K, std::vector<U>> m{ };
-    std::span<U> x = m.get_as<std::span<U>>(k);
+    std::span<U> x = m.get(k).or_construct<std::span<U>>();
     (void) x;
   }
 
@@ -351,7 +351,7 @@ void fromPaper()
   {
     map<K, std::vector<U>> m{ };
     const std::array<U, N> preset{ 1, 2, 3 };
-    std::span<const U> x = m.get_as<std::span<const U>>(k, preset);
+    std::span<const U> x = m.get(k).or_construct<std::span<const U>>(preset);
     (void) x;
   }
 
@@ -367,7 +367,7 @@ void fromPaper()
 
   {
     map<K, U*> m{  };
-    U* p = m.get(k, nullptr);
+    U* p = m.get(k).or_construct(nullptr);
     if (p) {
       // ...
     }
@@ -383,7 +383,7 @@ void fromPaper()
   }
   {
     T not_found;
-    T& r = m.get_ref(k, not_found);
+    T& r = m.get(k).value_or(not_found);
     if (&r != &not_found) {
       // ...
     }
@@ -393,7 +393,7 @@ void fromPaper()
     {
       int product = 9;
       map<int, int> theMap;
-      product *= theMap.get(k, 1);
+      product *= theMap.get(k).or_construct(1);
       assert(9 == product);
     }
     {
@@ -421,3 +421,7 @@ int main()
   convertedValue();
   fromPaper();
 }
+
+// Local Variables:
+// c-basic-offset: 2
+// End:
