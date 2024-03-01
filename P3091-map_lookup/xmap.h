@@ -50,7 +50,7 @@ public:
   {
     auto iter = this->find(k);
     if (iter != this->end())
-      return { iter->second };
+      return iter->second;
     else
       return nullopt;
   }

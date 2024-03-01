@@ -17,7 +17,7 @@
 #include <span>
 #include <optional>
 
-using std::experimental::map;
+namespace xstd = std::experimental;
 
 class NotDefaultConstructible
 {
@@ -37,7 +37,7 @@ bool operator==(NotDefaultConstructible a, int b) { return a.value() == b; }
 
 void nonZero()
 {
-  map<int, unsigned> data = {
+  xstd::map<int, unsigned> data = {
     { 0, 10 },
     { 4, 8 },
     { 5, 2 },
@@ -58,7 +58,7 @@ void nonZero()
 
 void constMap()
 {
-  const map<const char*, int> m{ { "one", 1 }, { "two", 2}, { "three", 3 }};
+  const xstd::map<const char*, int> m{ { "one", 1 }, { "two", 2}, { "three", 3 }};
 
 //  int v = m["two"];  // Won't compile
   int v = m.get("two").or_construct();  // OK
@@ -68,7 +68,7 @@ void constMap()
 
 void noDefaultCtor()
 {
-  map<std::string, NotDefaultConstructible> m;
+  xstd::map<std::string, NotDefaultConstructible> m;
 
   m.try_emplace("hello", 5);
 
@@ -91,7 +91,7 @@ void bigValue()
 {
   const Person nobody{};
 
-  map<unsigned, Person> id_to_person;
+  xstd::map<unsigned, Person> id_to_person;
   unsigned id = 0;
 
   Person        p1 = id_to_person.get(id).or_construct();    // Copies element
@@ -107,7 +107,7 @@ void bigValue()
 
 void convertedValue()
 {
-  const map<int, std::string> m{
+  const xstd::map<int, std::string> m{
     { 1, "one one one one one one one one one one one one one" },
     { 2, "two two two two two two two two two two two two two" },
     { 3, "three three three three three three three three three" }
@@ -142,23 +142,6 @@ public:
 struct Base { };
 struct Derived : Base { };
 
-namespace altstd {
-
-// ALTERNATIVE (not proposed)
-template <class K, class V>
-struct map {
-  using mapped_type = K;
-  using key_type = V;
-  auto get(const key_type& k) const -> std::optional<V> { return {}; }
-};
-
-template <class Map, class K, class... Args>
-auto get(Map& m, const K& k, Args&&... args) -> typename Map::mapped_type
-{
-  return m.get(k).or_construct(std::forward<Args>(args)...);
-}
-}
-
 // Examples in the paper (to test compilation and correctness)
 void fromPaper()
 {
@@ -188,6 +171,17 @@ void fromPaper()
     std::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
     double largest = -std::numeric_limits<double>::infinity();
     for (int i = 1; i <= 100; ++i)
+      if (auto iter = theMap.find(i); iter != theMap.end())
+        largest = std::max(largest, iter->second);
+
+    assert(-20.0 == largest);    // Expected result.
+    assert(3 == theMap.size());  // No growth
+  }
+
+  {
+    std::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
+    double largest = -std::numeric_limits<double>::infinity();
+    for (int i = 1; i <= 100; ++i)
     {
       auto iter = theMap.find(i);
       if (iter != theMap.end())
@@ -195,6 +189,33 @@ void fromPaper()
     }
     assert(-20.0 == largest);    // Expected result.
     assert(3 == theMap.size());  // No growth
+  }
+
+  {
+    xstd::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
+    double largest = -std::numeric_limits<double>::infinity();
+    for (int i = 1; i <= 100; ++i)
+      largest = std::max(largest, theMap.get(i).value_or(largest));
+    assert(-20.0 == largest);    // Expected result.
+    assert(3 == theMap.size());  // No growth
+  }
+
+  {
+    xstd::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
+    double largest = -std::numeric_limits<double>::infinity();
+    for (int i = 1; i <= 100; ++i)
+      largest = std::max(largest, theMap.get(i).or_construct(-std::numeric_limits<double>::infinity()));
+    assert(-20.0 == largest);    // Expected result.
+    assert(3 == theMap.size());  // No growth
+  }
+
+  {
+    xstd::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
+    xstd::optional<double&> largest;
+    for (int i = 1; i <= 100; ++i)
+      largest = std::max(largest, theMap.get(i));
+    assert(-20.0 == largest.value());    // Expected result.
+    assert(3 == theMap.size());          // No growth
   }
 
   {
@@ -226,7 +247,7 @@ void fromPaper()
   }
 
   {
-    map<std::string, int> theMap = { { "hello", 2 } };
+    xstd::map<std::string, int> theMap = { { "hello", 2 } };
     std::vector<std::string> names = { "goodbye", "hello" };
     // ...
     // Increment the entries matching `names`, but only if they are already in `theMap`.
@@ -241,14 +262,14 @@ void fromPaper()
 
 #if 0 // Test compilation error
   {
-    const map<int, std::string> theMap{};
+    const xstd::map<int, std::string> theMap{};
     const std::string& ref = theMap.get(0).value_or("zero");  // ERROR: temporary `std::string("zero")`
   }
 #endif
   {
     int key = 0;
-    map<int, int> m{};
-    const map<int, int>& theMap = m;
+    xstd::map<int, int> m{};
+    const xstd::map<int, int>& theMap = m;
 
     // ...
     int alt = 0;
@@ -258,7 +279,7 @@ void fromPaper()
 
   {
     int key = 0;
-    map<int, Derived> theMap;
+    xstd::map<int, Derived> theMap;
     // ...
     Base alt{  };
     auto& ref = theMap.get(key).value_or(alt);  // `ref` has type `Base&`
@@ -267,7 +288,7 @@ void fromPaper()
 
   {
     int key = 0;
-    map<int, std::string> theMap;
+    xstd::map<int, std::string> theMap;
     // ...
     std::string_view sv = theMap.get(key).or_construct<std::string_view>("none");
     assert("none" == sv);
@@ -280,7 +301,7 @@ void fromPaper()
     // std::string_view sv3 = theMap.get(key).value_or("none");
   }
   {
-    map<int, int> theMap;
+    xstd::map<int, int> theMap;
     const int zero = 0;
 
     // auto& v1 = theMap.get(0).or_construct<int&>(zero);       // ERROR: `const` mismatch
@@ -288,12 +309,23 @@ void fromPaper()
     (void) v2;
   }
 
+  {
+    xstd::map<int, int> theMap;
+    int k = 0;
+
+    if (auto opt = theMap.get(k); opt) {
+      auto& ref = *opt;
+      // ...
+      (void) ref;
+    }
+  }
+
   using K = int;
   using T = int;
   using U = int;
   int k = 0;
   constexpr std::size_t N = 3;
-  map<int, int> m;
+  xstd::map<int, int> m;
 
   {
     auto iter = m.find(k);
@@ -330,33 +362,33 @@ void fromPaper()
   }
 
   {
-    map<K, std::vector<U>> m{ };
+    xstd::map<K, std::vector<U>> m{ };
     auto iter = m.find(k);
     std::span<U> x = iter == m.end() ? std::span<U>{} : iter->second;
     (void) x;
   }
   {
-    map<K, std::vector<U>> m{ };
+    xstd::map<K, std::vector<U>> m{ };
     std::span<U> x = m.get(k).or_construct<std::span<U>>();
     (void) x;
   }
 
   {
-    map<K, std::vector<U>> m{ };
+    xstd::map<K, std::vector<U>> m{ };
     const std::array<U, N> preset{ 1, 2, 3 };
     auto iter = m.find(k);
     std::span<const U> x = iter == m.end() ? std::span<const U>{preset} : iter->second;
     (void) x;
   }
   {
-    map<K, std::vector<U>> m{ };
+    xstd::map<K, std::vector<U>> m{ };
     const std::array<U, N> preset{ 1, 2, 3 };
     std::span<const U> x = m.get(k).or_construct<std::span<const U>>(preset);
     (void) x;
   }
 
   {
-    map<K, U*> m{  };
+    xstd::map<K, U*> m{  };
     auto iter = m.find(k);
     if (iter != m.end()) {
       U* p = iter->second;
@@ -366,7 +398,7 @@ void fromPaper()
   }
 
   {
-    map<K, U*> m{  };
+    xstd::map<K, U*> m{  };
     U* p = m.get(k).or_construct(nullptr);
     if (p) {
       // ...
@@ -392,23 +424,10 @@ void fromPaper()
   {
     {
       int product = 9;
-      map<int, int> theMap;
+      xstd::map<int, int> theMap;
       product *= theMap.get(k).or_construct(1);
       assert(9 == product);
     }
-    {
-      int product = 9;
-      altstd::map<K, U> theMap;
-      product *= theMap.get(k).value_or(1);
-      assert(9 == product);
-    }
-  }
-
-  {
-    int a1 = 99;
-
-    auto x = altstd::get(m, k, a1);
-    assert(a1 == x);
   }
 }
 

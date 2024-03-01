@@ -15,6 +15,9 @@ template <class Key, class T, class Compare = std::less<Key>,
           class Allocator = std::allocator<std::pair<const Key, T>>>
 using xmap = std::experimental::map<Key, T, Compare, Allocator>;
 
+template <class T> using xoptional = std::experimental::optional<T>;
+
+
 // Usage: expect<type>(value, theMap.get(key).or_construct(def));
 template <class EXP_T, class VAL_T, class TEST_T>
 void expect(const VAL_T& exp, TEST_T&& v)
@@ -329,6 +332,21 @@ void test_get_as()
     assert("dummy" == m3.get("goodbye").or_construct<std::string_view>("dummy"));
     assert("dummy" == m3.get("goodbye").or_construct<std::string_view>(dummy));
   }
+
+  {
+    xmap<std::string, std::string>        m3;
+    xmap<std::string, std::string> const& M3 = m3;
+    m3.emplace("hello", "world");
+    assert(1 == M3.size());
+
+    auto q1 = m3.get("hello").or_construct<xoptional<std::string&>>();
+    assert(q1);
+    expect<std::string&>("world", q1.value());
+
+    auto q2 = m3.get("badkey").or_construct<xoptional<std::string&>>();
+    assert(! q2);
+  }
+
 }
 
 void test_get_as_ref()
@@ -420,3 +438,7 @@ int main()
   test_get_as();
   test_get_as_ref();
 }
+
+// Local Variables:
+// c-basic-offset: 2
+// End:

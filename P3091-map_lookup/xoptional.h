@@ -37,6 +37,9 @@ public:
   // `std::experimental::optional`.
 };
 
+template <class T> struct __is_optional_ref               : false_type {};
+template <class T> struct __is_optional_ref<optional<T&>> : true_type {};
+
 template <class T>
 class optional<T&>
 {
@@ -50,11 +53,11 @@ public:
   constexpr optional(nullopt_t) noexcept { }
   constexpr optional(const optional&) = default;
   constexpr optional(optional&&) noexcept = default;
-  template<class U> requires (! is_same_v<remove_cvref_t<U>, optional>)
+  template<class U> requires (! __is_optional_ref<remove_cvref_t<U>>::value)
   constexpr optional(U&& v) : m_val(addressof(v))
     { static_assert(is_lvalue_reference_v<U>); }
   template<class U> requires (! is_same_v<remove_cvref_t<U>, optional>)
-  constexpr optional(const optional<U>& v)
+  constexpr optional(const optional<U&>& v)
     { if (v.has_value()) m_val = addressof(*v); }
 
   // ?.?.1.3, destructor
@@ -92,6 +95,14 @@ public:
       return *m_val;
     throw bad_optional_access();
   }
+#ifdef P2988R3_value_or
+  template<class U>
+  constexpr T& value_or(U&& v) const {
+    static_assert(is_lvalue_reference_v<U>,
+                  "value_or argument must be an lvalue");
+    return m_val ? *m_val : static_cast<T&>(v);
+  }
+#else
   template<class U>
   constexpr auto value_or(U&& v) const -> decltype(auto) {
     static_assert(is_lvalue_reference_v<U>,
@@ -101,6 +112,7 @@ public:
                   "Argument and value_type must have a common reference type");
     return m_val ? static_cast<result>(*m_val) : static_cast<result>(v);
   }
+#endif
 
   template <class U = remove_cvref_t<T>, class... Args>
   U or_construct(Args&&... args) {
@@ -127,6 +139,56 @@ public:
   // ?.?.1.8, modifiers
   constexpr void reset() noexcept { m_val = nullptr; }
 };
+
+template<class T, class U>
+constexpr bool operator==(const optional<T>& x, const optional<U>& y)
+{
+  if (x.has_value() != y.has_value())
+    return false;
+  else if (! x.has_value())
+    return true;  // Both not engaged
+  else
+    return *x == *y;
+}
+
+template<class T, class U>
+constexpr bool operator<(const optional<T>& x, const optional<U>& y)
+{
+  if (! y.has_value())
+    return false;
+  else if (! x.has_value())
+    return true;
+  else
+    return *x < *y;
+}
+
+template<class T, class U>
+constexpr bool operator>(const optional<T>& x, const optional<U>& y)
+{
+  return y < x;
+}
+
+template<class T, class U>
+constexpr bool operator<=(const optional<T>& x, const optional<U>& y)
+{
+  return ! (y < x);
+}
+
+template<class T, class U>
+constexpr bool operator>=(const optional<T>& x, const optional<U>& y)
+{
+  return ! (x < y);
+}
+
+template<class T, class U>
+constexpr auto operator<=>(const optional<T>& x, const optional<U>& y)
+  -> decltype(*x <=> *y)
+{
+  if (x.has_value() && y.has_value())
+    return *x <=> *y;
+  else
+    return x.has_value() <=> y.has_value();
+}
 
 } // close namespace std::experimental
 
