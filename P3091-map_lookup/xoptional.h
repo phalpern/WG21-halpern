@@ -12,6 +12,10 @@
 namespace std::experimental
 {
 
+// Get first type in a pack consisting of exactly one type.
+template <class A0> struct __pack0 { using type = A0; };
+template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
+
 template <class T>
 class optional : public std::optional<T>
 {
@@ -19,17 +23,71 @@ public:
   using std::optional<T>::optional;
 
   template <class U = T, class... Args>
-  U or_construct(Args&&... args) {
-    static_assert(is_constructible_v<U, T&>);
-    static_assert(is_constructible_v<U, Args...>);
+  U or_construct(Args&&... args)
+  {
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, Args...>,
+                  "Cannot construct return value from arguments");
+    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
+                  "Reference return type allows only one argument");
+    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
+    {
+      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
+                                    add_pointer_t<U>>,
+                    "Cannot convert argument to return reference");
+      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
+                    "Cannot convert value_type to return reference");
+    }
+
     return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
   }
 
   template <class U = T, class... Args>
-  U or_construct(Args&&... args) const {
-    static_assert(is_constructible_v<U, const T&>);
-    static_assert(is_constructible_v<U, Args...>);
+  U or_construct(Args&&... args) const
+  {
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, Args...>,
+                  "Cannot construct return value from arguments");
+    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
+                  "Reference return type allows only one argument");
+    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
+    {
+      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
+                                    add_pointer_t<U>>,
+                    "Argument type and return reference are not compatible");
+      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
+                    "value_type and return reference are not compatible");
+    }
+
     return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
+  }
+
+  template <class U = T, class X, class... Args>
+  U or_construct(initializer_list<X> il, Args&&... args)
+  {
+    static_assert(! is_reference_v<U>,
+                  "Reference return type does not permit initializer list");
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
+                  "Cannot construct return value from arguments");
+
+    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
+  }
+
+  template <class U = T, class X, class... Args>
+  U or_construct(initializer_list<X> il, Args&&... args) const
+  {
+    static_assert(! is_reference_v<U>,
+                  "Reference return type does not permit initializer list");
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
+                  "Cannot construct return value from arguments");
+
+    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
   }
 
   // TBD: All monadic operations need to be re-implemented here, as the
@@ -110,15 +168,48 @@ public:
     using result = common_reference_t<T&, U&>;
     static_assert(is_lvalue_reference_v<result>,
                   "Argument and value_type must have a common reference type");
+    static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<result>>,
+                  "value_type and return reference are not compatible");
+    static_assert(is_convertible_v<add_pointer_t<U>, add_pointer_t<result>>,
+                  "Argument type and return reference are not compatible");
     return m_val ? static_cast<result>(*m_val) : static_cast<result>(v);
   }
 #endif
 
   template <class U = remove_cvref_t<T>, class... Args>
-  U or_construct(Args&&... args) {
-    static_assert(is_constructible_v<U, T&>);
-    static_assert(is_constructible_v<U, Args...>);
+  U or_construct(Args&&... args) const
+  {
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, Args...>,
+                  "Cannot construct return value from arguments");
+    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
+                  "Reference return type allows only one argument");
+    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
+    {
+      static_assert(is_lvalue_reference_v<__pack0_t<Args...>>,
+                    "Argument must be an lvalue");
+      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
+                                    add_pointer_t<U>>,
+                    "Cannot convert argument to return reference");
+      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
+                    "Cannot convert value_type to return reference");
+    }
+
     return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
+  }
+
+  template <class U = T, class X, class... Args>
+  U or_construct(initializer_list<X> il, Args&&... args) const
+  {
+    static_assert(! is_reference_v<U>,
+                  "Reference return type does not permit initializer list");
+    static_assert(is_constructible_v<U, decltype(**this)>,
+                  "Cannot construct return value from value_type");
+    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
+                  "Cannot construct return value from arguments");
+
+    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
   }
 
   // ?.?.1.7, monadic operations
