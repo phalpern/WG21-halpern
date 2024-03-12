@@ -444,7 +444,7 @@ code.sourceCode > span { display: inline; }
   <tr>
     <td>Date:</td>
     <td><!-- $TimeStamp$ -->
-2024-03-11 19:39 EDT<!-- $ --></td>
+2024-03-11 23:04 EDT<!-- $ --></td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -616,10 +616,9 @@ map, then <code class="sourceCode default">theMap[i]</code> will return
 a default-constructed <code class="sourceCode default">double</code>
 having value 0.0, which might or might not be desirable, depending on
 whether we want to treat missing values as truly having value 0.0 or to
-ignore them (or, equivalently, to treat them as having value
-<em>-infinity</em>). Finally if, before executing this loop,
-<code class="sourceCode default">theMap</code> contains only, say, five
-entries, then at the end of the loop, it will contain at least 100
+ignore them (or, equivalently, to treat them as having value <span class="math inline"> − ∞</span>). Finally if, before executing this
+loop, <code class="sourceCode default">theMap</code> contains only, say,
+five entries, then at the end of the loop, it will contain at least 100
 entries, most of whose values will be zero.</p>
 <p>Some alternatives avoid all these shortcomings but are significantly
 less elegant and therefore more error prone. For example, the
