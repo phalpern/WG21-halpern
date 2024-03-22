@@ -12,6 +12,21 @@
 namespace std::experimental
 {
 
+// Implement trait from P2255R2
+template <class T, class U>
+struct reference_constructs_from_temporary :
+  conjunction<disjunction<conjunction<is_lvalue_reference<T>,
+                                      is_const<remove_reference_t<T>>>,
+                          is_rvalue_reference<T>>,
+              negation<is_reference<U>>,
+              is_constructible<T, U>>
+{
+};
+
+template <class T, class U>
+inline constexpr bool reference_constructs_from_temporary_v =
+  reference_constructs_from_temporary<T, U>::value;
+
 // Get first type in a pack consisting of exactly one type.
 template <class A0> struct __pack0 { using type = A0; };
 template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
@@ -163,11 +178,13 @@ public:
 #else
   template<class U>
   constexpr auto value_or(U&& v) const -> decltype(auto) {
-    static_assert(is_lvalue_reference_v<U>,
-                  "value_or argument must be an lvalue");
+    // static_assert(is_lvalue_reference_v<U>,
+    //               "value_or argument must be an lvalue");
     using result = common_reference_t<T&, U&>;
     static_assert(is_lvalue_reference_v<result>,
                   "Argument and value_type must have a common reference type");
+    static_assert(!reference_constructs_from_temporary_v<result, U>,
+                  "Return-reference construction would dangle");
     static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<result>>,
                   "value_type and return reference are not compatible");
     static_assert(is_convertible_v<add_pointer_t<U>, add_pointer_t<result>>,

@@ -94,6 +94,8 @@ int main()
   xstd::optional<const int&>        ciropt1;
   const xstd::optional<const int&>& CIROPT1 = ciropt1;
   assert(! CIROPT1.has_value());
+  static_assert(xstd::reference_constructs_from_temporary_v<const int&, int>);
+//  expect<const int&>(0,      CIROPT1.value_or(0));
   expect<const int&>(0,      CIROPT1.value_or(zero));
   expect<const int*>(&zero, &CIROPT1.value_or(zero));
   expect<      int >(0,      CIROPT1.or_construct(0));

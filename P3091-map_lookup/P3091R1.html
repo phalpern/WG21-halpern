@@ -444,7 +444,7 @@ code.sourceCode > span { display: inline; }
   <tr>
     <td>Date:</td>
     <td><!-- $TimeStamp$ -->
-2024-03-11 23:04 EDT<!-- $ --></td>
+2024-03-22 16:01 JST<!-- $ --></td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -1487,17 +1487,18 @@ below</em></ins></span>
 <blockquote>
 <blockquote>
 <p><span class="add" style="color: #006e28"><ins>The return type is
-<span><code class="sourceCode default">common_reference_t&lt;add_lvalue_reference_t&lt;T&gt;, decltype(v)&gt;</code></span>.
+<span><code class="sourceCode default">common_reference_t&lt;T&amp;&gt;, U&gt;</code></span>
 Let <em>R</em> designate the return type.</ins></span></p>
 </blockquote>
 </blockquote>
 <blockquote>
 <blockquote>
-<p><em>Mandates</em>: <span class="rm" style="color: #bf0303"><del><span><code class="sourceCode default">is_constructible_v&lt;add_lvalue_reference_t&lt;T&gt;, decltype(v)&gt;</code></span>
+<p><em>Mandates</em>: <span class="rm" style="color: #bf0303"><del><span><code class="sourceCode default">is_constructible_v&lt;T&amp;, U&gt;</code></span>
 is
-<span><code class="sourceCode default">true</code></span></del></span><br />
+<span><code class="sourceCode default">true</code></span></del></span>
 <span class="add" style="color: #006e28"><ins><em>R</em> is well formed
-and is an lvalue reference type. <span><code class="sourceCode default">is_convertible_v&lt;add_pointer_t&lt;T&gt;, add_pointer_t&lt;<em>R</em>&gt;&gt; &amp;&amp;</code></span>
+and is an lvalue reference type. <span><code class="sourceCode default">reference_constructs_from_temporary_v&lt;<em>R</em>, U&gt; &amp;&amp;</code></span><br />
+<span><code class="sourceCode default">is_convertible_v&lt;add_pointer_t&lt;T&gt;, add_pointer_t&lt;<em>R</em>&gt;&gt; &amp;&amp;</code></span><br />
 <span><code class="sourceCode default">is_convertible_v&lt;add_pointer_t&lt;U&gt;, add_pointer_t&lt;<em>R</em>&gt;&gt;</code></span>
 is
 <span><code class="sourceCode default">true</code></span></ins></span>.</p>
