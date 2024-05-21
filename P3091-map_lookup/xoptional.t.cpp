@@ -31,6 +31,8 @@ constexpr int prval() { return 0; }  // Generate an int prvalue
 template <class Opt, class Ref>
 void test_value_or()
 {
+  constexpr bool IsRefT = std::is_reference_v<typename Opt::value_type>;
+
   using Val      = int;
   using ConstVal = const Val;
   using ConstRef = ConstVal&;                // Might be reference to const
@@ -53,12 +55,20 @@ void test_value_or()
     expect<     Val>(lval,    obj.value_or(lval));
     expect<     Val>(clval,   obj.value_or(clval));
     expect<     Val>(slval,   obj.value_or(slval));
+    expect<     Val>(prval(), Opt().value_or(prval()));
+    expect<     Val>(lval,    Opt().value_or(lval));
+    expect<     Val>(clval,   Opt().value_or(clval));
+    expect<     Val>(slval,   Opt().value_or(slval));
 
     // Explicit rvalue return type
     expect<    long>(prval(), obj.template value_or<    long>(prval()));
     expect<    long>(lval,    obj.template value_or<    long>(lval));
     expect<    long>(clval,   obj.template value_or<    long>(clval));
     expect<    long>(slval,   obj.template value_or<    long>(slval));
+    expect<    long>(prval(), Opt().template value_or<    long>(prval()));
+    expect<    long>(lval,    Opt().template value_or<    long>(lval));
+    expect<    long>(clval,   Opt().template value_or<    long>(clval));
+    expect<    long>(slval,   Opt().template value_or<    long>(slval));
 
     // Explicit lvalue (might or might not be const)
     expect<     Ref>( lval,   obj.template value_or<     Ref>(lval));
@@ -69,24 +79,24 @@ void test_value_or()
       expect<     Ref>( clval,  obj.template value_or<     Ref>(clval));
       expect<     Ptr>(&clval, &obj.template value_or<     Ref>(clval));
     }
+    if constexpr (IsRefT)
+    {
+      expect<     Ref>( lval,  Opt().template value_or<     Ref>(lval));
+      expect<     Ptr>(&lval, &Opt().template value_or<     Ref>(lval));
+    }
 
     // Explicit const lvalue
     expect<ConstRef>( lval,   obj.template value_or<ConstRef>(lval));
     expect<ConstPtr>(&lval,  &obj.template value_or<ConstRef>(lval));
     expect<ConstRef>( clval,  obj.template value_or<ConstRef>(clval));
     expect<ConstPtr>(&clval, &obj.template value_or<ConstRef>(clval));
-
-#ifdef NEGATIVE_TEST
-    // These should all fail to compile
-
-    // Can't return lvalue reference to rvalue
-    expect<     Ref>(prval(), obj.template value_or<     Ref>(prval()));
-    expect<ConstRef>(prval(), obj.template value_or<ConstRef>(prval()));
-
-    // Can't convert reference from one lvalue to another
-    expect<     Ref>(slval,   obj.template value_or<     Ref>(slval));
-    expect<ConstRef>(slval,   obj.template value_or<ConstRef>(slval));
-#endif // NEGATIVE_TEST
+    if constexpr (IsRefT)
+    {
+      expect<ConstRef>( lval,   Opt().template value_or<ConstRef>(lval));
+      expect<ConstPtr>(&lval,  &Opt().template value_or<ConstRef>(lval));
+      expect<ConstRef>( clval,  Opt().template value_or<ConstRef>(clval));
+      expect<ConstPtr>(&clval, &Opt().template value_or<ConstRef>(clval));
+    }
   }
 
   ///////////// ENGAGED /////////////
@@ -94,20 +104,27 @@ void test_value_or()
     Opt obj(exp);
     assert(obj.has_value());
 
-    const int* expPtr =
-      std::is_reference_v<typename Opt::value_type> ? &exp : &*obj;
+    const int* expPtr = IsRefT ? &exp : &*obj;
 
     // No expicit return type
     expect<     Val>(exp,     obj.value_or(prval()));
     expect<     Val>(exp,     obj.value_or(lval));
     expect<     Val>(exp,     obj.value_or(clval));
     expect<     Val>(exp,     obj.value_or(slval));
+    expect<     Val>(exp,     Opt(exp).value_or(prval()));
+    expect<     Val>(exp,     Opt(exp).value_or(lval));
+    expect<     Val>(exp,     Opt(exp).value_or(clval));
+    expect<     Val>(exp,     Opt(exp).value_or(slval));
 
     // Explicit rvalue return type
     expect<    long>(exp,     obj.template value_or<    long>(prval()));
     expect<    long>(exp,     obj.template value_or<    long>(lval));
     expect<    long>(exp,     obj.template value_or<    long>(clval));
     expect<    long>(exp,     obj.template value_or<    long>(slval));
+    expect<    long>(exp,     Opt(exp).template value_or<    long>(prval()));
+    expect<    long>(exp,     Opt(exp).template value_or<    long>(lval));
+    expect<    long>(exp,     Opt(exp).template value_or<    long>(clval));
+    expect<    long>(exp,     Opt(exp).template value_or<    long>(slval));
 
     // Explicit lvalue
     expect<     Ref>(exp,     obj.template value_or<     Ref>(lval));
@@ -118,23 +135,43 @@ void test_value_or()
       expect<     Ref>(exp,     obj.template value_or<     Ref>(clval));
       expect<     Ptr>(expPtr, &obj.template value_or<     Ref>(clval));
     }
+    if constexpr (IsRefT)
+    {
+      expect<     Ref>(exp,     Opt(exp).template value_or<     Ref>(lval));
+      expect<     Ptr>(expPtr, &Opt(exp).template value_or<     Ref>(lval));
+    }
 
     // Explicit const lvalue
     expect<ConstRef>(exp,     obj.template value_or<ConstRef>(lval));
     expect<ConstPtr>(expPtr, &obj.template value_or<ConstRef>(lval));
     expect<ConstRef>(exp,     obj.template value_or<ConstRef>(clval));
     expect<ConstPtr>(expPtr, &obj.template value_or<ConstRef>(clval));
+    if constexpr (IsRefT)
+    {
+      expect<ConstRef>(exp,     Opt(exp).template value_or<ConstRef>(lval));
+      expect<ConstPtr>(expPtr, &Opt(exp).template value_or<ConstRef>(lval));
+      expect<ConstRef>(exp,     Opt(exp).template value_or<ConstRef>(clval));
+      expect<ConstPtr>(expPtr, &Opt(exp).template value_or<ConstRef>(clval));
+    }
 
-#ifdef NEGATIVE_TEST
     // These should all fail to compile
 
+// #define NEGATIVE_TEST
+#ifdef NEGATIVE_TEST
+    if constexpr (! IsRefT)
+    {
+      // Can't return lvalue reference to object within rvalue `optional`
+      (void) Opt().template value_or<Ref>(lval);
+      (void) Opt().template value_or<ConstRef>(lval);
+    }
+
     // Can't return lvalue reference to rvalue
-    expect<     Ref>(exp,     obj.template value_or<     Ref>(prval()));
-    expect<ConstRef>(exp,     obj.template value_or<ConstRef>(prval()));
+    (void) obj.template value_or<     Ref>(prval());
+    (void) obj.template value_or<ConstRef>(prval());
 
     // Can't convert reference from one lvalue to another
-    expect<     Ref>(exp,     obj.template value_or<     Ref>(slval));
-    expect<ConstRef>(exp,     obj.template value_or<ConstRef>(slval));
+    (void) obj.template value_or<     Ref>(slval);
+    (void) obj.template value_or<ConstRef>(slval);
 #endif // NEGATIVE_TEST
   }
 }

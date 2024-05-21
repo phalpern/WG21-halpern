@@ -12,29 +12,29 @@
 namespace std::experimental
 {
 
-// Implement trait from P2255R2
-template <class T, class U>
-struct reference_constructs_from_temporary :
-  conjunction<disjunction<conjunction<is_lvalue_reference<T>,
-                                      is_const<remove_reference_t<T>>>,
-                          is_rvalue_reference<T>>,
-              negation<is_reference<U>>,
-              is_constructible<T, U>>
-{
-};
-
+// Approximately implement trait from P2255R2
 template <class T, class U>
 inline constexpr bool reference_constructs_from_temporary_v =
-  reference_constructs_from_temporary<T, U>::value;
+  is_reference_v<T> && is_constructible_v<T, U> &&
+  ((is_lvalue_reference_v<T> && is_rvalue_reference_v<U&&>) ||
+   (is_rvalue_reference_v<T> && ! is_rvalue_reference_v<U&&>));
+
+template <class T, class U>
+struct reference_constructs_from_temporary :
+    std::integral_constant<bool, reference_constructs_from_temporary_v<T, U>>
+{
+};
 
 // Get first type in a pack consisting of exactly one type.
 template <class A0> struct __pack0 { using type = A0; };
 template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
 
 template <class U, class Opt, class... Args>
-U value_or_imp(Opt& obj, Args&&... args)
+U value_or_imp(Opt&& obj, Args&&... args)
 {
-  static_assert(is_constructible_v<U, decltype(*obj)>,
+  using DerefType = decltype(*std::forward<Opt>(obj));
+
+  static_assert(is_constructible_v<U, DerefType>,
                 "Cannot construct return value from value_type");
   static_assert(is_constructible_v<U, Args...>,
                 "Cannot construct return value from arguments");
@@ -43,11 +43,14 @@ U value_or_imp(Opt& obj, Args&&... args)
   if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
   {
     using Arg = __pack0_t<Args...>;
+    static_assert(! reference_constructs_from_temporary_v<U, DerefType>,
+                  "Would construct a dangling reference from a temporary");
     static_assert(! reference_constructs_from_temporary_v<U, Arg>,
                   "Would construct a dangling reference from a temporary");
   }
 
-  return obj.has_value() ? U(*obj) : U(std::forward<Args>(args)...);
+  return obj.has_value() ?
+    U(*std::forward<Opt>(obj)) : U(std::forward<Args>(args)...);
 }
 
 template <class T>
@@ -57,20 +60,36 @@ public:
   using std::optional<T>::optional;
 
   template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args)
+  U value_or(Args&&... args) &
     { return value_or_imp<U>(*this, std::forward<Args>(args)...); }
 
   template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) const
+  U value_or(Args&&... args) const &
     { return value_or_imp<U>(*this, std::forward<Args>(args)...); }
 
+  template <class U = remove_cvref_t<T>, class... Args>
+  U value_or(Args&&... args) &&
+    { return value_or_imp<U>(std::move(*this), std::forward<Args>(args)...); }
+
+  template <class U = remove_cvref_t<T>, class... Args>
+  U value_or(Args&&... args) const &&
+    { return value_or_imp<U>(std::move(*this), std::forward<Args>(args)...); }
+
   template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args)
+  U value_or(initializer_list<X> il, Args&&... args) &
     { return value_or_imp<U>(*this, il, std::forward<Args>(args)...); }
 
   template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) const
+  U value_or(initializer_list<X> il, Args&&... args) const &
     { return value_or_imp<U>(*this, il, std::forward<Args>(args)...); }
+
+  template <class U = T, class X, class... Args>
+  U value_or(initializer_list<X> il, Args&&... args) &&
+    { return value_or_imp<U>(std::move(*this), il, std::forward<Args>(args)...); }
+
+  template <class U = T, class X, class... Args>
+  U value_or(initializer_list<X> il, Args&&... args) const &&
+    { return value_or_imp<U>(std::move(*this), il, std::forward<Args>(args)...); }
 
   // TBD: All monadic operations need to be re-implemented here, as the
   // inherited ones mandate functors that return `std::optional` instead of
