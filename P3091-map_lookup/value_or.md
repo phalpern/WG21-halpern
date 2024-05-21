@@ -23,11 +23,12 @@ definitions of `value_or`:
 >     `U value_or(this Self&& self, Args&&... args);`
 
 > *Mandates*: `is_constructible_v<U, decltype(*std::forward<Self>(self))> &&`
-> `is_constructible_v<U, Args...>` \
-> is `true`. If `U` is an lvalue reference type, then `sizeof...(Args)` is
-> `1` and, for `A0` being \
-> the single type in `Args`, `reference_constructs_from_temporary_v<U, A0>`
-> is `false`.
+> `is_constructible_v<U, Args...>`
+> is `true`. If `U` is a reference type, then `sizeof...(Args)` is
+> `1` and, for `pr` being
+> a prvalue of the single type in `Args`, the initialization `U u(pr);` is
+> well formed and does not bind `u` to a temporary whose lifetime is extended
+> ([class.temporary]).
 
 > *Effects*: Equivalent to:
 
@@ -52,11 +53,12 @@ definition of `value_or` to the following [optional.observe] :
 >     `U value_or(Args&&...args) const;`
 
 > *Mandates*: `is_constructible_v<U, decltype(**this)> &&`
-> `is_constructible_v<U, Args...>` \
-> is `true`. If `U` is an lvalue reference type, then `sizeof...(Args)` is
-> `1` and, for `A0` being \
-> the single type in `Args`, `reference_constructs_from_temporary_v<U, A0>`
-> is `false`.
+> `is_constructible_v<U, Args...>`
+> is `true`. If `U` is a reference type, then `sizeof...(Args)` is
+> `1` and, for `pr` being
+> a prvalue of the single type in `Args`, the initialization `U u(pr);` is
+> well formed and does not bind `u` to a temporary whose lifetime is extended
+> ([class.temporary]).
 
 > *Effects*: Equivalent to:
 

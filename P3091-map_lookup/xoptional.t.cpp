@@ -154,10 +154,10 @@ void test_value_or()
       expect<ConstPtr>(expPtr, &Opt(exp).template value_or<ConstRef>(clval));
     }
 
-    // These should all fail to compile
-
 // #define NEGATIVE_TEST
 #ifdef NEGATIVE_TEST
+    // These should all fail to compile
+
     if constexpr (! IsRefT)
     {
       // Can't return lvalue reference to object within rvalue `optional`
@@ -185,6 +185,9 @@ int main()
   test_value_or<      xstd::optional<int const&>, int const&>();
   test_value_or<const xstd::optional<int      &>, int      &>();
   test_value_or<const xstd::optional<int const&>, int const&>();
+
+  // Test that rvalue reference return is possible
+  (void) xstd::optional<int>().value_or(prval());
 
   using int_vec = std::vector<int>;
   xstd::optional<int_vec> ov;
