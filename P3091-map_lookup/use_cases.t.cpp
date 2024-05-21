@@ -50,7 +50,7 @@ void nonZero()
   // Find the minimum of value for odd-numbered keys
   unsigned smallest = 100;
   for (int i = 1; i < 15; i += 2)
-    smallest = std::min(smallest, data.get(i).or_construct(100));
+    smallest = std::min(smallest, data.get(i).value_or(100));
 
   assert(data.size() == 5);  // No new items added
   assert(2 == smallest);     // Correctly computed smallest value
@@ -61,7 +61,7 @@ void constMap()
   const xstd::map<const char*, int> m{ { "one", 1 }, { "two", 2}, { "three", 3 }};
 
 //  int v = m["two"];  // Won't compile
-  int v = m.get("two").or_construct();  // OK
+  int v = m.get("two").value_or();  // OK
 
   assert(2 == v);
 }
@@ -73,7 +73,7 @@ void noDefaultCtor()
   m.try_emplace("hello", 5);
 
 //  auto e = m["hello"];          // Won't compile
-  auto e = m.get("hello").or_construct(99);  // OK
+  auto e = m.get("hello").value_or(99);  // OK
 
   assert(5 == e);
 }
@@ -94,7 +94,7 @@ void bigValue()
   xstd::map<unsigned, Person> id_to_person;
   unsigned id = 0;
 
-  Person        p1 = id_to_person.get(id).or_construct();    // Copies element
+  Person        p1 = id_to_person.get(id).value_or();    // Copies element
   Person const& p2 = id_to_person.get(id).value_or(nobody);  // No copies made
 
   assert(p1.first_name.empty());
@@ -113,9 +113,9 @@ void convertedValue()
     { 3, "three three three three three three three three three" }
   };
 
-  std::string_view sv1 = m.get(1).or_construct("none");  // Dangling reference
-  std::string_view sv2 = m.get(2).or_construct<std::string_view>("none");  // OK
-  std::string_view sv3 = m.get(5).or_construct<std::string_view>("nonex", 4);  // OK
+  std::string_view sv1 = m.get(1).value_or("none");  // Dangling reference
+  std::string_view sv2 = m.get(2).value_or<std::string_view>("none");  // OK
+  std::string_view sv3 = m.get(5).value_or<std::string_view>("nonex", 4);  // OK
 
   (void) sv1;
 
@@ -204,7 +204,7 @@ void fromPaper()
     xstd::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
     double largest = -std::numeric_limits<double>::infinity();
     for (int i = 1; i <= 100; ++i)
-      largest = std::max(largest, theMap.get(i).or_construct(-std::numeric_limits<double>::infinity()));
+      largest = std::max(largest, theMap.get(i).value_or(-std::numeric_limits<double>::infinity()));
     assert(-20.0 == largest);    // Expected result.
     assert(3 == theMap.size());  // No growth
   }
@@ -290,11 +290,11 @@ void fromPaper()
     int key = 0;
     xstd::map<int, std::string> theMap;
     // ...
-    std::string_view sv = theMap.get(key).or_construct<std::string_view>("none");
+    std::string_view sv = theMap.get(key).value_or<std::string_view>("none");
     assert("none" == sv);
 
     // Dangling reference: convert returned temporary `string` to `string_view`
-    std::string_view sv2 = theMap.get(key).or_construct("none");
+    std::string_view sv2 = theMap.get(key).value_or("none");
     (void) sv2;
 
     // ERROR: cannot bind temporary `string` to `string&` parameter
@@ -304,8 +304,8 @@ void fromPaper()
     xstd::map<int, int> theMap;
     const int zero = 0;
 
-    // auto& v1 = theMap.get(0).or_construct<int&>(zero);       // ERROR: `const` mismatch
-    auto& v2 = theMap.get(0).or_construct<const int&>(zero); // OK
+    // auto& v1 = theMap.get(0).value_or<int&>(zero);       // ERROR: `const` mismatch
+    auto& v2 = theMap.get(0).value_or<const int&>(zero); // OK
     (void) v2;
   }
 
@@ -333,7 +333,7 @@ void fromPaper()
     (void) x;
   }
   {
-    T x = m.get(k).or_construct();
+    T x = m.get(k).value_or();
     (void) x;
   }
 
@@ -345,7 +345,7 @@ void fromPaper()
   }
   {
     int a1 = 1;
-    T x = m.get(k).or_construct(a1);
+    T x = m.get(k).value_or(a1);
     (void) x;
   }
 
@@ -369,7 +369,7 @@ void fromPaper()
   }
   {
     xstd::map<K, std::vector<U>> m{ };
-    std::span<U> x = m.get(k).or_construct<std::span<U>>();
+    std::span<U> x = m.get(k).value_or<std::span<U>>();
     (void) x;
   }
 
@@ -383,7 +383,7 @@ void fromPaper()
   {
     xstd::map<K, std::vector<U>> m{ };
     const std::array<U, N> preset{ 1, 2, 3 };
-    std::span<const U> x = m.get(k).or_construct<std::span<const U>>(preset);
+    std::span<const U> x = m.get(k).value_or<std::span<const U>>(preset);
     (void) x;
   }
 
@@ -399,7 +399,7 @@ void fromPaper()
 
   {
     xstd::map<K, U*> m{  };
-    U* p = m.get(k).or_construct(nullptr);
+    U* p = m.get(k).value_or(nullptr);
     if (p) {
       // ...
     }
@@ -425,7 +425,7 @@ void fromPaper()
     {
       int product = 9;
       xstd::map<int, int> theMap;
-      product *= theMap.get(k).or_construct(1);
+      product *= theMap.get(k).value_or(1);
       assert(9 == product);
     }
   }

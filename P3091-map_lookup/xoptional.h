@@ -31,79 +31,46 @@ inline constexpr bool reference_constructs_from_temporary_v =
 template <class A0> struct __pack0 { using type = A0; };
 template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
 
+template <class U, class Opt, class... Args>
+U value_or_imp(Opt& obj, Args&&... args)
+{
+  static_assert(is_constructible_v<U, decltype(*obj)>,
+                "Cannot construct return value from value_type");
+  static_assert(is_constructible_v<U, Args...>,
+                "Cannot construct return value from arguments");
+  static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
+                "Reference return type allows only one argument");
+  if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
+  {
+    using Arg = __pack0_t<Args...>;
+    static_assert(! reference_constructs_from_temporary_v<U, Arg>,
+                  "Would construct a dangling reference from a temporary");
+  }
+
+  return obj.has_value() ? U(*obj) : U(std::forward<Args>(args)...);
+}
+
 template <class T>
 class optional : public std::optional<T>
 {
 public:
   using std::optional<T>::optional;
 
-  template <class U = T, class... Args>
-  U or_construct(Args&&... args)
-  {
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, Args...>,
-                  "Cannot construct return value from arguments");
-    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
-                  "Reference return type allows only one argument");
-    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
-    {
-      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
-                                    add_pointer_t<U>>,
-                    "Cannot convert argument to return reference");
-      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
-                    "Cannot convert value_type to return reference");
-    }
+  template <class U = remove_cvref_t<T>, class... Args>
+  U value_or(Args&&... args)
+    { return value_or_imp<U>(*this, std::forward<Args>(args)...); }
 
-    return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class... Args>
-  U or_construct(Args&&... args) const
-  {
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, Args...>,
-                  "Cannot construct return value from arguments");
-    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
-                  "Reference return type allows only one argument");
-    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
-    {
-      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
-                                    add_pointer_t<U>>,
-                    "Argument type and return reference are not compatible");
-      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
-                    "value_type and return reference are not compatible");
-    }
-
-    return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
-  }
+  template <class U = remove_cvref_t<T>, class... Args>
+  U value_or(Args&&... args) const
+    { return value_or_imp<U>(*this, std::forward<Args>(args)...); }
 
   template <class U = T, class X, class... Args>
-  U or_construct(initializer_list<X> il, Args&&... args)
-  {
-    static_assert(! is_reference_v<U>,
-                  "Reference return type does not permit initializer list");
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
-                  "Cannot construct return value from arguments");
-
-    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
-  }
+  U value_or(initializer_list<X> il, Args&&... args)
+    { return value_or_imp<U>(*this, il, std::forward<Args>(args)...); }
 
   template <class U = T, class X, class... Args>
-  U or_construct(initializer_list<X> il, Args&&... args) const
-  {
-    static_assert(! is_reference_v<U>,
-                  "Reference return type does not permit initializer list");
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
-                  "Cannot construct return value from arguments");
-
-    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
-  }
+  U value_or(initializer_list<X> il, Args&&... args) const
+    { return value_or_imp<U>(*this, il, std::forward<Args>(args)...); }
 
   // TBD: All monadic operations need to be re-implemented here, as the
   // inherited ones mandate functors that return `std::optional` instead of
@@ -168,66 +135,14 @@ public:
       return *m_val;
     throw bad_optional_access();
   }
-#ifdef P2988R3_value_or
-  template<class U>
-  constexpr T& value_or(U&& v) const {
-    static_assert(is_lvalue_reference_v<U>,
-                  "value_or argument must be an lvalue");
-    return m_val ? *m_val : static_cast<T&>(v);
-  }
-#else
-  template<class U>
-  constexpr auto value_or(U&& v) const -> decltype(auto) {
-    // static_assert(is_lvalue_reference_v<U>,
-    //               "value_or argument must be an lvalue");
-    using result = common_reference_t<T&, U&>;
-    static_assert(is_lvalue_reference_v<result>,
-                  "Argument and value_type must have a common reference type");
-    static_assert(!reference_constructs_from_temporary_v<result, U>,
-                  "Return-reference construction would dangle");
-    static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<result>>,
-                  "value_type and return reference are not compatible");
-    static_assert(is_convertible_v<add_pointer_t<U>, add_pointer_t<result>>,
-                  "Argument type and return reference are not compatible");
-    return m_val ? static_cast<result>(*m_val) : static_cast<result>(v);
-  }
-#endif
 
   template <class U = remove_cvref_t<T>, class... Args>
-  U or_construct(Args&&... args) const
-  {
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, Args...>,
-                  "Cannot construct return value from arguments");
-    static_assert(! is_lvalue_reference_v<U> || 1 == sizeof...(Args),
-                  "Reference return type allows only one argument");
-    if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args))
-    {
-      static_assert(is_lvalue_reference_v<__pack0_t<Args...>>,
-                    "Argument must be an lvalue");
-      static_assert(is_convertible_v<add_pointer_t<__pack0_t<Args...>>,
-                                    add_pointer_t<U>>,
-                    "Cannot convert argument to return reference");
-      static_assert(is_convertible_v<add_pointer_t<T>, add_pointer_t<U>>,
-                    "Cannot convert value_type to return reference");
-    }
+  U value_or(Args&&... args) const
+    { return value_or_imp<U>(*this, std::forward<Args>(args)...); }
 
-    return this->has_value() ? U(**this) : U(std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class X, class... Args>
-  U or_construct(initializer_list<X> il, Args&&... args) const
-  {
-    static_assert(! is_reference_v<U>,
-                  "Reference return type does not permit initializer list");
-    static_assert(is_constructible_v<U, decltype(**this)>,
-                  "Cannot construct return value from value_type");
-    static_assert(is_constructible_v<U, initializer_list<X>, Args...>,
-                  "Cannot construct return value from arguments");
-
-    return this->has_value() ? U(**this) : U(il, std::forward<Args>(args)...);
-  }
+  template <class U = remove_cvref_t<T>, class X, class... Args>
+  U value_or(initializer_list<X> il, Args&&... args) const
+    { return value_or_imp<U>(*this, il, std::forward<Args>(args)...); }
 
   // ?.?.1.7, monadic operations
   template<class F> constexpr auto and_then(F&& f) const {
