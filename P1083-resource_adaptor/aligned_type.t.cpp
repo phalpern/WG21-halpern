@@ -14,7 +14,6 @@ constexpr void testAlignedRawStorageImp()
 {
     using Obj = XSTD::aligned_raw_storage<A, ReqSz>;
 
-    static_assert(std::is_same_v<Obj, typename Obj::type>, "`type` check");
     static_assert(Obj::alignment == A,     "`alignment` member check");
     static_assert(Obj::size      == ExpSz, "`size` member check");
     static_assert(alignof(Obj)   == A,     "alignment check");

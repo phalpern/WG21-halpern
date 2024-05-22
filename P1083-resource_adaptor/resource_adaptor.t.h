@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <deque>
+#include <string>
 
 //==========================================================================
 //                  ASSERT TEST MACRO
@@ -95,6 +96,10 @@ inline int test()
     XPMR::resource_adaptor<std::allocator<char>, 64> crx;
     void *p = crx.allocate(1, 4);
     crx.deallocate(p, 1, 4);
+
+    std::pmr::string testString("hello", &crx);
+    TEST_ASSERT(&crx == testString.get_allocator().resource());
+
     return 0;
 #else
     {
