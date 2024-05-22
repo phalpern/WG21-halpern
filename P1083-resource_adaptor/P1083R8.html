@@ -444,7 +444,7 @@ the C++ WP</h1>
   <tr>
     <td>Date:</td>
     <td><!-- $TimeStamp$ -->
-2024-05-22 10:40 EDT<!-- $ --></td>
+2024-05-22 10:56 EDT<!-- $ --></td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -539,7 +539,8 @@ should be ready for final LEWG review and (re)forwarding to LWG.</p>
 <h2 data-number="3.1" id="changes-from-r7-to-r8-pre-st.-louis-2024"><span class="header-section-number">3.1</span> Changes from R7 to R8 (pre
 St. Louis 2024)<a href="#changes-from-r7-to-r8-pre-st.-louis-2024" class="self-link"></a></h2>
 <ul>
-<li>Re-based to April 2024 WP <span class="citation" data-cites="N4981">[<a href="https://wg21.link/n4981" role="doc-biblioref">N4981</a>]</span> and updated status</li>
+<li>Re-based to April 2024 WP <span class="citation" data-cites="N4981">[<a href="https://wg21.link/n4981" role="doc-biblioref">N4981</a>]</span> and updated status.</li>
+<li>Added variadic constructor to <em>resource-adaptor-imp</em>.</li>
 </ul>
 <h2 data-number="3.2" id="changes-from-r6-to-r7-pre-kona-2022"><span class="header-section-number">3.2</span> Changes from R6 to R7 (pre Kona
 2022)<a href="#changes-from-r6-to-r7-pre-kona-2022" class="self-link"></a></h2>
@@ -971,18 +972,21 @@ or equal to <code class="sourceCode default">MaxAlign</code>.</p>
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  explicit resource-adaptor-imp(const Allocator&amp; a2) noexcept;</span>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  explicit resource-adaptor-imp(Allocator&amp;&amp; a2) noexcept;</span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  resource-adaptor-imp&amp; operator=(const resource-adaptor-imp&amp;) = default;</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  adapted_allocator_type get_adapted_allocator() const noexcept</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  {</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    return m_alloc;</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>protected:</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>  void* do_allocate(size_t bytes, size_t alignment) override;</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>  void do_deallocate(void* p, size_t bytes, size_t alignment) override;</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  bool do_is_equal(const memory_resource&amp; other) const noexcept override;</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>};</span></code></pre></div>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  template &lt;class... Args&gt;</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    explicit resource_adaptor_imp(Args&amp;&amp;... args);</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  resource-adaptor-imp&amp; operator=(const resource-adaptor-imp&amp;) = default;</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  adapted_allocator_type get_adapted_allocator() const noexcept</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  {</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    return m_alloc;</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>protected:</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  void* do_allocate(size_t bytes, size_t alignment) override;</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>  void do_deallocate(void* p, size_t bytes, size_t alignment) override;</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>  bool do_is_equal(const memory_resource&amp; other) const noexcept override;</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>};</span></code></pre></div>
 </blockquote>
 <blockquote>
 <p><strong>20.4.?.2
@@ -1007,6 +1011,22 @@ constructors [memory.resource.adaptor.ctor]</strong></p>
 <p><em>Effects</em>: Initializes
 <code class="sourceCode default">m_alloc</code> with
 <code class="sourceCode default">std::move(a2)</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class... Args&gt;</code><br />
+   <code class="sourceCode default">explicit <em>resource_adaptor_imp</em>(Args&amp;&amp;... args);</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Constraints</em>: <code class="sourceCode default">is_constructible_v&lt;Allocator, Args...&gt;</code>
+is true.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Effects</em>: Initializes
+<code class="sourceCode default">m_alloc</code> with <code class="sourceCode default">std::forward&lt;Args&gt;(args)...</code>.</p>
 </blockquote>
 </blockquote>
 <blockquote>
