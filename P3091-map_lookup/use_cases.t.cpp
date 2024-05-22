@@ -95,7 +95,7 @@ void bigValue()
   unsigned id = 0;
 
   Person        p1 = id_to_person.get(id).value_or();    // Copies element
-  Person const& p2 = id_to_person.get(id).value_or(nobody);  // No copies made
+  Person const& p2 = id_to_person.get(id).value_or<Person const&>(nobody);  // No copies made
 
   assert(p1.first_name.empty());
   assert(&p1 != &nobody);
@@ -202,9 +202,10 @@ void fromPaper()
 
   {
     xstd::map<int, double> theMap = { { 3, -20.0 }, { 90, -90.0 }, { 110, 4.0 } };
-    double largest = -std::numeric_limits<double>::infinity();
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    double largest = -inf;
     for (int i = 1; i <= 100; ++i)
-      largest = std::max(largest, theMap.get(i).value_or(-std::numeric_limits<double>::infinity()));
+      largest = std::max(largest, theMap.get(i).value_or(-inf));
     assert(-20.0 == largest);    // Expected result.
     assert(3 == theMap.size());  // No growth
   }
@@ -253,7 +254,7 @@ void fromPaper()
     // Increment the entries matching `names`, but only if they are already in `theMap`.
     for (const auto& name : names) {
       int temp = 0;  // Value is irrelevant
-      ++theMap.get(name).value_or(temp);  // increment through reference
+      ++theMap.get(name).value_or<int&>(temp);  // increment through reference
       // Possibly-modified value of `temp` is discarded here.
     }
     assert(3 == theMap.at("hello"));
@@ -273,7 +274,7 @@ void fromPaper()
 
     // ...
     int alt = 0;
-    auto& ref = theMap.get(key).value_or(alt);  // `ref` has type `const int&`
+    auto& ref = theMap.get(key).value_or<const int&>(alt);  // `ref` has type `const int&`
     static_assert(std::is_same_v<const int&, decltype((ref))>);
   }
 
@@ -282,7 +283,7 @@ void fromPaper()
     xstd::map<int, Derived> theMap;
     // ...
     Base alt{  };
-    auto& ref = theMap.get(key).value_or(alt);  // `ref` has type `Base&`
+    auto& ref = theMap.get(key).value_or<Base&>(alt);  // `ref` has type `Base&`
     static_assert(std::is_same_v<Base&, decltype((ref))>);
   }
 
@@ -357,7 +358,7 @@ void fromPaper()
   }
   {
     T v;
-    T& x = m.get(k).value_or(v);
+    T& x = m.get(k).value_or<T&>(v);
     (void) x;
   }
 
@@ -415,7 +416,7 @@ void fromPaper()
   }
   {
     T not_found;
-    T& r = m.get(k).value_or(not_found);
+    T& r = m.get(k).value_or<T&>(not_found);
     if (&r != &not_found) {
       // ...
     }

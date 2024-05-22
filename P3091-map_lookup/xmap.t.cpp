@@ -164,24 +164,24 @@ void test_get_ref()
     std::string  dummy("dummy");      const std::string& DUMMY = dummy;
 
     // Test basic `get_ref` functionality
-    expect<      std::string&>("world", m3.get("hello").value_or(dummy));
-    expect<      std::string&>("dummy", m3.get("goodbye").value_or(dummy));
-    expect<const std::string&>("world", M3.get("hello").value_or(dummy));
-    expect<const std::string&>("dummy", M3.get("goodbye").value_or(dummy));
-    expect<const std::string&>("world", m3.get("hello").value_or(DUMMY));
-    expect<const std::string&>("dummy", m3.get("goodbye").value_or(DUMMY));
-    expect<const std::string&>("world", M3.get("hello").value_or(DUMMY));
-    expect<const std::string&>("dummy", M3.get("goodbye").value_or(DUMMY));
+    expect<      std::string&>("world", m3.get("hello").value_or<std::string&>(dummy));
+    expect<      std::string&>("dummy", m3.get("goodbye").value_or<std::string&>(dummy));
+    expect<const std::string&>("world", M3.get("hello").value_or<const std::string&>(dummy));
+    expect<const std::string&>("dummy", M3.get("goodbye").value_or<const std::string&>(dummy));
+    expect<const std::string&>("world", m3.get("hello").value_or<const std::string&>(DUMMY));
+    expect<const std::string&>("dummy", m3.get("goodbye").value_or<const std::string&>(DUMMY));
+    expect<const std::string&>("world", M3.get("hello").value_or<const std::string&>(DUMMY));
+    expect<const std::string&>("dummy", M3.get("goodbye").value_or<const std::string&>(DUMMY));
 
     // Verify that the address of the return value is correct
-    expect<      std::string*>(&WORLD, &m3.get("hello").value_or(dummy));
-    expect<      std::string*>(&DUMMY, &m3.get("goodbye").value_or(dummy));
-    expect<const std::string*>(&WORLD, &M3.get("hello").value_or(dummy));
-    expect<const std::string*>(&DUMMY, &M3.get("goodbye").value_or(dummy));
-    expect<const std::string*>(&WORLD, &m3.get("hello").value_or(DUMMY));
-    expect<const std::string*>(&DUMMY, &m3.get("goodbye").value_or(DUMMY));
-    expect<const std::string*>(&WORLD, &M3.get("hello").value_or(DUMMY));
-    expect<const std::string*>(&DUMMY, &M3.get("goodbye").value_or(DUMMY));
+    expect<      std::string*>(&WORLD, &m3.get("hello").value_or<std::string&>(dummy));
+    expect<      std::string*>(&DUMMY, &m3.get("goodbye").value_or<std::string&>(dummy));
+    expect<const std::string*>(&WORLD, &M3.get("hello").value_or<const std::string&>(dummy));
+    expect<const std::string*>(&DUMMY, &M3.get("goodbye").value_or<const std::string&>(dummy));
+    expect<const std::string*>(&WORLD, &m3.get("hello").value_or<const std::string&>(DUMMY));
+    expect<const std::string*>(&DUMMY, &m3.get("goodbye").value_or<const std::string&>(DUMMY));
+    expect<const std::string*>(&WORLD, &M3.get("hello").value_or<const std::string&>(DUMMY));
+    expect<const std::string*>(&DUMMY, &M3.get("goodbye").value_or<const std::string&>(DUMMY));
 
     // The following are unsafe and deliberately yield a warning or error:
     // (void) m3.get("goodbye").value_or("dummy");
@@ -197,21 +197,21 @@ void test_get_ref()
     const NonCopyable& E3 = m4.emplace(3, 33).first->second;
 
     // (void) m4.get(3).value_or(zero);      // shouldn't compile
-    expect<      NonCopyable&>(E3  , m4.get(3).value_or(zero));
-    expect<      NonCopyable&>(ZERO, m4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(zero));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , m4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, m4.get(1).value_or(ZERO));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(ZERO));
+    expect<      NonCopyable&>(E3  , m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable&>(ZERO, m4.get(1).value_or<NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , m4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, m4.get(1).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(ZERO));
 
     // Check addresses
-    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or(zero));
-    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or(zero));
+    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or<NonCopyable&>(zero));
 
-    assert(33 == m4.get(3).value_or(zero).value());
-    assert(0  == m4.get(1).value_or(zero).value());
+    assert(33 == m4.get(3).value_or<NonCopyable&>(zero).value());
+    assert(0  == m4.get(1).value_or<NonCopyable&>(zero).value());
   }
 
   // Repeat with std::less<void> to test `is_transparent` metaprogramming
@@ -224,10 +224,10 @@ void test_get_ref()
     std::string  dummy("dummy");
 
     // Test basic `get_ref` functionality
-    expect<      std::string&>("world", m3.get("hello").value_or(dummy));
-    expect<      std::string&>("dummy", m3.get("goodbye").value_or(dummy));
-    expect<const std::string&>("world", M3.get("hello").value_or(dummy));
-    expect<const std::string&>("dummy", M3.get("goodbye").value_or(dummy));
+    expect<      std::string&>("world", m3.get("hello").value_or<std::string&>(dummy));
+    expect<      std::string&>("dummy", m3.get("goodbye").value_or<std::string&>(dummy));
+    expect<const std::string&>("world", M3.get("hello").value_or<const std::string&>(dummy));
+    expect<const std::string&>("dummy", M3.get("goodbye").value_or<const std::string&>(dummy));
   }
 
   {
@@ -238,11 +238,11 @@ void test_get_ref()
 
     const NonCopyable& E3 = m4.emplace(3, 33).first->second;
 
-    // (void) m4.get(3).value_or(zero);      // shouldn't compile
-    expect<      NonCopyable&>(E3  , m4.get(3).value_or(zero));
-    expect<      NonCopyable&>(ZERO, m4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , m4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(zero));
+    // (void) m4.get(3).value_or<NonCopyable&>(zero);      // shouldn't compile
+    expect<      NonCopyable&>(E3  , m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable&>(ZERO, m4.get(1).value_or<NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , m4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(zero));
   }
 }
 
@@ -257,22 +257,22 @@ void test_get_ref_derived()
 
     const NonCopyable& E3 = m4.emplace(3, 33).first->second;
 
-    // (void) m4.get(3).value_or(zero);      // shouldn't compile
-    expect<      NonCopyable&>(E3  , m4.get(3).value_or(zero));
-    expect<      NonCopyable&>(ZERO, m4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(zero));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , m4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, m4.get(1).value_or(ZERO));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(ZERO));
+    // (void) m4.get(3).value_or<const NonCopyable&>(zero);      // shouldn't compile
+    expect<      NonCopyable&>(E3  , m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable&>(ZERO, m4.get(1).value_or<NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , m4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, m4.get(1).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(ZERO));
 
     // Check addresses
-    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or(zero));
-    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or(zero));
+    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or<NonCopyable&>(zero));
 
-    assert(33 == m4.get(3).value_or(zero).value());
-    assert(0  == m4.get(1).value_or(zero).value());
+    assert(33 == m4.get(3).value_or<NonCopyable&>(zero).value());
+    assert(0  == m4.get(1).value_or<NonCopyable&>(zero).value());
   }
 
   // Use derived as mapped-to type
@@ -284,22 +284,22 @@ void test_get_ref_derived()
 
     const NonCopyable& E3 = m4.emplace(3, 33).first->second;
 
-    // (void) m4.get(3).value_or(zero);      // shouldn't compile
-    expect<      NonCopyable&>(E3  , m4.get(3).value_or(zero));
-    expect<      NonCopyable&>(ZERO, m4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(zero));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(zero));
-    expect<const NonCopyable&>(E3  , m4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, m4.get(1).value_or(ZERO));
-    expect<const NonCopyable&>(E3  , M4.get(3).value_or(ZERO));
-    expect<const NonCopyable&>(ZERO, M4.get(1).value_or(ZERO));
+    // (void) m4.get(3).value_or<const NonCopyable&>(zero);      // shouldn't compile
+    expect<      NonCopyable&>(E3  , m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable&>(ZERO, m4.get(1).value_or<NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(zero));
+    expect<const NonCopyable&>(E3  , m4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, m4.get(1).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(E3  , M4.get(3).value_or<const NonCopyable&>(ZERO));
+    expect<const NonCopyable&>(ZERO, M4.get(1).value_or<const NonCopyable&>(ZERO));
 
     // Check addresses
-    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or(zero));
-    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or(zero));
+    expect<      NonCopyable*>(&E3  , &m4.get(3).value_or<NonCopyable&>(zero));
+    expect<      NonCopyable*>(&ZERO, &m4.get(1).value_or<NonCopyable&>(zero));
 
-    assert(33 == m4.get(3).value_or(zero).value());
-    assert(0  == m4.get(1).value_or(zero).value());
+    assert(33 == m4.get(3).value_or<NonCopyable&>(zero).value());
+    assert(0  == m4.get(1).value_or<NonCopyable&>(zero).value());
   }
 
 }
@@ -394,7 +394,7 @@ void test_get_as_ref()
     m4.emplace(3, 33);
     const NonCopyable& e3 = M4.at(3);
 
-    // (void) m4.get(3).value_or(zero);      // shouldn't compile
+    // (void) m4.get(3).value_or<NonCopyable&>(zero);      // shouldn't compile
     expect<      NonCopyable*>(&e3  , &m4.get(3).value_or<      NonCopyable&>(zero));
     expect<      NonCopyable*>(&zero, &m4.get(1).value_or<      NonCopyable&>(zero));
     expect<const NonCopyable&>(e3  , m4.get(3).value_or<const NonCopyable&>(ZERO));
