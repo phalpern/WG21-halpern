@@ -1,0 +1,319 @@
+Bullet items beginning with 'o' introduce a new slide, whereas items beginning
+with '*' are part of the same slide as the previous item.
+
+o Agenda for this presentation
+
+  * Motivation for trivial relocation
+
+  * Road map
+
+  * Summary of proposals
+
+  * Misconceptions and FAQ
+
+  * Status
+
+  * Explicitly NOT going to all the details (read the papers!)
+
+o First motivating use case
+
+  * vector<int> can insert/erase elements using memmove because 'int' is an
+    implicit-lifetime type, but vector<shared_ptr<T>> cannot
+
+o Observe that (showing a typical data struct), move-constructing x from y,
+  then destroying y is equivalent (from an object-representation point of view)
+  to making a bitwise copy of y in x, then discarding x (without calling its
+  destructor).
+
+  * This is an example of "relocation"
+
+  * Attempting this in C++23 violates lifetime rules and results in UB
+
+o From P2786 "-- To relocate a type from memory address src to memory
+  address dst means to perform an operation or series of operations such that
+  an object equivalent (often identical) to that which existed at address src
+  exists at address dst, that the lifetime of the object at address dst has
+  begun, and that the lifetime of the object at address src has ended."
+
+  * For most types move-constructing `dst` from `src` then destroying `src` is
+    equivalent to relocation.
+
+  * Relocation is a fundamental operation because there exists types
+    that are not movable (or not nothrow movable) that should still be
+    relocatable.
+
+  * Conceptually, a relocated object should appear as if the original object
+    had been constructed at the new object's address. What we call "copy/move
+    elision" is really relocation elision.
+
+  * 2786 considers relocation to be only into *uninitialized* memory, not into
+    somewhere an object already exists.
+
+o Trivial relocation
+
+  * When relocation involves only trivial operations (byte copies and no-ops),
+    the type is "trivially relocatable"
+
+  * We want well defined semantics that make sense for the core language and
+    are available to users and library writers, including for sensible types
+    including references, unique_ptr, pmr allocators, etc.
+    - Corentin suggests a Venn diagram; PLEASE PROVIDE
+    - TBD: MG: Feel free to steal the one I attached to my earlier email.
+
+  * many types with non-trivial move constructors and non-trivial destructors
+    can be trivially relocated because in the compound operation everything
+    "cancels out".  Any type that owns resources by a pointer is a poster
+    child.
+
+o Road map
+
+  * The broad topic has been broken down to separate EWG/LEWG responsibilities
+    and to expedite progress. Combined, these papers present a complete
+    solution.
+
+  * P2786 Trivial Relocatability For C++26: Approved by EWG and Core (mostly),
+    design approved by LEWG, but not yet forwarded to LWG.
+
+  * P2967 Relocation Has A Library Interface: In LEWG (Split out and built
+    built on top of P2786.  Where these facilities overlap with P1144, they are
+    nearly identical.)
+
+  * P3239 A Relocating Swap: EWGI/LEWGI - initial proposal to a safe mechanism
+    to swap using relocation.  Not ready for adoption yet (out of time for
+    pre-meeting mailing).
+
+  * Possible Future directions: P3262 Specifying Trivially Relocatable Types in
+    the Standard Library: new for LEWGI/LEWG
+
+o Back to vector<shared_ptr<T>>
+
+  * The previously shown imp of `shared_ptr` can be trivially relocated
+
+  * If `vector` were allowed to use `memmove` instead of item-by-item
+    construction, destruction, and assignment, we would see significant
+    speed-ups in `insert`, `erase`, and anything that causes a reallocation.
+
+  * Multiple private implementations do just that, albeit relying on UB.
+
+  * What is needed is a way to express trivial relocation such that the C++
+    object model is preserved.
+
+o P2786
+
+  * Approved by EWG in Tokyo Mar 2024; largely reviewed by CWG
+
+  * Provides for implicitly and explicitly trivially relocatable types
+
+  * Obeys the open-closed principle: Non-trivially relocatable types cannot be
+    retroactively treated as trivially relocatable.
+
+    * That would be a violation of abstraction
+    * It would create brittle code, as changes to a base class or
+      member-variable class could cause new UB
+    * Diagnosable errors
+
+o What is a trivially relocatable type per P2786
+
+  * Trivially copyable types
+
+  * Implicitly trivially relocatable class types
+
+    * having no virtual base classes
+    * having no base classes or members that are not trivially relocatable
+    * for which move-construction and destruction would select special member
+      functions that are neither user provided nor deleted.
+
+  * Explicitly trivially relocatable class types
+
+    * declared with the `trivially_relocatable` context-sensitive keyword
+    * having no virtual base classes
+    * having no base classes or members that are not trivially relocatable
+
+o Implicit and explicit trivially relocatable
+
+  * `trivially_relocatable` is a context-sensitive keyword, like `final`
+
+  * Examples:
+    struct W { int x; void *p; };  // Implicitly trivially relocatable
+    struct X { int x; X(X&&); };   // Not trivially relocatable
+    struct Y trivially_relocatable { int x; Y(Y&&); };  // Explicitly t-r
+    struct Z : X { };              // Not trivially relocatable
+
+o Conditional relocatability
+
+    // Trivially relocatable if node cannot point to itself
+    template <class T, bool SelfReferential = true>
+    struct Node trivially_relocatable(! SelfReferential) {
+      T        m_value;
+      Node<T> *m_highLink;
+      Node<T> *m_lowLink;
+    };
+
+o `is_trivially_relocatable` type trait
+
+o `trivially_relocate` magic library function
+
+  * template <class T>
+      requires (is_trivially_relocatable_v<T> && !is_const_v<T>)
+    T* trivially_relocate(T* begin, T* end, T* new_location) noexcept;
+
+  * Performs equivalent of memmove to new location
+
+  * "magic" in that it implicitly ends the lifetime of the source objects and
+    starts the lifetime of the destination objects without calling the
+    destructors or constructors.
+
+o Additional motivating use cases
+
+  * vector growth
+
+  * Types having no "empty" state (nothrow relocate even though move
+    constructor might throw)
+
+  * Move construct small-buffer optimized types (source object left
+    empty). E.g., `any`, `function`
+
+  * Move construct small-buffer inplace_vector and similar type (source object
+    left empty)
+
+o P2967 Relocation Has A Library Interface
+
+  * TBD: Here I think we should just list whatever functions alisdair intends
+    to propose, then describe them briefly and why we chose them.
+
+o P3239 A Relocating Swap
+
+  * We care deeply about optimizing swap via a trivial relocation-like
+    mechanism, i.e., swapping bytes rather than moving and assigning objects.
+
+  * Swap differs from relocation in that the objects being swapped are not
+    constructed or destroyed.
+
+  * Not all trivially relocatable types can be bytewise swapped. Only if
+    `target = std::move(source)` is equivalent to `target->~T(); new(&target)
+    T(std::move(source))`  is that safe.
+
+  * Relocating swap not safe if there are any parts that don't contribute to
+    value and are not copied/moved on assignment.
+
+o Relocating swap details
+
+  * Can't we just restrict trivial relocatability to types not having
+    user-provided assignment, the way P1144 does?
+
+    * Doing so would significantly reduce the set of types that can benefit
+      from relocation optimizations.
+
+    * It would also create a fictitious connection between relocation and
+      assignment.
+
+  * Show UniqueID example
+
+o Example of broken swap on relocatable types
+
+  https://godbolt.org/z/TP1b6f7Gb  (Broken with P1144 version of Clang/libc++)
+
+o What P3239 proposes
+
+  * Some details are still being worked out.
+
+  * Relocation-swap is a separate trait from is_trivially_relocatable
+
+  * Adds a new magic function to exchange only the value representation of
+    trivially swappable objects (safe to use for empty subobjects)
+
+o P3262 Specifying Trivially Relocatable Types in the Standard Library
+
+  * We will produce a paper examining the entire standard library to identify
+    which types (if any) should be always be trivially relocatable, which
+    should be allowed to be trivially relocatable, and which should be
+    explicitly *not* trivially reloctable.  Overall similar to how the standard
+    library requires that some types be trivially copyable.
+
+o Misconceptions
+
+  * `vector::insert` and `vector::erase` cannot use P2786 relocation.  False:
+    Although most current implementations of `erase` and `insert` use
+    assignment, the standard does not mandate it:
+
+    * The number of assignment and destructor calls are an upper bound (per the
+      library prologue), not an exact requirement.
+    * If this were broken for P2786, it would be equally broken for P1144.
+
+  * pmr types cannot be optimized using trivially relocatility.  False: Only if
+    you conflate relocation with assignment and swap do they become
+    non-optimizable.
+
+  * bytewise swaps of relocatable objects is always OK because types for which
+    it would be problematic are rare/unimportant.  False: regardless of how
+    rare, introducing UB into existing, well-defined code is a non-starter.
+
+o FAQ:
+
+  * Q: Do we have implementation experience?  A: Yes, in libc++ and Bloomberg
+    libraries.
+
+  * Q: Can it be an attribute? A: No: It has semantic meaning and is part of
+    the contract for a type. Adding or removing the attribute from a correct
+    program can change observable semantics.
+
+  * Q: Do these proposals allow one to create a trivially relocatable wrapper
+    around a non-trivially relocatable object?  A: No. Such permission would
+    violate the open-closed principle. Relocating an object that isn't
+    relocatable is UB. Even if it *should* be relocatable today, it might not
+    be tomorrow and even if one implementation (e.g., of `std::string`) is
+    safely relocatable, another implementation might not be. It is safer to
+    make the programmer chose and rely on QofI for the standard library.
+
+  * Q: Are reference types trivially relocatable?  A: Naked references are not
+    trivially relocatable, but objects containing references can be.
+
+  * Additional FAQs in P2786 but are too subtle to discuss here.
+
+o Status
+
+  * We have an implementation in libc++
+
+  * Language feature (P2786) has been forwarded from EWG and is being refined
+    by core
+
+  * High-level library relocation, P2967R0, is ready to be seen by LEWGI/LEWG
+
+  * Swap (P3239): we did not have enough time before st louis, we are happy to
+    come back with design + wording in a telecon
+
+---------------------------------------------------------------------------
+From Corentin (most of this has already been incorporated)
+
+  - This how you say a type is trivially relocatable
+      - No it cannot be an attribute
+      - Yes it can be backported by implementation
+      - Even if trivially relocation is an optimization it's part of the contract of a type and should not be ignored
+
+- Trivial relocation is a fundamental operation because there exists types that are not assignable that should still be relocatable
+     - We want well defined semantics that make sense for the core language and are available to users and library writers
+     - prm, references, etc. Excluding reasonable types is not a sensible option
+     - Venn diagram
+
+- This is some high level library features to relocate
+    - This is how we implement a vector growth function
+    - We have a paper for this high level function and associated memory algorithm
+    - trivially_relocate is a low level magic function which we need because we need to start/stop lifetimes as appropriate but it is not the user facing component
+
+- The performance of swap is something we care deeply about.
+    - There is a paper for that
+    - Semantics different from relocation (ie we are not creating new objects)
+    - We have a solution for that:
+       - Show how to implement std::rotate or something like that
+    - We are still working and the details but we agree it's important, and we know we can build on top of what we are proposing today
+
+- The standard library has existing bugs around relocation
+    - We should fix vector, not standardize around its bug
+    - Summary of https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2959r0.html
+    - We need to justify container_replace_with_assignment (that was one of the criticism in p3236 )
+
+- Status
+    - language feature: We already forwarded it
+    - high level library relocation: https://wg21.link/p2967r0 is ready to be seen by LEWG
+    - Swap: we did not have enough time before st louis, we are happy to come back with design + wording in a telecon
+    - We have an implementation in libc++

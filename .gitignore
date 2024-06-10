@@ -37,6 +37,9 @@ generated
 D*.pdf
 D*.html
 
+# Untracked subdirectories
+NinaPapers
+
 # Temp files
 *~
 ~*
