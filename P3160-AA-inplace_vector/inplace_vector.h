@@ -1,7 +1,8 @@
 // -*- c++ -*-
 
 // Define zero or one of the macros OPTION_1, OPTION_2, or OPTION_3
-// OPTION_1: inplace_vector<class T, size_t N, class Alloc = std::allocator<T>>
+// NON_AA:   inplace_vector<class T, size_t N>
+// OPTION_1: inplace_vector<class T, size_t N, class Alloc = void>
 // OPTION_2: inplace_vector<class T, size_t N>  (allocator is deduced)
 // OPTION_3: inplace_vector<class T, size_t N, class Alloc = deduced>
 
@@ -15,10 +16,29 @@
 
 #define USE_CONCEPTS
 
+// namespace std::experimental
+// {
+
+// struct no_allocator
+// {
+//   friend constexpr bool operator==(const no_allocator&, const no_allocator&)
+//     { return true; }
+// };
+
+// } // Close namespace std::experimental
+
+// namespace std
+// {
+
+// template <class T>
+// struct uses_allocator<T, experimental::no_allocator> : false_type { };
+
+// } // Close namespace std
+
 namespace std::experimental
 {
 
-#if defined(OPTION_1) // Default allocator = std::allocator<T>
+#if defined(OPTION_1) // Default allocator = void
 
 // Base class for `inplace_vector`, handling allocator use.
 template <class T, class Alloc>
@@ -51,9 +71,9 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-// Specialization for allocator<T>
-template <class T, class U>
-class __inplace_vector_base<T, allocator<U>>
+// Specialization for `void` allocator
+template <class T>
+class __inplace_vector_base<T, void>
 {
 protected:
 #if VERBOSE
@@ -61,16 +81,10 @@ protected:
 #else
   constexpr __inplace_vector_base() = default;
 #endif
-  constexpr explicit __inplace_vector_base(const allocator<U>& a) { }
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
     { construct_at(elem, std::forward<Args>(args)...); }
-
-public:
-  using allocator_type = allocator<U>;
-
-  constexpr allocator_type get_allocator() const { return allocator_type{}; }
 };
 
 #elif defined(OPTION_2)  // `allocator_type` exists only if `T::allocator_type`
@@ -119,23 +133,9 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-// Base class for when `T::allocator_type` does not exist
+// Specialization for `void` allocator
 template <class T>
 class __inplace_vector_base<T, void>
-{
-protected:
-#if VERBOSE
-  __inplace_vector_base() { std::cout << "Option 2, no allocator\n"; }
-#endif
-
-  template <class... Args>
-  constexpr static void construct_elem(T* elem, Args&&... args)
-    { construct_at(elem, std::forward<Args>(args)...); }
-};
-
-// Specialization for allocator<T>
-template <class T, class U>
-class __inplace_vector_base<T, allocator<U>>
 {
 protected:
 #if VERBOSE
@@ -143,22 +143,16 @@ protected:
 #else
   constexpr __inplace_vector_base() = default;
 #endif
-  constexpr explicit __inplace_vector_base(const allocator<U>& a) { }
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
     { construct_at(elem, std::forward<Args>(args)...); }
-
-public:
-  using allocator_type = allocator<U>;
-
-  constexpr allocator_type get_allocator() const { return allocator_type{}; }
 };
 
 #elif defined(OPTION_3) // Default allocator is `T::allocator_type`
 
 template <class T>
-struct __deduced_alloc { using type = std::allocator<T>; };
+struct __deduced_alloc { using type = void; };
 
 template <class T>
 requires requires { typename T::allocator_type; }
@@ -195,9 +189,9 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-// Specialization for allocator<T>
-template <class T, class U>
-class __inplace_vector_base<T, allocator<U>>
+// Specialization for `void` allocator
+template <class T>
+class __inplace_vector_base<T, void>
 {
 protected:
 #if VERBOSE
@@ -205,16 +199,10 @@ protected:
 #else
   constexpr __inplace_vector_base() = default;
 #endif
-  constexpr explicit __inplace_vector_base(const allocator<U>& a) { }
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
     { construct_at(elem, std::forward<Args>(args)...); }
-
-public:
-  using allocator_type = allocator<U>;
-
-  constexpr allocator_type get_allocator() const { return allocator_type{}; }
 };
 
 #else // if non-AA `inplace_vector`
@@ -246,7 +234,7 @@ union __uninitialized
 template <class T, size_t N>
 class inplace_vector : public __inplace_vector_base
 #elif defined(OPTION_1)
-template <class T, size_t N, class Alloc = allocator<byte>>
+template <class T, size_t N, class Alloc = void>
 class inplace_vector : public __inplace_vector_base<T, Alloc>
 #elif defined(OPTION_2)
 template <class T, size_t N>
@@ -254,9 +242,6 @@ class inplace_vector :
     public __inplace_vector_base<T, typename __deduced_alloc<T>::type>
 #elif defined(OPTION_3)
 template <class T, size_t N, class Alloc = typename __deduced_alloc<T>::type>
-class inplace_vector : public __inplace_vector_base<T, Alloc>
-#elif defined(OPTION_4)
-template <class T, size_t N, class Alloc = allocator<byte>>
 class inplace_vector : public __inplace_vector_base<T, Alloc>
 #endif
 {
