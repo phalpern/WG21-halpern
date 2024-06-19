@@ -34,8 +34,10 @@
 
 # Generated draft files
 generated
-D*.pdf
-D*.html
+snapshots
+[A-OQ-Za-oq-z]*.pdf
+[Dd][0-9][0-9][0-9][0-9].html
+[Dd][0-9][0-9][0-9][0-9][Rr][0-9].html
 
 # Untracked subdirectories
 NinaPapers
