@@ -10,6 +10,7 @@ import subprocess
 import time
 
 options = (( "P0843R10", "NON_AA" ),
+           ( "Option 0", "OPTION_0" ),
            ( "Option 1", "OPTION_1" ),
            ( "Option 2", "OPTION_2" ),
            ( "Option 3", "OPTION_3" ));
