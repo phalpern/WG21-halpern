@@ -2,6 +2,7 @@
 
 // Define zero or one of the macros OPTION_1, OPTION_2, or OPTION_3
 // NON_AA:   inplace_vector<class T, size_t N>
+// OPTION_0: inplace_vector<class T, size_t N, class Alloc = allocator<T>>
 // OPTION_1: inplace_vector<class T, size_t N, class Alloc = void>
 // OPTION_2: inplace_vector<class T, size_t N>  (allocator is deduced)
 // OPTION_3: inplace_vector<class T, size_t N, class Alloc = deduced>
@@ -38,7 +39,62 @@
 namespace std::experimental
 {
 
-#if defined(OPTION_1) // Default allocator = void
+#if defined(OPTION_0) // Default allocator = std::allocator<T>
+
+// Base class for `inplace_vector`, handling allocator use.
+template <class T, class Alloc>
+class __inplace_vector_base
+{
+  [[no_unique_address]] Alloc m_alloc;
+
+protected:
+#if VERBOSE
+  __inplace_vector_base() { std::cout << "Option 1\n"; }
+#else
+  constexpr __inplace_vector_base() = default;
+#endif
+  constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
+
+  using AllocTraits = allocator_traits<Alloc>;
+
+  template <class... Args>
+  constexpr void construct_elem(T* elem, Args&&... args)
+  {
+    if constexpr (uses_allocator_v<T, Alloc>)
+      uninitialized_construct_using_allocator(elem, m_alloc,
+                                              std::forward<Args>(args)...);
+    else
+      construct_at(elem, std::forward<Args>(args)...);
+  }
+
+public:
+  using allocator_type = Alloc;
+
+  constexpr allocator_type get_allocator() const { return m_alloc; }
+};
+
+// Specialization for default allocator
+template <class T>
+class __inplace_vector_base<T, allocator<T>>
+{
+protected:
+#if VERBOSE
+  __inplace_vector_base() { std::cout << "Option 1 std::allocator\n"; }
+#else
+  constexpr __inplace_vector_base() = default;
+#endif
+
+  template <class... Args>
+  constexpr void construct_elem(T* elem, Args&&... args)
+    { construct_at(elem, std::forward<Args>(args)...); }
+
+public:
+  using allocator_type = allocator<T>;
+
+  constexpr allocator_type get_allocator() const { return allocator<T>{}; }
+};
+
+#elif defined(OPTION_1) // Default allocator = void
 
 // Base class for `inplace_vector`, handling allocator use.
 template <class T, class Alloc>
@@ -233,18 +289,31 @@ union __uninitialized
 #if defined(NON_AA)
 template <class T, size_t N>
 class inplace_vector : public __inplace_vector_base
+{
+  using Base = __inplace_vector_base;
+#elif defined(OPTION_0)
+template <class T, size_t N, class Alloc = allocator<T>>
+class inplace_vector : public __inplace_vector_base<T, Alloc>
+{
+  using Base = __inplace_vector_base<T, Alloc>;
 #elif defined(OPTION_1)
 template <class T, size_t N, class Alloc = void>
 class inplace_vector : public __inplace_vector_base<T, Alloc>
+{
+  using Base = __inplace_vector_base<T, Alloc>;
 #elif defined(OPTION_2)
 template <class T, size_t N>
 class inplace_vector :
     public __inplace_vector_base<T, typename __deduced_alloc<T>::type>
+{
+  using Base = __inplace_vector_base<T, typename __deduced_alloc<T>::type>;
 #elif defined(OPTION_3)
 template <class T, size_t N, class Alloc = typename __deduced_alloc<T>::type>
 class inplace_vector : public __inplace_vector_base<T, Alloc>
-#endif
 {
+  using Base = __inplace_vector_base<T, Alloc>;
+#endif
+
   using ArrayType = array<T, N>;
 
   union Data {
@@ -293,11 +362,7 @@ public:
   constexpr inplace_vector(inplace_vector&&) noexcept(N == 0 || is_nothrow_move_constructible_v<T>);
   constexpr inplace_vector(initializer_list<T> il);
 
-  constexpr ~inplace_vector()
-  {
-    for (T& elem : *this)
-      elem.~T();
-  }
+  constexpr ~inplace_vector() { this->clear(); }
 
   constexpr inplace_vector& operator=(const inplace_vector& other)
   {
@@ -444,11 +509,49 @@ public:
   // constexpr iterator insert_range(const_iterator position, R&& rg); //
 
   constexpr iterator insert(const_iterator position, initializer_list<T> il);
-  constexpr iterator erase(const_iterator position);
-  constexpr iterator erase(const_iterator first, const_iterator last);
+  constexpr iterator erase(const_iterator position)
+    { return erase(position, position + 1); }
+  constexpr iterator erase(const_iterator first, const_iterator last) {
+    size_type n = last - first;
+    iterator first2 = begin() + (first - cbegin());
+    iterator last2  = begin() + (last  - cbegin());
+    iterator ebeg   = move(last2, end(), first2);
+    for (iterator i = ebeg; i != end(); ++i)
+      i->~T();
+    m_size -= n;
+    return first2;
+  }
   constexpr void swap(inplace_vector& x)
-    noexcept(N == 0 || (is_nothrow_swappable_v<T> && is_nothrow_move_constructible_v<T>));
-  constexpr void clear() noexcept;
+    noexcept(N == 0 || (is_nothrow_swappable_v<T> && is_nothrow_move_constructible_v<T>))
+  {
+    if (size() > x.size())
+    {
+      x.swap(*this);
+      return;
+    }
+
+    size_type n = size();
+
+#ifndef NON_AA
+    // conditionally swap allocators
+    using AllocTraits = typename Base::AllocTraits;
+    if constexpr (AllocTraits::propagate_on_container_swap::value &&
+                  ! AllocTraits::always_compare_equal::value)
+      swap(this->m_alloc, x.m_alloc);
+#endif
+
+    // Swap first n elements
+    swap_ranges(begin(), begin() + n, x.begin());
+
+    // Move remaining elements (increases size of smaller container).
+    for (auto i = x.begin() + n; i != x.end(); ++i)
+      unchecked_push_back(std::move(*i));
+
+    // Erase moved-from elements (decreases size of formerly larger container)
+    x.erase(x.begin() + n, x.end());
+  }
+
+  constexpr void clear() noexcept { erase(begin(), end()); }
 
   constexpr friend bool operator==(const inplace_vector& x, const inplace_vector& y)
   {

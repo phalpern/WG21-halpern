@@ -82,6 +82,8 @@ public:
 template <int N, class Alloc = std::allocator<std::byte>>
 struct TestTypeA
 {
+  using AllocTraits = std::allocator_traits<Alloc>;
+
   int   m_value;
   Alloc m_allocator;
 
@@ -93,22 +95,37 @@ public:
   TestTypeA(int v, const allocator_type& a = {})  // Implicit
     : m_value(v), m_allocator(a) { }
 
-  TestTypeA(const TestTypeA& rhs, const allocator_type& a = {})
+  TestTypeA(const TestTypeA& rhs)
+    : m_value(rhs.m_value)
+    , m_allocator(
+      AllocTraits::select_on_container_copy_construction(rhs.m_allocator)) { }
+  TestTypeA(const TestTypeA& rhs, const allocator_type& a)
     : m_value(rhs.m_value), m_allocator(a) { }
 
-  TestTypeA(TestTypeA&& rhs) : m_value(rhs.m_value), m_allocator() { }
+  TestTypeA(TestTypeA&& rhs)
+    : m_value(rhs.m_value), m_allocator(rhs.m_allocator) { }
 
   TestTypeA(TestTypeA&& rhs, const allocator_type& a)
     : m_value(rhs.m_value), m_allocator(a) { }
 
-  TestTypeA& operator=(const TestTypeA& rhs)
-    { m_value = rhs.m_value; return *this; }
+  TestTypeA& operator=(const TestTypeA& rhs) {
+    m_value = rhs.m_value;
+    if constexpr (AllocTraits::propagate_on_container_copy_assignment::value)
+      m_allocator = rhs.m_allocator;
+    return *this;
+  }
 
   allocator_type get_allocator() const { return m_allocator; }
   int value() const { return m_value; }
 
   friend bool operator==(const TestTypeA& a, const TestTypeA& b)
     { return a.m_value == b.m_value; }
+
+  friend void swap(TestTypeA& a, TestTypeA& b) {
+    std::swap(a.m_value, b.m_value);
+    if constexpr (AllocTraits::propagate_on_container_swap::value)
+      std::swap(a.m_allocator, b.m_allocator);
+  }
 };
 
 
@@ -157,6 +174,10 @@ int main()
   test<TestTypeA<10>>();
   test<TestTypeA<10, std::pmr::polymorphic_allocator<>>>();
 #endif // ! NON_AA_ONLY
+
+#if ! (defined(AA_ONLY) || defined(NOT_AA_ONLY) || defined(BLENDED))
+  // This is not a compilation timing test, do a fuller test
+#endif
 }
 
 // Local Variables:
