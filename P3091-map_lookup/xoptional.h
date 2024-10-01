@@ -23,14 +23,9 @@ struct reference_constructs_from_temporary
   : std::integral_constant<bool,
                            reference_constructs_from_temporary_v<T, U>> {};
 
+#if 0
 // Get first type in a pack consisting of exactly one type.
-template <class A0>
-struct __pack0 {
-  using type = A0;
-};
-
-template <class... Args>
-using __pack0_t = typename __pack0<Args...>::type;
+template <class A0> using __pack0_t = A0;
 
 template <class U, class Opt, class... Args>
 U value_or_imp(Opt&& obj, Args&&... args) {
@@ -54,70 +49,13 @@ U value_or_imp(Opt&& obj, Args&&... args) {
     : U(std::forward<Args>(args)...);
 }
 
+#endif // 0
+
 template <class T>
 class optional : public std::optional<T> {
 public:
   using std::optional<T>::optional;
 
-#ifdef __cpp_explicit_this_parameter
-
-  template <class U = remove_cvref_t<T>, class Self, class... Args>
-  U value_or(this Self&& self, Args&&... args) {
-    return value_or_imp<U>(std::forward<Self>(self),
-                           std::forward<Args>(args)...);
-  }
-
-  template <class U = remove_cvref_t<T>, class Self, class X, class... Args>
-  U value_or(this Self&& self, initializer_list<X> il, Args&&... args) {
-    return value_or_imp<U>(std::forward<Self>(self),
-                           il, std::forward<Args>(args)...);
-  }
-
-#else
-
-  template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) & {
-    return value_or_imp<U>(*this, std::forward<Args>(args)...);
-  }
-
-  template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) const& {
-    return value_or_imp<U>(*this, std::forward<Args>(args)...);
-  }
-
-  template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) && {
-    return value_or_imp<U>(std::move(*this), std::forward<Args>(args)...);
-  }
-
-  template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) const&& {
-    return value_or_imp<U>(std::move(*this), std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) & {
-    return value_or_imp<U>(*this, il, std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) const& {
-    return value_or_imp<U>(*this, il, std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) && {
-    return value_or_imp<U>(std::move(*this), il,
-                           std::forward<Args>(args)...);
-  }
-
-  template <class U = T, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) const&& {
-    return value_or_imp<U>(std::move(*this), il,
-                           std::forward<Args>(args)...);
-  }
-
-#endif
 
   // TBD: All monadic operations need to be re-implemented here, as the
   // inherited ones mandate functors that return `std::optional` instead of
@@ -191,6 +129,7 @@ public:
     throw bad_optional_access();
   }
 
+#if 0
   template <class U = remove_cvref_t<T>, class... Args>
   U value_or(Args&&... args) const {
     return value_or_imp<U>(*this, std::forward<Args>(args)...);
@@ -200,6 +139,7 @@ public:
   U value_or(initializer_list<X> il, Args&&... args) const {
     return value_or_imp<U>(*this, il, std::forward<Args>(args)...);
   }
+#endif // 0
 
   // ?.?.1.7, monadic operations
   template <class F>
@@ -265,6 +205,44 @@ constexpr auto operator<=>(const optional<T>& x,
     return *x <=> *y;
   else
     return x.has_value() <=> y.has_value();
+}
+
+template <class T>
+concept maybe = requires(const T t) {
+  bool(t);
+  *(t);
+};
+
+
+template <class R = void, maybe T, class... U>
+auto value_or(T&& m, U&&... u) -> decltype(auto)
+{
+  using ValueType = remove_cvref_t<iter_reference_t<T>>;
+
+  // If `U...` represents exactly one argument type, then `RetCalc::type` is
+  // the common type of `ValueType` and `U`; otherwise `RetCalc::type` is
+  // `ValueType`.  The result of this alias is a struct having a `type` member,
+  // which is not "evaluated" unless needed.  Thus, if `type` does not exist
+  // but is not needed, there is no error.  This situation comes up if `R` is
+  // explicitly non-`void`, in which case `common_type` need not have a `type`.
+  using RetCalc = conditional_t<sizeof...(U) == 1,
+                                common_type<ValueType, remove_cvref_t<U&&>...>,
+                                type_identity<ValueType>>;
+
+  using Ret = typename conditional_t<is_same_v<R, void>,
+                                     RetCalc, type_identity<R>>::type;
+
+  return bool(m) ? static_cast<Ret>(*m) : Ret(forward<U>(u)... );
+}
+
+template <class R = void, maybe T, class IT, class... U>
+auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(auto)
+{
+  using ValueType = remove_cvref_t<iter_reference_t<T>>;
+
+  using Ret = conditional_t<is_same_v<R, void>, ValueType, R>;
+
+  return bool(m) ? static_cast<Ret>(*m) : Ret(il, forward<U>(u)... );
 }
 
 }  // namespace std::experimental
