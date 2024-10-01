@@ -8,11 +8,11 @@
 #include <vector>
 #include <cassert>
 
-// Usage: expect<type>(value, expr);
+// Usage: expect<expected-type>(expected-value, expr);
 template <class EXP_T, class VAL_T, class TEST_T>
 void expect(const VAL_T& exp, TEST_T&& v)
 {
-  static_assert(std::is_same_v<EXP_T, TEST_T>, "Wrong return type");
+  static_assert(std::is_same_v<EXP_T, TEST_T>, "Wrong expression type");
   assert(exp == v);
 }
 
@@ -189,11 +189,11 @@ int main()
   // Test that rvalue reference return is possible
   (void) value_or(xstd::optional<int>(), prval());
 
-  using int_vec = std::vector<int>;
+  using int_vec  = std::vector<int>;
   xstd::optional<int_vec> ov;
 
   // Test `value_or` with multiple arguments
-  expect<int_vec>(int_vec{3, 3, 3}, value_or(ov, 3, 3));
+  expect<int_vec>(int_vec{2, 2, 2}, value_or(ov, 3, 2));
 
   // Test `value_or` with initializer list argument
   expect<int_vec>(int_vec{1, 2, 3}, value_or(ov, {1, 2, 3}));

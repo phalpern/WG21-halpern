@@ -16,40 +16,14 @@ template <class T, class U>
 inline constexpr bool reference_constructs_from_temporary_v =
   is_reference_v<T> && is_constructible_v<T, U> &&
   ((is_lvalue_reference_v<T> && is_rvalue_reference_v<U&&>) ||
-   (is_rvalue_reference_v<T> && !is_rvalue_reference_v<U&&>));
+   (is_rvalue_reference_v<T> && !is_rvalue_reference_v<U&&>) ||
+   ! is_constructible_v<remove_cvref_t<T>&, remove_cvref_t<U>&>);
 
 template <class T, class U>
 struct reference_constructs_from_temporary
   : std::integral_constant<bool,
                            reference_constructs_from_temporary_v<T, U>> {};
 
-#if 0
-// Get first type in a pack consisting of exactly one type.
-template <class A0> using __pack0_t = A0;
-
-template <class U, class Opt, class... Args>
-U value_or_imp(Opt&& obj, Args&&... args) {
-  using DerefType = decltype(*std::forward<Opt>(obj));
-
-  static_assert(is_constructible_v<U, DerefType>,
-                "Cannot construct return value from value_type");
-  static_assert(is_constructible_v<U, Args...>,
-                "Cannot construct return value from arguments");
-  static_assert(!is_lvalue_reference_v<U> || 1 == sizeof...(Args),
-                "Reference return type allows only one argument");
-  if constexpr (is_lvalue_reference_v<U> && 1 == sizeof...(Args)) {
-    using Arg = __pack0_t<Args...>;
-    static_assert(!reference_constructs_from_temporary_v<U, DerefType>,
-                  "Would construct a dangling reference from a temporary");
-    static_assert(!reference_constructs_from_temporary_v<U, Arg>,
-                  "Would construct a dangling reference from a temporary");
-  }
-
-  return obj.has_value() ? U(*std::forward<Opt>(obj))
-    : U(std::forward<Args>(args)...);
-}
-
-#endif // 0
 
 template <class T>
 class optional : public std::optional<T> {
@@ -129,18 +103,6 @@ public:
     throw bad_optional_access();
   }
 
-#if 0
-  template <class U = remove_cvref_t<T>, class... Args>
-  U value_or(Args&&... args) const {
-    return value_or_imp<U>(*this, std::forward<Args>(args)...);
-  }
-
-  template <class U = remove_cvref_t<T>, class X, class... Args>
-  U value_or(initializer_list<X> il, Args&&... args) const {
-    return value_or_imp<U>(*this, il, std::forward<Args>(args)...);
-  }
-#endif // 0
-
   // ?.?.1.7, monadic operations
   template <class F>
   constexpr auto and_then(F&& f) const {
@@ -207,42 +169,78 @@ constexpr auto operator<=>(const optional<T>& x,
     return x.has_value() <=> y.has_value();
 }
 
+// Get first type in a pack containing only one type.
+template <class A0> struct __pack0 { using type = A0; };
+template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
+
+// `maybe` concept per
 template <class T>
 concept maybe = requires(const T t) {
   bool(t);
   *(t);
 };
 
-
 template <class R = void, maybe T, class... U>
 auto value_or(T&& m, U&&... u) -> decltype(auto)
 {
-  using ValueType = remove_cvref_t<iter_reference_t<T>>;
+  // Construct the return value from either `*m` or `forward<U>(u)... )`.
+
+  // Find the type returned by dereferencing `m`
+  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
+  using ValueType = remove_cvref_t<DerefType>;  // Non-reference value
 
   // If `U...` represents exactly one argument type, then `RetCalc::type` is
   // the common type of `ValueType` and `U`; otherwise `RetCalc::type` is
   // `ValueType`.  The result of this alias is a struct having a `type` member,
-  // which is not "evaluated" unless needed.  Thus, if `type` does not exist
-  // but is not needed, there is no error.  This situation comes up if `R` is
-  // explicitly non-`void`, in which case `common_type` need not have a `type`.
+  // which is not "evaluated" unless needed.  If `R` is explicitly non-`void`,
+  // `RetCalc::type` is never evaluated, so no error is reported in cases where
+  // `U...` has length 1 but `common_type` fails to produce a type.
   using RetCalc = conditional_t<sizeof...(U) == 1,
                                 common_type<ValueType, remove_cvref_t<U&&>...>,
                                 type_identity<ValueType>>;
 
+  // If `R` is non-void, the return type is exactly `R`, otherwise it is
+  // `RetCalc::type`.
+  static_assert(! is_same_v<R, void> || requires { typename RetCalc::type; },
+                "No common type between value type and argument type");
   using Ret = typename conditional_t<is_same_v<R, void>,
                                      RetCalc, type_identity<R>>::type;
 
-  return bool(m) ? static_cast<Ret>(*m) : Ret(forward<U>(u)... );
+  // Check the mandates
+  static_assert(is_constructible_v<Ret, DerefType>,
+                "Cannot construct return type from value type");
+  static_assert(is_constructible_v<Ret, U...>,
+                "Cannot construct return type from argument types");
+  static_assert(!is_lvalue_reference_v<Ret> || 1 == sizeof...(U),
+                "Reference return type requires exactly one argument");
+
+  if constexpr (is_lvalue_reference_v<Ret> && 1 == sizeof...(U)) {
+    using U0 = __pack0_t<U...>;
+    static_assert(!reference_constructs_from_temporary_v<Ret, DerefType>,
+                  "Would construct a dangling reference from a temporary");
+    static_assert(!reference_constructs_from_temporary_v<Ret, U0>,
+                  "Would construct a dangling reference from a temporary");
+  }
+
+  return bool(m) ? static_cast<Ret>(*forward<T>(m)) : Ret(forward<U>(u)...);
 }
 
 template <class R = void, maybe T, class IT, class... U>
 auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(auto)
 {
-  using ValueType = remove_cvref_t<iter_reference_t<T>>;
+  // Find the type returned by dereferencing `m`
+  using DerefType = iter_reference_t<T&&>;      // Often a reference type.
+  using ValueType = remove_cvref_t<DerefType>;  // Non-reference value
 
   using Ret = conditional_t<is_same_v<R, void>, ValueType, R>;
 
-  return bool(m) ? static_cast<Ret>(*m) : Ret(il, forward<U>(u)... );
+  // Check the mandates
+  static_assert(is_constructible_v<Ret, DerefType>,
+                "Cannot construct return type from value type");
+  static_assert(is_constructible_v<Ret, initializer_list<IT>, U...>,
+                "Cannot construct return type from argument types");
+
+  return bool(m) ? static_cast<Ret>(*m) : Ret(il, forward<U>(u)...);
 }
 
 }  // namespace std::experimental
