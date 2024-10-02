@@ -175,13 +175,13 @@ template <class... Args> using __pack0_t = typename __pack0<Args...>::type;
 
 // `maybe` concept per
 template <class T>
-concept maybe = requires(const T t) {
-  bool(t);
-  *(t);
+concept maybe = requires(const T a, T b) {
+  bool(a);
+  *b;
 };
 
 template <class R = void, maybe T, class... U>
-auto value_or(T&& m, U&&... u) -> decltype(auto)
+constexpr auto value_or(T&& m, U&&... u) -> decltype(auto)
 {
   // Construct the return value from either `*m` or `forward<U>(u)... )`.
 
@@ -211,7 +211,7 @@ auto value_or(T&& m, U&&... u) -> decltype(auto)
                 "Cannot construct return type from value type");
   static_assert(is_constructible_v<Ret, U...>,
                 "Cannot construct return type from argument types");
-  static_assert(!is_lvalue_reference_v<Ret> || 1 == sizeof...(U),
+  static_assert(!is_reference_v<Ret> || 1 == sizeof...(U),
                 "Reference return type requires exactly one argument");
 
   if constexpr (is_lvalue_reference_v<Ret> && 1 == sizeof...(U)) {
@@ -226,10 +226,10 @@ auto value_or(T&& m, U&&... u) -> decltype(auto)
 }
 
 template <class R = void, maybe T, class IT, class... U>
-auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(auto)
+constexpr auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(auto)
 {
   // Find the type returned by dereferencing `m`
-  using DerefType = iter_reference_t<T&&>;      // Often a reference type.
+  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
   using ValueType = remove_cvref_t<DerefType>;  // Non-reference value
 
   using Ret = conditional_t<is_same_v<R, void>, ValueType, R>;
