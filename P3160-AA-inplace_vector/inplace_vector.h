@@ -73,7 +73,8 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-// Specialization for default allocator
+// Specialization for default allocator. Note that this base class is trivial
+// even if `std::allocator` is not trivial (except in VERBOSE builds).
 template <class T>
 class __inplace_vector_base<T, allocator<T>>
 {
