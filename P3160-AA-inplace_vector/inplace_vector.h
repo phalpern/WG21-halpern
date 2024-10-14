@@ -39,6 +39,28 @@
 namespace std::experimental
 {
 
+// exposition only trait `is-nothrow-ua-constructible-v`
+template <class T, class... Y>
+consteval bool ____is_nothrow_ua_constructible_check(tuple<Y...>&&)
+{
+  return is_nothrow_constructible_v<T, Y...>;
+}
+
+template <class T, class A, class... X>
+constexpr bool __is_nothrow_ua_constructible_v =
+  ____is_nothrow_ua_constructible_check<T>(
+    uses_allocator_construction_args<T>(declval<const A&>(), declval<X>()...));
+
+// non-allocator that meets the allocator requirements
+template <class T>
+struct __non_allocator
+{
+  using value_type = T;
+
+  consteval T* allocate(std::size_t) { return nullptr; }
+  consteval void deallocate(T*, std::size_t) { }
+};
+
 #if defined(OPTION_0) // Default allocator = std::allocator<T>
 
 // Base class for `inplace_vector`, handling allocator use.
@@ -48,14 +70,17 @@ class __inplace_vector_base
   [[no_unique_address]] Alloc m_alloc;
 
 protected:
+  using AllocArg    = Alloc;
+  using AllocTraits = allocator_traits<Alloc>;
+
 #if VERBOSE
   __inplace_vector_base() { std::cout << "Option 1\n"; }
+  explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a)
+    { std::cout << "Option 1\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a) { }
 #endif
-  constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
-
-  using AllocTraits = allocator_traits<Alloc>;
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
@@ -79,10 +104,16 @@ template <class T>
 class __inplace_vector_base<T, allocator<T>>
 {
 protected:
+  using AllocArg    = allocator<T>;
+  using AllocTraits = allocator_traits<AllocArg>;
+
 #if VERBOSE
   __inplace_vector_base() { std::cout << "Option 1 std::allocator\n"; }
+  explicit __inplace_vector_base(const const AllocArg&&)
+    { std::cout << "Option 1 std::allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg&) { }
 #endif
 
   template <class... Args>
@@ -104,14 +135,17 @@ class __inplace_vector_base
   [[no_unique_address]] Alloc m_alloc;
 
 protected:
+  using AllocArg    = Alloc;
+  using AllocTraits = allocator_traits<Alloc>;
+
 #if VERBOSE
   __inplace_vector_base() { std::cout << "Option 1\n"; }
+  explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a)
+    { std::cout << "Option 1\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a) { }
 #endif
-  constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
-
-  using AllocTraits = allocator_traits<Alloc>;
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
@@ -133,10 +167,15 @@ template <class T>
 class __inplace_vector_base<T, void>
 {
 protected:
+  using AllocArg    = __non_allocator<T>;
+  using AllocTraits = allocator_traits<AllocArg>;
+
 #if VERBOSE
-  __inplace_vector_base() { std::cout << "Option 1 std::allocator\n"; }
+  __inplace_vector_base() { std::cout << "Option 1 no allocator\n"; }
+  explicit __inplace_vector_base(const AllocArg&) { std::cout << "Option 1 no allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg&) { }
 #endif
 
   template <class... Args>
@@ -171,14 +210,16 @@ class __inplace_vector_base
   [[no_unique_address]] Alloc m_alloc;
 
 protected:
+  using AllocArg    = Alloc;
+  using AllocTraits = allocator_traits<Alloc>;
+
 #if VERBOSE
-  __inplace_vector_base() { std::cout << "Option 3 with allocator\n"; }
+  __inplace_vector_base() { std::cout << "Option 2 with allocator\n"; }
+  explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a) { std::cout << "Option 2 with allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a) { }
 #endif
-  constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
-
-  using AllocTraits = allocator_traits<Alloc>;
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
@@ -195,10 +236,16 @@ template <class T>
 class __inplace_vector_base<T, void>
 {
 protected:
+  using AllocArg    = __non_allocator<T>;
+  using AllocTraits = allocator_traits<AllocArg>;
+
 #if VERBOSE
-  __inplace_vector_base() { std::cout << "Option 2, std::allocator\n"; }
+  __inplace_vector_base() { std::cout << "Option 2 no allocator\n"; }
+  explicit __inplace_vector_base(const AllocArg&)
+    { std::cout << "Option 2 no allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg&) { }
 #endif
 
   template <class... Args>
@@ -222,14 +269,17 @@ class __inplace_vector_base
   [[no_unique_address]] Alloc m_alloc;
 
 protected:
+  using AllocArg    = Alloc;
+  using AllocTraits = allocator_traits<Alloc>;
+
 #if VERBOSE
-  __inplace_vector_base() { std::cout << "Option 3\n"; }
+  __inplace_vector_base() { std::cout << "Option 3 with allocator\n"; }
+  explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a)
+    { std::cout << "Option 3 with allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg& a) : m_alloc(a) { }
 #endif
-  constexpr explicit __inplace_vector_base(const Alloc& a) : m_alloc(a) { }
-
-  using AllocTraits = allocator_traits<Alloc>;
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
@@ -246,20 +296,29 @@ public:
   constexpr allocator_type get_allocator() const { return m_alloc; }
 };
 
-// Specialization for `void` allocator
+// Specialization for `std::allocator`
 template <class T>
-class __inplace_vector_base<T, void>
+class __inplace_vector_base<T, allocator<T> >
 {
 protected:
+  using AllocArg    = allocator<T>;
+  using AllocTraits = allocator_traits<AllocArg>;
+
 #if VERBOSE
   __inplace_vector_base() { std::cout << "Option 3 std::allocator\n"; }
+  explicit __inplace_vector_base(const AllocArg&)
+    { std::cout << "Option 2 no allocator\n"; }
 #else
   constexpr __inplace_vector_base() = default;
+  constexpr explicit __inplace_vector_base(const AllocArg&) { }
 #endif
 
   template <class... Args>
   constexpr void construct_elem(T* elem, Args&&... args)
     { construct_at(elem, std::forward<Args>(args)...); }
+
+public:
+  constexpr allocator<T> get_allocator() const { return {}; }
 };
 
 #else // if non-AA `inplace_vector`
@@ -271,6 +330,9 @@ protected:
 class __inplace_vector_base
 {
 protected:
+  using AllocArg    = __non_allocator<T>;
+  using AllocTraits = allocator_traits<AllocArg>;
+
 #if VERBOSE
   __inplace_vector_base() { std::cout << "Non-AA `inplace_vector`\n"; }
 #endif
@@ -314,6 +376,9 @@ class inplace_vector : public __inplace_vector_base<T, Alloc>
 {
   using Base = __inplace_vector_base<T, Alloc>;
 #endif
+
+  using AllocArg    = typename Base::AllocArg;
+  using AllocTraits = typename Base::AllocTraits;
 
   using ArrayType = array<T, N>;
 
@@ -359,8 +424,19 @@ public:
   constexpr inplace_vector(InputIterator first, InputIterator last);
   // template <container-compatible-range<T> R>
   // constexpr inplace_vector(from_range_t, R&& rg);
-  constexpr inplace_vector(const inplace_vector& rhs) { *this = rhs; };
-  constexpr inplace_vector(inplace_vector&&) noexcept(N == 0 || is_nothrow_move_constructible_v<T>);
+  constexpr inplace_vector(const inplace_vector& rhs)
+    : Base(AllocTraits::select_on_container_copy_construction(rhs.get_allocator()))
+    { *this = rhs; };
+  constexpr inplace_vector(const inplace_vector& rhs,
+                           const type_identity_t<AllocArg>& a) : Base(a)
+    { *this = rhs; };
+  constexpr inplace_vector(inplace_vector&& rhs)
+    noexcept(N == 0 || __is_nothrow_ua_constructible_v<T, Alloc, T&&>)
+    : Base(rhs.get_allocator()) { *this = std::move(rhs); };
+  constexpr inplace_vector(inplace_vector&& rhs,
+                           const type_identity_t<AllocArg>& a)
+    noexcept(N == 0 || __is_nothrow_ua_constructible_v<T, Alloc, T&&>)
+    : Base(a) { *this = std::move(rhs); };
   constexpr inplace_vector(initializer_list<T> il);
 
   constexpr ~inplace_vector() { this->clear(); }
