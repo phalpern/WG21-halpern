@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="mpark/wg21" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Replacement wording for `value_or` in D1255</title>
+  <style>
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+      div.csl-block{margin-left: 1.5em;}
+      ul.task-list{list-style: none;}
+      pre > code.sourceCode { white-space: pre; position: relative; }
+      pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+      pre > code.sourceCode > span:empty { height: 1.2em; }
+      .sourceCode { overflow: visible; }
+      code.sourceCode > span { color: inherit; text-decoration: inherit; }
+      div.sourceCode { margin: 1em 0; }
+      pre.sourceCode { margin: 0; }
+      @media screen {
+      div.sourceCode { overflow: auto; }
+      }
+      @media print {
+      pre > code.sourceCode { white-space: pre-wrap; }
+      pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+      }
+      pre.numberSource code
+        { counter-reset: source-line 0; }
+      pre.numberSource code > span
+        { position: relative; left: -4em; counter-increment: source-line; }
+      pre.numberSource code > span > a:first-child::before
+        { content: counter(source-line);
+          position: relative; left: -1em; text-align: right; vertical-align: baseline;
+          border: none; display: inline-block;
+          -webkit-touch-callout: none; -webkit-user-select: none;
+          -khtml-user-select: none; -moz-user-select: none;
+          -ms-user-select: none; user-select: none;
+          padding: 0 4px; width: 4em;
+          color: #aaaaaa;
+        }
+      pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+      div.sourceCode
+        {  background-color: #f6f8fa; }
+      @media screen {
+      pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+      }
+      code span { } /* Normal */
+      code span.al { color: #ff0000; } /* Alert */
+      code span.an { } /* Annotation */
+      code span.at { } /* Attribute */
+      code span.bn { color: #9f6807; } /* BaseN */
+      code span.bu { color: #9f6807; } /* BuiltIn */
+      code span.cf { color: #00607c; } /* ControlFlow */
+      code span.ch { color: #9f6807; } /* Char */
+      code span.cn { } /* Constant */
+      code span.co { color: #008000; font-style: italic; } /* Comment */
+      code span.cv { color: #008000; font-style: italic; } /* CommentVar */
+      code span.do { color: #008000; } /* Documentation */
+      code span.dt { color: #00607c; } /* DataType */
+      code span.dv { color: #9f6807; } /* DecVal */
+      code span.er { color: #ff0000; font-weight: bold; } /* Error */
+      code span.ex { } /* Extension */
+      code span.fl { color: #9f6807; } /* Float */
+      code span.fu { } /* Function */
+      code span.im { } /* Import */
+      code span.in { color: #008000; } /* Information */
+      code span.kw { color: #00607c; } /* Keyword */
+      code span.op { color: #af1915; } /* Operator */
+      code span.ot { } /* Other */
+      code span.pp { color: #6f4e37; } /* Preprocessor */
+      code span.re { } /* RegionMarker */
+      code span.sc { color: #9f6807; } /* SpecialChar */
+      code span.ss { color: #9f6807; } /* SpecialString */
+      code span.st { color: #9f6807; } /* String */
+      code span.va { } /* Variable */
+      code span.vs { color: #9f6807; } /* VerbatimString */
+      code span.wa { color: #008000; font-weight: bold; } /* Warning */
+      code.diff {color: #898887}
+      code.diff span.va {color: #006e28}
+      code.diff span.st {color: #bf0303}
+  </style>
+  <style type="text/css">
+body {
+margin: 5em;
+font-family: serif;
+
+hyphens: auto;
+line-height: 1.35;
+text-align: left;
+}
+@media screen and (max-width: 30em) {
+body {
+margin: 1.5em;
+}
+}
+div.wrapper {
+max-width: 60em;
+margin: auto;
+}
+
+ul {
+list-style-type: none;
+padding-left: 2.5em;
+margin-top: -0.2em;
+margin-bottom: -0.2em;
+}
+ol {
+padding-left: 2.5em;
+}
+a {
+text-decoration: none;
+color: #4183C4;
+}
+a.hidden_link {
+text-decoration: none;
+color: inherit;
+}
+li {
+margin-top: 0.6em;
+margin-bottom: 0.6em;
+}
+h1, h2, h3, h4 {
+position: relative;
+line-height: 1;
+}
+a.self-link {
+position: absolute;
+top: 0;
+left: calc(-1 * (3.5rem - 26px));
+width: calc(3.5rem - 26px);
+height: 2em;
+text-align: center;
+border: none;
+transition: opacity .2s;
+opacity: .5;
+font-family: sans-serif;
+font-weight: normal;
+font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+ul > li:before {
+content: "\2014";
+position: absolute;
+margin-left: -1.5em;
+}
+
+#TOC ul > li:before {
+content: none;
+}
+#TOC > ul {
+padding-left: 0;
+}
+
+.toc-section-number {
+margin-right: 0.5em;
+}
+:target { background-color: #C9FBC9; }
+:target .codeblock { background-color: #C9FBC9; }
+:target ul { background-color: #C9FBC9; }
+.abbr_ref { float: right; }
+.folded_abbr_ref { float: right; }
+:target .folded_abbr_ref { display: none; }
+:target .unfolded_abbr_ref { float: right; display: inherit; }
+.unfolded_abbr_ref { display: none; }
+.secnum { display: inline-block; min-width: 35pt; }
+.header-section-number { display: inline-block; min-width: 35pt; }
+.annexnum { display: block; }
+div.sourceLinkParent {
+float: right;
+}
+a.sourceLink {
+position: absolute;
+opacity: 0;
+margin-left: 10pt;
+}
+a.sourceLink:hover {
+opacity: 1;
+}
+a.itemDeclLink {
+position: absolute;
+font-size: 75%;
+text-align: right;
+width: 5em;
+opacity: 0;
+}
+a.itemDeclLink:hover { opacity: 1; }
+span.marginalizedparent {
+position: relative;
+left: -5em;
+}
+li span.marginalizedparent { left: -7em; }
+li ul > li span.marginalizedparent { left: -9em; }
+li ul > li ul > li span.marginalizedparent { left: -11em; }
+li ul > li ul > li ul > li span.marginalizedparent { left: -13em; }
+div.footnoteNumberParent {
+position: relative;
+left: -4.7em;
+}
+a.marginalized {
+position: absolute;
+font-size: 75%;
+text-align: right;
+width: 5em;
+}
+a.enumerated_item_num {
+position: relative;
+left: -3.5em;
+display: inline-block;
+margin-right: -3em;
+text-align: right;
+width: 3em;
+}
+div.para { margin-bottom: 0.6em; margin-top: 0.6em; text-align: left; }
+div.section { text-align: left; }
+div.sentence { display: inline; }
+span.indexparent {
+display: inline;
+position: relative;
+float: right;
+right: -1em;
+}
+a.index {
+position: absolute;
+display: none;
+}
+a.index:before { content: "⟵"; }
+
+a.index:target {
+display: inline;
+}
+.indexitems {
+margin-left: 2em;
+text-indent: -2em;
+}
+div.itemdescr {
+margin-left: 3em;
+}
+.bnf {
+font-family: serif;
+margin-left: 40pt;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+}
+.ncbnf {
+font-family: serif;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+margin-left: 40pt;
+}
+.ncsimplebnf {
+font-family: serif;
+font-style: italic;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+margin-left: 40pt;
+background: inherit; 
+}
+span.textnormal {
+font-style: normal;
+font-family: serif;
+white-space: normal;
+display: inline-block;
+}
+span.rlap {
+display: inline-block;
+width: 0px;
+}
+span.descr { font-style: normal; font-family: serif; }
+span.grammarterm { font-style: italic; }
+span.term { font-style: italic; }
+span.terminal { font-family: monospace; font-style: normal; }
+span.nonterminal { font-style: italic; }
+span.tcode { font-family: monospace; font-style: normal; }
+span.textbf { font-weight: bold; }
+span.textsc { font-variant: small-caps; }
+a.nontermdef { font-style: italic; font-family: serif; }
+span.emph { font-style: italic; }
+span.techterm { font-style: italic; }
+span.mathit { font-style: italic; }
+span.mathsf { font-family: sans-serif; }
+span.mathrm { font-family: serif; font-style: normal; }
+span.textrm { font-family: serif; }
+span.textsl { font-style: italic; }
+span.mathtt { font-family: monospace; font-style: normal; }
+span.mbox { font-family: serif; font-style: normal; }
+span.ungap { display: inline-block; width: 2pt; }
+span.textit { font-style: italic; }
+span.texttt { font-family: monospace; }
+span.tcode_in_codeblock { font-family: monospace; font-style: normal; }
+span.phantom { color: white; }
+
+span.math { font-style: normal; }
+span.mathblock {
+display: block;
+margin-left: auto;
+margin-right: auto;
+margin-top: 1.2em;
+margin-bottom: 1.2em;
+text-align: center;
+}
+span.mathalpha {
+font-style: italic;
+}
+span.synopsis {
+font-weight: bold;
+margin-top: 0.5em;
+display: block;
+}
+span.definition {
+font-weight: bold;
+display: block;
+}
+.codeblock {
+margin-left: 1.2em;
+line-height: 127%;
+}
+.outputblock {
+margin-left: 1.2em;
+line-height: 127%;
+}
+div.itemdecl {
+margin-top: 2ex;
+}
+code.itemdeclcode {
+white-space: pre;
+display: block;
+}
+span.textsuperscript {
+vertical-align: super;
+font-size: smaller;
+line-height: 0;
+}
+.footnotenum { vertical-align: super; font-size: smaller; line-height: 0; }
+.footnote {
+font-size: small;
+margin-left: 2em;
+margin-right: 2em;
+margin-top: 0.6em;
+margin-bottom: 0.6em;
+}
+div.minipage {
+display: inline-block;
+margin-right: 3em;
+}
+div.numberedTable {
+text-align: center;
+margin: 2em;
+}
+div.figure {
+text-align: center;
+margin: 2em;
+}
+table {
+border: 1px solid black;
+border-collapse: collapse;
+margin-left: auto;
+margin-right: auto;
+margin-top: 0.8em;
+text-align: left;
+hyphens: none; 
+}
+td, th {
+padding-left: 1em;
+padding-right: 1em;
+vertical-align: top;
+}
+td.empty {
+padding: 0px;
+padding-left: 1px;
+}
+td.left {
+text-align: left;
+}
+td.right {
+text-align: right;
+}
+td.center {
+text-align: center;
+}
+td.justify {
+text-align: justify;
+}
+td.border {
+border-left: 1px solid black;
+}
+tr.rowsep, td.cline {
+border-top: 1px solid black;
+}
+tr.even, tr.odd {
+border-bottom: 1px solid black;
+}
+tr.capsep {
+border-top: 3px solid black;
+border-top-style: double;
+}
+tr.header {
+border-bottom: 3px solid black;
+border-bottom-style: double;
+}
+th {
+border-bottom: 1px solid black;
+}
+span.centry {
+font-weight: bold;
+}
+div.table {
+display: block;
+margin-left: auto;
+margin-right: auto;
+text-align: center;
+width: 90%;
+}
+span.indented {
+display: block;
+margin-left: 2em;
+margin-bottom: 1em;
+margin-top: 1em;
+}
+ol.enumeratea { list-style-type: none; background: inherit; }
+ol.enumerate { list-style-type: none; background: inherit; }
+
+code.sourceCode > span { display: inline; }
+</style>
+  <link href="data:image/x-icon;base64,AAABAAIAEBAAAAEAIABoBAAAJgAAACAgAAABACAAqBAAAI4EAAAoAAAAEAAAACAAAAABACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAVoJEAN6CRADegkQAWIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wCCRAAAgkQAAIJEAACCRAAsgkQAvoJEAP+CRAD/gkQA/4JEAP+CRADAgkQALoJEAACCRAAAgkQAAP///wD///8AgkQAAIJEABSCRACSgkQA/IJEAP99PQD/dzMA/3czAP99PQD/gkQA/4JEAPyCRACUgkQAFIJEAAD///8A////AHw+AFiBQwDqgkQA/4BBAP9/PxP/uZd6/9rJtf/bybX/upd7/39AFP+AQQD/gkQA/4FDAOqAQgBc////AP///wDKklv4jlEa/3o7AP+PWC//8+3o///////////////////////z7un/kFox/35AAP+GRwD/mVYA+v///wD///8A0Zpk+NmibP+0d0T/8evj///////+/fv/1sKz/9bCs//9/fr//////+/m2/+NRwL/nloA/5xYAPj///8A////ANKaZPjRmGH/5cKh////////////k149/3UwAP91MQD/lmQ//86rhv+USg3/m1YA/5hSAP+bVgD4////AP///wDSmmT4zpJY/+/bx///////8+TV/8mLT/+TVx//gkIA/5lVAP+VTAD/x6B//7aEVv/JpH7/s39J+P///wD///8A0ppk+M6SWP/u2sf///////Pj1f/Nj1T/2KFs/8mOUv+eWhD/lEsA/8aee/+0glT/x6F7/7J8Rvj///8A////ANKaZPjRmGH/48Cf///////+/v7/2qt//82PVP/OkFX/37KJ/86siv+USg7/mVQA/5hRAP+bVgD4////AP///wDSmmT40ppk/9CVXP/69O////////7+/v/x4M//8d/P//7+/f//////9u7n/6tnJf+XUgD/nFgA+P///wD///8A0ppk+NKaZP/RmWL/1qNy//r07///////////////////////+vXw/9akdP/Wnmn/y5FY/6JfFvj///8A////ANKaZFTSmmTo0ppk/9GYYv/Ql1//5cWm//Hg0P/x4ND/5cWm/9GXYP/RmGH/0ppk/9KaZOjVnmpY////AP///wDSmmQA0ppkEtKaZI7SmmT60ppk/9CWX//OkVb/zpFW/9CWX//SmmT/0ppk/NKaZJDSmmQS0ppkAP///wD///8A0ppkANKaZADSmmQA0ppkKtKaZLrSmmT/0ppk/9KaZP/SmmT/0ppkvNKaZCrSmmQA0ppkANKaZAD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkUtKaZNzSmmTc0ppkVNKaZADSmmQA0ppkANKaZADSmmQA////AP5/AAD4HwAA4AcAAMADAACAAQAAgAEAAIABAACAAQAAgAEAAIABAACAAQAAgAEAAMADAADgBwAA+B8AAP5/AAAoAAAAIAAAAEAAAAABACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////AP///wCCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAAyCRACMgkQA6oJEAOqCRACQgkQAEIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wD///8A////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRABigkQA5oJEAP+CRAD/gkQA/4JEAP+CRADqgkQAZoJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAAD///8A////AP///wD///8AgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAA4gkQAwoJEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQAxIJEADyCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAP///wD///8A////AP///wCCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAWgkQAmIJEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAJyCRAAYgkQAAIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wD///8A////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAdIJEAPCCRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAPSCRAB4gkQAAIJEAACCRAAAgkQAAIJEAAD///8A////AP///wD///8AgkQAAIJEAACCRAAAgkQASoJEANKCRAD/gkQA/4JEAP+CRAD/g0YA/39AAP9zLgD/bSQA/2shAP9rIQD/bSQA/3MuAP9/PwD/g0YA/4JEAP+CRAD/gkQA/4JEAP+CRADUgkQAToJEAACCRAAAgkQAAP///wD///8A////AP///wB+PwAAgkUAIoJEAKiCRAD/gkQA/4JEAP+CRAD/hEcA/4BBAP9sIwD/dTAA/5RfKv+viF7/vp56/76ee/+wiF7/lWAr/3YxAP9sIwD/f0AA/4RHAP+CRAD/gkQA/4JEAP+CRAD/gkQArIJEACaBQwAA////AP///wD///8A////AIBCAEBzNAD6f0EA/4NFAP+CRAD/gkQA/4VIAP92MwD/bSUA/6N1Tv/ezsL/////////////////////////////////38/D/6V3Uv9uJgD/dTEA/4VJAP+CRAD/gkQA/4JEAP+BQwD/fUAA/4FDAEj///8A////AP///wD///8AzJRd5qBlKf91NgD/dDUA/4JEAP+FSQD/cy4A/3YyAP/PuKP//////////////////////////////////////////////////////9K7qP94NQD/ciwA/4VJAP+CRAD/fkEA/35BAP+LSwD/mlYA6v///wD///8A////AP///wDdpnL/4qx3/8KJUv+PUhf/cTMA/3AsAP90LgD/4dK+/////////////////////////////////////////////////////////////////+TYxf91MAD/dTIA/31CAP+GRwD/llQA/6FcAP+gWwD8////AP///wD///8A////ANGZY/LSm2X/4ap3/92mcP+wdT3/byQA/8mwj////////////////////////////////////////////////////////////////////////////+LYxv9zLgP/jUoA/59bAP+hXAD/nFgA/5xYAPL///8A////AP///wD///8A0ppk8tKaZP/RmWL/1p9q/9ubXv/XqXj////////////////////////////7+fD/vZyG/6BxS/+gcUr/vJuE//r37f//////////////////////3MOr/5dQBf+dVQD/nVkA/5xYAP+cWAD/nFgA8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/SmWP/yohJ//jo2P//////////////////////4NTG/4JDFf9lGAD/bSQA/20kAP9kGAD/fz8S/+Xb0f//////5NG9/6txN/+LOgD/m1QA/51aAP+cWAD/m1cA/5xYAP+cWADy////AP///wD///8A////ANKaZPLSmmT/0ppk/8+TWf/Unmv//v37//////////////////////+TWRr/VwsA/35AAP+ERgD/g0UA/4JGAP9lHgD/kFga/8KXX/+TRwD/jT4A/49CAP+VTQD/n10A/5xYAP+OQQD/lk4A/55cAPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/y4tO/92yiP//////////////////////8NnE/8eCQP+rcTT/ez0A/3IyAP98PgD/gEMA/5FSAP+USwD/jj8A/5lUAP+JNwD/yqV2/694Mf+HNQD/jkAA/82rf/+laBj/jT4A8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/LiUr/4byY///////////////////////gupX/0I5P/+Wuev/Lklz/l1sj/308AP+QSwD/ol0A/59aAP+aVQD/k0oA/8yoh///////+fXv/6pwO//Lp3v///////Pr4f+oay7y////AP///wD///8A////ANKaZPLSmmT/0ppk/8uJSv/hvJj//////////////////////+G7l//Jhkb/0ppk/96nc//fqXX/x4xO/6dkFP+QSQD/llEA/5xXAP+USgD/yaOA///////38uv/qG05/8ijdv//////8efb/6ZpLPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/zIxO/9yxh///////////////////////7dbA/8iEQf/Sm2X/0Zlj/9ScZv/eqHf/2KJv/7yAQf+XTgD/iToA/5lSAP+JNgD/yKFv/611LP+HNQD/jT8A/8qmeP+kZRT/jT4A8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/Pk1n/1J5q//78+//////////////////+/fv/1aFv/8iEQv/Tm2b/0ppl/9GZY//Wn2z/1pZc/9eldf/Bl2b/kUcA/4w9AP+OQAD/lUwA/59eAP+cWQD/jT8A/5ZOAP+eXADy////AP///wD///8A////ANKaZPLSmmT/0ppk/9KZY//KiEn/8d/P///////////////////////47+f/05tm/8iCP//KiEj/yohJ/8eCP//RmGH//vfy///////n1sP/rXQ7/4k4AP+TTAD/nVoA/5xYAP+cVwD/nFgA/5xYAPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/0ptl/8uLTf/aq37////////////////////////////+/fz/6c2y/961jv/etY7/6Myx//78+v//////////////////////3MWv/5xXD/+ORAD/mFQA/51ZAP+cWAD/nFgA8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/SmmT/0ppk/8mFRP/s1b//////////////////////////////////////////////////////////////////////////////+PD/0JFU/7NzMv+WUQD/kUsA/5tXAP+dWQDy////AP///wD///8A////ANKaZP/SmmT/0ppk/9KaZP/Sm2X/z5NZ/8yMT//z5NX/////////////////////////////////////////////////////////////////9Ofa/8yNUP/UmGH/36p5/8yTWv+qaSD/kksA/5ROAPz///8A////AP///wD///8A0ppk5NKaZP/SmmT/0ppk/9KaZP/TnGf/zY9T/82OUv/t1sD//////////////////////////////////////////////////////+7Yw//OkFX/zI5R/9OcZ//SmmP/26V0/9ymdf/BhUf/ol8R6P///wD///8A////AP///wDSmmQ80ppk9tKaZP/SmmT/0ppk/9KaZP/TnGj/zpFW/8qJSv/dson/8uHS//////////////////////////////////Lj0//etIv/y4lL/86QVf/TnGj/0ppk/9KaZP/RmWP/05xn/9ymdfjUnWdC////AP///wD///8A////ANKaZADSmmQc0ppkotKaZP/SmmT/0ppk/9KaZP/Tm2b/0Zli/8qJSf/NjlH/16Z3/+G8mP/myKr/5siq/+G8mP/Xp3f/zY5S/8qISf/RmGH/05tm/9KaZP/SmmT/0ppk/9KaZP/SmmSm0pljINWdaQD///8A////AP///wD///8A0ppkANKaZADSmmQA0ppkQtKaZMrSmmT/0ppk/9KaZP/SmmT/0ptl/9GYYf/Nj1P/y4lL/8qISP/KiEj/y4lK/82PU//RmGH/0ptl/9KaZP/SmmT/0ppk/9KaZP/SmmTO0ppkRtKaZADSmmQA0ppkAP///wD///8A////AP///wDSmmQA0ppkANKaZADSmmQA0ppkANKaZGzSmmTu0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmTw0ppkcNKaZADSmmQA0ppkANKaZADSmmQA////AP///wD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZBLSmmSQ0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppklNKaZBTSmmQA0ppkANKaZADSmmQA0ppkANKaZAD///8A////AP///wD///8A0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQy0ppkutKaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppkvtKaZDbSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkAP///wD///8A////AP///wDSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkXNKaZODSmmT/0ppk/9KaZP/SmmT/0ppk5NKaZGDSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA////AP///wD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkBtKaZIbSmmTo0ppk6tKaZIrSmmQK0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZAD///8A////AP/8P///+B///+AH//+AAf//AAD//AAAP/AAAA/gAAAHwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA+AAAAfwAAAP/AAAP/8AAP//gAH//+AH///4H////D//" rel="icon" />
+  
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<div class="wrapper">
+<header id="title-block-header">
+<h1 class="title" style="text-align:center">Replacement wording for
+<code class="sourceCode cpp">value_or</code> in D1255</h1>
+<table style="border:none;float:right">
+  <tr>
+    <td>Document #:</td>
+    <td>value_or</td>
+  </tr>
+  <tr>
+    <td>Date:</td>
+    <td><!-- $TimeStamp$ -->
+2024-10-02 13:53 EDT<!-- $ --></td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Project:</td>
+    <td>Programming Language C++</td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Audience:</td>
+    <td>
+      LEWGI<br>
+    </td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Reply-to:</td>
+    <td>
+      Pablo Halpern<br>&lt;<a href="mailto:phalpern@halpernwightsoftware.com" class="email">phalpern@halpernwightsoftware.com</a>&gt;<br>
+    </td>
+  </tr>
+</table>
+</header>
+<div style="clear:both">
+<div id="TOC" role="doc-toc">
+<h1 id="toctitle">Contents</h1>
+<ul>
+<li><a href="#bibliography" id="toc-bibliography"><span class="toc-section-number">1</span> References<span></span></a></li>
+</ul>
+</div>
+<p>Hi Steve,</p>
+<p>In preparation for updating my paper on
+<code class="sourceCode cpp">map<span class="op">::</span>get</code>,
+<span class="citation" data-cites="P3091R2">[<a href="https://wg21.link/p3091r2" role="doc-biblioref">P3091R2</a>]</span>, I looked at <span class="citation" data-cites="D1255R14">[<a href="#ref-D1255R14" role="doc-biblioref"><strong>D1255R14?</strong></a>]</span> to see the
+correct usage of <code class="sourceCode cpp">std<span class="op">::</span>value_or</code>, and
+I discovered a number of problems. Note that I reviewed only the
+<em>Maybe types</em> section, but if I have time, I can look at the
+rest.</p>
+<p>First and foremost, we had discussed making two enhancements to
+<code class="sourceCode cpp">value_or</code>, first as part of
+<code class="sourceCode cpp">optional</code>, then, instead, as part of
+<em>Maybe types</em>: 1) Let the user optionally specify the return
+type, so that you could construct an, e.g.,
+<code class="sourceCode cpp">string_view</code> from a character literal
+without creating a temporary
+<code class="sourceCode cpp">std<span class="op">::</span>string</code>
+that would then become a hanging reference:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>string <span class="op">*</span>p <span class="op">=</span> <span class="kw">nullptr</span>;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>string_view sv1 <span class="op">=</span> std<span class="op">::</span>value_or<span class="op">(</span>p, <span class="st">&quot;hello&quot;</span><span class="op">)</span>;  <span class="co">// </span><span class="al">BUG</span><span class="co">: dangling reference</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>string_view sv2 <span class="op">=</span> std<span class="op">::</span>value_or<span class="op">&lt;</span>std<span class="op">::</span>string_view<span class="op">&gt;(</span>p, <span class="st">&quot;hello&quot;</span><span class="op">)</span>;  <span class="co">// OK</span></span></code></pre></div>
+<p>The second usage of <code class="sourceCode cpp">std<span class="op">::</span>value_or</code> is
+not allowed in the current wording of D1255.</p>
+<p>The other desirable feature was to allow
+<code class="sourceCode cpp">value_or</code> to have a variadic
+parameter list, so that you can, again, construct the return value
+efficiently without creating unnecessary temporaries:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>optional<span class="op">&lt;</span>std<span class="op">::</span>vector<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;&gt;</span> opt;       <span class="co">// disengaged</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>vector v <span class="op">=</span> std<span class="op">::</span>value_or<span class="op">(</span>opt, <span class="dv">3</span>, <span class="dv">2</span><span class="op">)</span>;  <span class="co">// Constructs vector{2, 2, 2}</span></span></code></pre></div>
+<p>The same consideration applies to
+<code class="sourceCode cpp">initializer_list</code> arguments.</p>
+<p>The other problem I saw was wording inaccuracies, typos, and
+usability issues with not only
+<code class="sourceCode cpp">value_or</code>, but with
+<code class="sourceCode cpp">reference_or</code> and
+<code class="sourceCode cpp">or_invoke</code>, too:</p>
+<ul>
+<li><p>All of them have an optional parameter,
+<code class="sourceCode cpp">R</code>, that is pretty much useless.
+Because it is the last parameter, the only way to specify a type other
+than the default is to specify all of the other template arguments
+first.</p></li>
+<li><p>In all cases, <code class="sourceCode cpp">m</code> was used
+instead of <code class="sourceCode cpp"><span class="op">*</span>std<span class="op">::</span>forward<span class="op">&lt;</span>T<span class="op">&gt;(</span>m<span class="op">)</span></code>,
+resulting in an <code class="sourceCode cpp">optional</code> rvalue
+being treated as an lvalue. Similarly for
+<code class="sourceCode cpp">invocable</code>.</p></li>
+<li><p>In a number of places <code class="sourceCode cpp">T</code> was
+used instead of the type returned by dereferencing a value of type
+<code class="sourceCode cpp">T</code>.</p></li>
+<li><p>In a number of cases <code class="sourceCode cpp">iter_reference_t<span class="op">&lt;</span>T<span class="op">&gt;</span></code>
+was used, which (weirdly) discards the value category of
+<code class="sourceCode cpp">T</code>. This means that if
+<code class="sourceCode cpp">T</code> is <code class="sourceCode cpp">optional<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;&amp;&amp;</span></code>,
+<code class="sourceCode cpp">iter_reference_t<span class="op">&lt;</span>T<span class="op">&gt;</span></code>
+is <code class="sourceCode cpp"><span class="dt">int</span><span class="op">&amp;</span></code>
+instead of <code class="sourceCode cpp"><span class="dt">int</span><span class="op">&amp;&amp;</span></code>,
+throwing many things off. I replaced the use of <code class="sourceCode cpp">iter_reference_t<span class="op">&lt;</span>T<span class="op">&gt;</span></code>
+with <code class="sourceCode cpp"><span class="kw">decltype</span><span class="op">(*</span>std<span class="op">::</span>forward<span class="op">&lt;</span>T<span class="op">&gt;(</span>m<span class="op">))</span></code>.</p></li>
+</ul>
+<p>I’ve taken the liberty of re-writing the entire “Maybe Types” section
+of <span class="citation" data-cites="D1255R14">[<a href="#ref-D1255R14" role="doc-biblioref"><strong>D1255R14?</strong></a>]</span> to add the
+<code class="sourceCode cpp">value_or</code> functionality and fix the
+other issues mentioned above.</p>
+<p>I had the following additional concerns, but didn’t make the changes
+because I felt that they would need more discussion.</p>
+<ol type="1">
+<li><p>For <code class="sourceCode cpp">reference_or</code> and
+<code class="sourceCode cpp">or_invoke</code>, it’s not clear to me that
+the purpose of the <code class="sourceCode cpp">R</code> parameter was
+to allow the caller to override it with a specific type. If that is not
+the purpose, then <code class="sourceCode cpp">R</code> can be removed
+from the parameter list, thus simplifying the specification; the
+computed return type can just be put after the
+<code class="sourceCode cpp"><span class="op">-&gt;</span></code>,
+without needing another template parameter.</p></li>
+<li><p>I’m not a concepts expert, but I wonder if restricting the
+deference operator of <code class="sourceCode cpp">maybe</code> types to
+<code class="sourceCode cpp"><span class="kw">const</span> T</code> is
+unnecessary. I can imagine, for example, an input iterator for which
+<code class="sourceCode cpp"><span class="kw">operator</span><span class="op">*</span></code>
+is mutating. Would the following not be better?</p></li>
+</ol>
+<div class="sourceCode" id="cb3"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T<span class="op">&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">concept</span> maybe <span class="op">:</span> <span class="kw">requires</span><span class="op">(</span><span class="kw">const</span> T a, T b<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>      <span class="dt">bool</span><span class="op">(</span>a<span class="op">)</span>;</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>      <span class="op">*</span>b;</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span>;</span></code></pre></div>
+<ol start="3" type="1">
+<li><p>Shouldn’t <code class="sourceCode cpp">or_invoke</code> be named
+<code class="sourceCode cpp">or_else</code>, for consistency with the
+monadic function in <code class="sourceCode cpp">std<span class="op">::</span>optional</code>?</p></li>
+<li><p>It seems to me that if
+<code class="sourceCode cpp">or_invoke</code> cannot find a common
+return type, it would still be useful if it returned
+<code class="sourceCode cpp"><span class="dt">void</span></code>.</p></li>
+<li><p>Shouldn’t there be an
+<code class="sourceCode cpp">and_then</code> (not sure what the return
+type should be)?</p></li>
+</ol>
+<p>The diffs below are relative to the latest copy of <span class="citation" data-cites="D1255R14">[<a href="#ref-D1255R14" role="doc-biblioref"><strong>D1255R14?</strong></a>]</span> to which I
+have access. This interface is implemented <a href="https://github.com/phalpern/WG21-halpern/blob/P3091/P3091-map_lookup/xoptional.h#L176">here</a>:</p>
+<blockquote>
+<p><strong>??.1 Maybe Types [maybe]</strong></p>
+</blockquote>
+<blockquote>
+<p><strong>??.??.1 In general [maybe.general]</strong></p>
+</blockquote>
+<blockquote>
+<p>Subclause ??.1 describes the concept
+<code class="sourceCode cpp">maybe</code> that represents types that
+model optionality and functions that operate on such types.</p>
+</blockquote>
+<blockquote>
+<p><strong>??.??.2 Header <code class="sourceCode cpp"><span class="op">&lt;</span>maybe<span class="op">&gt;</span></code>
+synopsis [maybe.syn]</strong></p>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode cpp"><span class="kw">namespace</span> std <span class="op">{</span></code><br />
+<br />
+<code class="sourceCode cpp"><span class="co">// ??,</span></code>
+<em><span class="rm" style="color: #bf0303"><del>class
+template</del></span> <span class="add" style="color: #006e28"><ins>concept</ins></span>
+<code class="sourceCode cpp">maybe</code></em><br />
+<code class="sourceCode cpp"><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T<span class="op">&gt;</span></code><br />
+<code class="sourceCode cpp"><span class="kw">concept</span> maybe <span class="op">=</span> <span class="kw">requires</span><span class="op">(</span><span class="kw">const</span> T t<span class="op">)</span> <span class="op">{</span></code><br />
+    <code class="sourceCode cpp"><span class="dt">bool</span><span class="op">(</span>t<span class="op">)</span>;</code><br />
+    <code class="sourceCode cpp"><span class="op">*(</span>t<span class="op">)</span>;</code><br />
+<code class="sourceCode cpp"><span class="op">}</span>;</code></div>
+</blockquote>
+<div class="rm" style="color: #bf0303">
+
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;maybe T, class U, class R&gt;</code><br />
+    <code class="sourceCode default">constexpr auto value_or(T&amp;&amp; m, U&amp;&amp; u) -&gt; R;</code><br />
+<br />
+<code class="sourceCode default">template &lt;maybe T, class U, class R&gt;</code><br />
+    <code class="sourceCode default">constexpr auto reference_or(T&amp;&amp; m, U&amp;&amp; u) -&gt; R;</code><br />
+<br />
+<code class="sourceCode default">template &lt;maybe T, class I, class R&gt;</code><br />
+    <code class="sourceCode default">constexpr auto or_invoke(T&amp;&amp; m, I&amp;&amp; invocable) -&gt; R;</code></div>
+</blockquote>
+
+</div>
+<div class="add" style="color: #006e28">
+
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class R = void, maybe T, class... U&gt;</code><br />
+    <code class="sourceCode default">constexpr auto value_or(T&amp;&amp; m, U&amp;&amp;... u) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code><br />
+<br />
+<code class="sourceCode default">template &lt;class R = void, maybe T, class U&gt;</code><br />
+    <code class="sourceCode default">constexpr auto reference_or(T&amp;&amp; m, U&amp;&amp; u) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code><br />
+<br />
+<code class="sourceCode default">template &lt;class R = void, maybe T, class I&gt;</code><br />
+    <code class="sourceCode default">constexpr auto or_invoke(T&amp;&amp; m, I&amp;&amp; invocable) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code></div>
+</blockquote>
+
+</div>
+<blockquote>
+<div class="line-block"><code class="sourceCode cpp"><span class="op">}</span></code></div>
+</blockquote>
+<div class="rm" style="color: #bf0303">
+
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;maybe T, class U, class R = common_type_t&lt;iter_reference_t&lt;T&gt;, U&amp;&amp;&gt;&gt;&gt;</code><br />
+    <code class="sourceCode default">constexpr auto value_or(T&amp;&amp; m, U&amp;&amp; u) -&gt; R;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">T</code> models
+<code class="sourceCode default">maybe</code> <code class="sourceCode default">common_type_t&lt;iter_reference_t&lt;T&gt;, U&amp;&amp;&gt;::type</code>
+is defined</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">bool(m) ? static_cast&lt;R&gt;(*m) : static_cast&lt;R&gt;(forward&lt;U&gt;(u)).</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;maybe T, class U, class R = common_reference_t&lt;iter_reference_t&lt;T&gt;, U&amp;&amp;&gt;&gt;</code><br />
+<code class="sourceCode default">constexpr auto smd::reference_or(T&amp;&amp; m, U&amp;&amp; u) -&gt; R;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">T</code> models
+<code class="sourceCode default">maybe</code> <code class="sourceCode default">common_reference&lt;iter_reference_t&lt;T&gt;, U&amp;&amp;&gt;::type</code>
+is defined</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Constraints</em>: <code class="sourceCode default">!reference_constructs_from_temporary_v&lt;R, U&gt;</code>
+<code class="sourceCode default">!reference_constructs_from_temporary_v&lt;R, T&amp;&gt;</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">bool(m) ? static_cast&lt;R&gt;(*m) : static_cast&lt;R&gt;((U&amp;&amp;)u)</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;maybe T, class I,</code><br />
+                      <code class="sourceCode default">class R = common_type_t&lt;iter_reference_t&lt;T&gt;, invoke_result_t&lt;I&gt;&gt;&gt;</code><br />
+<code class="sourceCode default">constexpr auto or_invoke(T&amp;&amp; m, I&amp;&amp; invocable) -&gt; R</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">T</code> models
+<code class="sourceCode default">maybe</code> <code class="sourceCode default">common_type&lt;iter_reference_t&lt;T&gt;</code>,
+<code class="sourceCode default">invoke_result_t&lt;I&gt;&gt;::type</code> is
+defined</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">bool(m) ? static_cast&lt;R&gt;(*m) : static_cast&lt;R&gt;(invocable())</code></p>
+</blockquote>
+</blockquote>
+
+</div>
+<div class="add" style="color: #006e28">
+
+<blockquote>
+<p><strong>Functions on <code class="sourceCode default">maybe</code>
+types [maybe.func]</strong></p>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class R = void, maybe T, class... U&gt;</code><br />
+    <code class="sourceCode default">constexpr auto value_or(T&amp;&amp; m, U&amp;&amp;... u) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p>If <code class="sourceCode default">R</code> is not
+<code class="sourceCode default">void</code>, the return type,
+<code class="sourceCode default">RT</code> is
+<code class="sourceCode default">R</code>. Otherwise, if
+<code class="sourceCode default">sizeof...(U)</code> is 1,
+<code class="sourceCode default">RT</code> is <code class="sourceCode default">common_type_t&lt;remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;&gt;</code>.
+Otherwise, <code class="sourceCode default">RT</code> is <code class="sourceCode default">remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">RT</code>, is a
+valid type.
+<code class="sourceCode default">is_constructible_v&lt;RT,</code> <code class="sourceCode default">decltype(*std::forward&lt;T&gt;(m))&gt; &amp;&amp; is_constructible_v&lt;RT, U...&gt;</code>
+is <code class="sourceCode default">true</code>. If
+<code class="sourceCode default">RT</code> is a reference type, then
+<code class="sourceCode default">sizeof(U...)</code> is 1 and <code class="sourceCode default">reference_constructs_from_temporary_v&lt;RT, decltype(*std::forward&lt;T&gt;(m))&gt;</code>
+<code class="sourceCode default">|| reference_constructs_from_temporary_v&lt;RT, U...&gt;</code>
+is <code class="sourceCode default">false</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">return bool(m) ? static_cast&lt;RT&gt;(*forward&lt;T&gt;(m)) : RT(forward&lt;U&gt;(u)...);</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class R = void, maybe T, class IT, class... U&gt;</code><br />
+    <code class="sourceCode default">constexpr auto value_or(T&amp;&amp; m, initializer_list&lt;IT&gt; il, U&amp;&amp;... u) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p>If <code class="sourceCode default">R</code> is not
+<code class="sourceCode default">void</code>, the return type,
+<code class="sourceCode default">RT</code> is
+<code class="sourceCode default">R</code>, otherwise
+<code class="sourceCode default">RT</code> is <code class="sourceCode default">remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">is_constructible_v&lt;RT, decltype(*std::forward&lt;T&gt;(m))&gt; &amp;&amp;</code>
+<code class="sourceCode default">is_constructible_v&lt;RT, initializer_list&lt;IT&gt; il, U...&gt;</code>
+is <code class="sourceCode default">true</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">return bool(m) ? static_cast&lt;RT&gt;(*forward&lt;T&gt;(m)) : RT(il, forward&lt;U&gt;(u)...);</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class R = void, maybe T, class U&gt;</code><br />
+    <code class="sourceCode default">constexpr auto reference_or(T&amp;&amp; m, U&amp;&amp; u) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p>If <code class="sourceCode default">R</code> is not
+<code class="sourceCode default">void</code>, the return type,
+<code class="sourceCode default">RT</code> is
+<code class="sourceCode default">R</code>, otherwise
+<code class="sourceCode default">RT</code> is <code class="sourceCode default">common_reference_t&lt;decltype(*std::forward&lt;T&gt;(m)), U&amp;&amp;&gt;</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">RT</code> is a
+valid type. <code class="sourceCode default">reference_constructs_from_temporary_v&lt;RT, U&gt; ||</code>
+<code class="sourceCode default">reference_constructs_from_temporary_v&lt;RT, decltype(*std::forward&lt;T&gt;(m)&gt;</code>
+is <code class="sourceCode default">false</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">bool(m) ? static_cast&lt;RT&gt;(*std::forward&lt;T&gt;(m)) : static_cast&lt;RT&gt;(std::forward&lt;U&gt;(u))</code></p>
+</blockquote>
+</blockquote>
+<blockquote>
+<div class="line-block"><code class="sourceCode default">template &lt;class R = void, maybe T, class I&gt;</code><br />
+    <code class="sourceCode default">constexpr auto or_invoke(T&amp;&amp; m, I&amp;&amp; invocable) -&gt;</code>
+<em>see below</em><code class="sourceCode default">;</code></div>
+</blockquote>
+<blockquote>
+<blockquote>
+<p>If <code class="sourceCode default">R</code> is not
+<code class="sourceCode default">void</code>, the return type,
+<code class="sourceCode default">RT</code> is
+<code class="sourceCode default">R</code>, otherwise
+<code class="sourceCode default">RT</code> is <code class="sourceCode default">common_type_t&lt;decltype(*std::forward&lt;T&gt;(m)), invoke_result_t&lt;I&gt;&gt;</code>.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Mandates</em>: <code class="sourceCode default">RT</code> is a
+valid type.</p>
+</blockquote>
+</blockquote>
+<blockquote>
+<blockquote>
+<p><em>Returns</em>: <code class="sourceCode default">bool(m) ? static_cast&lt;RT&gt;(*m) : static_cast&lt;RT&gt;(std::forward&lt;I&gt;(invocable)());</code></p>
+</blockquote>
+</blockquote>
+
+</div>
+<h1 data-number="1" id="bibliography"><span class="header-section-number">1</span> References<a href="#bibliography" class="self-link"></a></h1>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="1" role="doc-bibliography">
+<div id="ref-P3091R2" class="csl-entry" role="doc-biblioentry">
+[P3091R2] Pablo Halpern. 2024-05-22. Better lookups for `map` and
+`unordered_map`. <a href="https://wg21.link/p3091r2"><div class="csl-block">https://wg21.link/p3091r2</div></a>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
