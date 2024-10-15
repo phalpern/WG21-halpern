@@ -443,7 +443,7 @@ code.sourceCode > span { display: inline; }
   <tr>
     <td>Date:</td>
     <td><!-- $TimeStamp$ -->
-2024-10-02 13:53 EDT<!-- $ --></td>
+2024-10-15 11:41 EDT<!-- $ --></td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -711,7 +711,7 @@ types [maybe.func]</strong></p>
 <code class="sourceCode default">RT</code> is
 <code class="sourceCode default">R</code>. Otherwise, if
 <code class="sourceCode default">sizeof...(U)</code> is 1,
-<code class="sourceCode default">RT</code> is <code class="sourceCode default">common_type_t&lt;remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;&gt;</code>.
+<code class="sourceCode default">RT</code> is <code class="sourceCode default">common_type_t&lt;remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;, remove_cvref_t&lt;U&gt;...&gt;</code>.
 Otherwise, <code class="sourceCode default">RT</code> is <code class="sourceCode default">remove_cvref_t&lt;decltype(*std::forward&lt;T&gt;(m))&gt;</code>.</p>
 </blockquote>
 </blockquote>

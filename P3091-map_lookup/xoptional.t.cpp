@@ -176,6 +176,155 @@ void test_value_or()
   }
 }
 
+template <class Opt, class Ref>
+void test_or_invoke()
+{
+  constexpr bool IsRefT = std::is_reference_v<typename Opt::value_type>;
+
+  using Val      = int;
+  using ConstVal = const Val;
+  using ConstRef = ConstVal&;                // Might be reference to const
+  using Ptr      = std::remove_reference_t<Ref>*;
+  using ConstPtr = ConstVal*;                // Might be pointer to const
+
+  auto prval = []{ return 1; };
+  auto lval  = []() -> int& { static int x = 2; return x; };
+  auto clval = []() -> const int& { static const int x = 3; return x; };
+  auto slval = []() -> short& { static short x = 4; return x; };
+
+  int       exp   = 4;  // expected value of engaged optional
+
+  ///////////// DISENGAGED /////////////
+  {
+    Opt obj;
+    assert(! obj.has_value());
+
+    // No expicit return type
+    expect<     Val>(prval(), or_invoke(obj, prval));
+    expect<     Val>(lval(),  or_invoke(obj, lval));
+    expect<     Val>(clval(), or_invoke(obj, clval));
+    expect<     Val>(slval(), or_invoke(obj, slval));
+    expect<     Val>(prval(), or_invoke(Opt(), prval));
+    expect<     Val>(lval(),  or_invoke(Opt(), lval));
+    expect<     Val>(clval(), or_invoke(Opt(), clval));
+    expect<     Val>(slval(), or_invoke(Opt(), slval));
+
+    // Explicit rvalue return type
+    expect<    long>(prval(), or_invoke<    long>(obj, prval));
+    expect<    long>(lval(),  or_invoke<    long>(obj, lval));
+    expect<    long>(clval(), or_invoke<    long>(obj, clval));
+    expect<    long>(slval(), or_invoke<    long>(obj, slval));
+    expect<    long>(prval(), or_invoke<    long>(Opt(), prval));
+    expect<    long>(lval(),  or_invoke<    long>(Opt(), lval));
+    expect<    long>(clval(), or_invoke<    long>(Opt(), clval));
+    expect<    long>(slval(), or_invoke<    long>(Opt(), slval));
+
+    // Explicit lvalue (might or might not be const)
+    expect<     Ref>( lval(),  or_invoke<     Ref>(obj, lval));
+    expect<     Ptr>(&lval(), &or_invoke<     Ref>(obj, lval));
+    if constexpr (std::is_const_v<Ref>)
+    {
+      // If Ref is const lvalue, then try with const lvalue arg
+      expect<     Ref>( clval(),  or_invoke<     Ref>(obj, clval));
+      expect<     Ptr>(&clval(), &or_invoke<     Ref>(obj, clval));
+    }
+    if constexpr (IsRefT)
+    {
+      expect<     Ref>( lval(),  or_invoke<     Ref>(Opt(), lval));
+      expect<     Ptr>(&lval(), &or_invoke<     Ref>(Opt(), lval));
+    }
+
+    // Explicit const lvalue
+    expect<ConstRef>( lval(),   or_invoke<ConstRef>(obj, lval));
+    expect<ConstPtr>(&lval(),  &or_invoke<ConstRef>(obj, lval));
+    expect<ConstRef>( clval(),  or_invoke<ConstRef>(obj, clval));
+    expect<ConstPtr>(&clval(), &or_invoke<ConstRef>(obj, clval));
+    if constexpr (IsRefT)
+    {
+      expect<ConstRef>( lval(),   or_invoke<ConstRef>(Opt(), lval));
+      expect<ConstPtr>(&lval(),  &or_invoke<ConstRef>(Opt(), lval));
+      expect<ConstRef>( clval(),  or_invoke<ConstRef>(Opt(), clval));
+      expect<ConstPtr>(&clval(), &or_invoke<ConstRef>(Opt(), clval));
+    }
+  }
+
+  ///////////// ENGAGED /////////////
+  {
+    Opt obj(exp);
+    assert(obj.has_value());
+
+    const int* expPtr = IsRefT ? &exp : &*obj;
+
+    // No expicit return type
+    expect<     Val>(exp,     or_invoke(obj, prval));
+    expect<     Val>(exp,     or_invoke(obj, lval));
+    expect<     Val>(exp,     or_invoke(obj, clval));
+    expect<     Val>(exp,     or_invoke(obj, slval));
+    expect<     Val>(exp,     or_invoke(Opt(exp), prval));
+    expect<     Val>(exp,     or_invoke(Opt(exp), lval));
+    expect<     Val>(exp,     or_invoke(Opt(exp), clval));
+    expect<     Val>(exp,     or_invoke(Opt(exp), slval));
+
+    // Explicit rvalue return type
+    expect<    long>(exp,     or_invoke<    long>(obj, prval));
+    expect<    long>(exp,     or_invoke<    long>(obj, lval));
+    expect<    long>(exp,     or_invoke<    long>(obj, clval));
+    expect<    long>(exp,     or_invoke<    long>(obj, slval));
+    expect<    long>(exp,     or_invoke<    long>(Opt(exp), prval));
+    expect<    long>(exp,     or_invoke<    long>(Opt(exp), lval));
+    expect<    long>(exp,     or_invoke<    long>(Opt(exp), clval));
+    expect<    long>(exp,     or_invoke<    long>(Opt(exp), slval));
+
+    // Explicit lvalue
+    expect<     Ref>(exp,     or_invoke<     Ref>(obj, lval));
+    expect<     Ptr>(expPtr, &or_invoke<     Ref>(obj, lval));
+    if constexpr (std::is_const_v<Ref>)
+    {
+      // If Ref is const lvalue, then try with const lvalue arg
+      expect<     Ref>(exp,     or_invoke<     Ref>(obj, clval));
+      expect<     Ptr>(expPtr, &or_invoke<     Ref>(obj, clval));
+    }
+    if constexpr (IsRefT)
+    {
+      expect<     Ref>(exp,     or_invoke<     Ref>(Opt(exp), lval));
+      expect<     Ptr>(expPtr, &or_invoke<     Ref>(Opt(exp), lval));
+    }
+
+    // Explicit const lvalue
+    expect<ConstRef>(exp,     or_invoke<ConstRef>(obj, lval));
+    expect<ConstPtr>(expPtr, &or_invoke<ConstRef>(obj, lval));
+    expect<ConstRef>(exp,     or_invoke<ConstRef>(obj, clval));
+    expect<ConstPtr>(expPtr, &or_invoke<ConstRef>(obj, clval));
+    if constexpr (IsRefT)
+    {
+      expect<ConstRef>(exp,     or_invoke<ConstRef>(Opt(exp), lval));
+      expect<ConstPtr>(expPtr, &or_invoke<ConstRef>(Opt(exp), lval));
+      expect<ConstRef>(exp,     or_invoke<ConstRef>(Opt(exp), clval));
+      expect<ConstPtr>(expPtr, &or_invoke<ConstRef>(Opt(exp), clval));
+    }
+
+// #define NEGATIVE_TEST
+#ifdef NEGATIVE_TEST
+    // These should all fail to compile
+
+    if constexpr (! IsRefT)
+    {
+      // Can't return lvalue reference to object within rvalue `optional`
+      (void) or_invoke<Ref>(Opt(), lval);
+      (void) or_invoke<ConstRef>(Opt(), lval);
+    }
+
+    // Can't return lvalue reference to rvalue
+    (void) or_invoke<     Ref>(obj, prval);
+    (void) or_invoke<ConstRef>(obj, prval);
+
+    // Can't convert reference from one lvalue to another
+    (void) or_invoke<     Ref>(obj, slval);
+    (void) or_invoke<ConstRef>(obj, slval);
+#endif // NEGATIVE_TEST
+  }
+}
+
 int main()
 {
   // Test `value_or` with one argument
@@ -185,6 +334,14 @@ int main()
   test_value_or<      xstd::optional<int const&>, int const&>();
   test_value_or<const xstd::optional<int      &>, int      &>();
   test_value_or<const xstd::optional<int const&>, int const&>();
+
+  // Test `or_invoke`
+  test_or_invoke<      xstd::optional<int       >, int      &>();
+  test_or_invoke<const xstd::optional<int       >, int const&>();
+  test_or_invoke<      xstd::optional<int      &>, int      &>();
+  test_or_invoke<      xstd::optional<int const&>, int const&>();
+  test_or_invoke<const xstd::optional<int      &>, int      &>();
+  test_or_invoke<const xstd::optional<int const&>, int const&>();
 
   // Test that rvalue reference return is possible
   (void) value_or(xstd::optional<int>(), prval());

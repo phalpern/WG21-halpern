@@ -1,7 +1,7 @@
 ---
 title: "Replacement wording for `value_or` in D1255"
 document: value_or
-date: <!-- $TimeStamp$ -->2024-10-02 13:53 EDT<!-- $ -->
+date: <!-- $TimeStamp$ -->2024-10-15 11:41 EDT<!-- $ -->
 audience: LEWGI
 author:
   - name: Pablo Halpern
@@ -178,7 +178,7 @@ access.  This interface is implemented [here](https://github.com/phalpern/WG21-h
 
 >> If `R` is not `void`, the return type, `RT` is `R`. Otherwise, if
 >> `sizeof...(U)` is 1, `RT` is
->> `common_type_t<remove_cvref_t<decltype(*std::forward<T>(m))>>`. Otherwise,
+>> `common_type_t<remove_cvref_t<decltype(*std::forward<T>(m))>, remove_cvref_t<U>...>`. Otherwise,
 >> `RT` is `remove_cvref_t<decltype(*std::forward<T>(m))>`.
 
 >> *Mandates*: `RT`, is a valid type. `is_constructible_v<RT,`
