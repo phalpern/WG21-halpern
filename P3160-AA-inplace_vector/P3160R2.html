@@ -443,7 +443,7 @@ code.sourceCode > span { display: inline; }
   <tr>
     <td>Date:</td>
     <td><!-- $TimeStamp$ -->
-2024-10-14 13:29 EDT<!-- $ --></td>
+2024-10-14 20:04 EDT<!-- $ --></td>
   </tr>
   <tr>
     <td style="vertical-align:top">Project:</td>
@@ -1253,9 +1253,9 @@ are not instantiated:</p>
 <tbody>
 <tr class="odd">
 <td><strong><code class="sourceCode cpp">construct<span class="op">/</span>destroy</code>
-Wording</strong>: Omit the second addition (“<span class="add" style="color: #006e28"><ins>If
+Wording</strong>: Omit the addition (“<span class="add" style="color: #006e28"><ins>If
 <span><code class="sourceCode default">X</code></span> is a
-specialization…</ins></span>”, above, if the <code class="sourceCode cpp">construct<span class="op">/</span>destroy</code>
+specialization…</ins></span>”), above, if the <code class="sourceCode cpp">construct<span class="op">/</span>destroy</code>
 design is chosen.</td>
 </tr>
 </tbody>
@@ -1576,7 +1576,7 @@ ignored by <code class="sourceCode default">inplace_vector</code>. —
 </tr>
 <tr class="even">
 <td><p><strong><code class="sourceCode cpp">construct<span class="op">/</span>destroy</code>
-Wording</strong> (Arthur preference): Remove the definition of
+Wording</strong> (Arthur’s preference): Remove the definition of
 <em>is-nothrow-ua-constructible-v</em>, above, entirely. Replace each
 use in an exception specification with <em>see below</em>. The exception
 specification will then be described per-operation for the case where
@@ -1623,24 +1623,7 @@ otherwise, the exception specification is unspecified.</p>
 </tbody>
 </table>
 <p>Add an <code class="sourceCode cpp">Allocator</code> parameter to the
-definition of <code class="sourceCode cpp">inplace_vector</code>. Note
-that, <strong>unlike other allocator-aware containers</strong>, the
-<code class="sourceCode cpp">pointer</code> and
-<code class="sourceCode cpp">size_type</code> types are not taken from
-the allocator because the elements of the
-<code class="sourceCode cpp">inplace_vector</code> are not stored in
-allocated memory, so pointers to those elements are not the type of
-pointer returned by the allocator (unless the allocator uses raw
-pointers). This fact does not mean that fancy pointers are not
-supported, only that they are inappropriate for the
-<code class="sourceCode cpp">inplace_vector</code> interface; an <code class="sourceCode cpp">inplace_vector<span class="op">&lt;</span>fancy_type, fancy_allocator<span class="op">&lt;</span>fancy_type<span class="op">&gt;&gt;</span></code>
-will still use <code class="sourceCode cpp">fancy_allocator<span class="op">&lt;</span>T<span class="op">&gt;::</span>pointer</code>
-within the <code class="sourceCode cpp">fancy_type</code> elements. Note
-that, as of publication, Arthur is unconvinced of this definition,
-pointing to <a href="https://quuxplusone.github.io/blog/2024/08/23/boost-interprocess-tutorial/">this
-blog post</a> as an illustration of the use of fancy pointers. It is a
-good blog post, but Pablo believes it does not affect the correctness of
-this interface.</p>
+definition of <code class="sourceCode cpp">inplace_vector</code>.</p>
 <blockquote>
 <div class="line-block"><code class="sourceCode cpp"><span class="kw">namespace</span> std <span class="op">{</span></code><br />
     <code class="sourceCode cpp"><span class="kw">template</span><span class="op">&lt;</span><span class="kw">class</span> T, <span class="dt">size_t</span> N</code><span class="add" style="color: #006e28"><ins><span><code class="sourceCode default">, class Allocator = allocator&lt;T&gt;</code></span></ins></span><code class="sourceCode cpp"><span class="op">&gt;</span></code><br />
@@ -1656,6 +1639,51 @@ this interface.</p>
          <code class="sourceCode cpp"><span class="kw">using</span> size_type         <span class="op">=</span> <span class="dt">size_t</span>;</code><br />
          <code class="sourceCode cpp"><span class="kw">using</span> difference_type   <span class="op">=</span> <span class="dt">ptrdiff_t</span>;</code></div>
 </blockquote>
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><strong>LWG Issue</strong>: <em>unlike other allocator-aware
+containers</em>, the <code class="sourceCode cpp">size_type</code>,
+<code class="sourceCode cpp">difference_type</code>,
+<code class="sourceCode cpp">pointer</code>, and
+<code class="sourceCode cpp">const_pointer</code> types are not aliases
+for the corresponding
+<code class="sourceCode cpp">allocator_traits</code> types. The
+<code class="sourceCode cpp">size_type</code> and
+<code class="sourceCode cpp">difference_type</code> types are specified
+by the standard to be types that can represent the distance between two
+iterators. Not being stored in allocated memory, the integral type that
+can represent the distance between elements in an
+<code class="sourceCode cpp">inplace_vector</code> is unrelated to the
+allocator. The meaning and intended use of
+<code class="sourceCode cpp">pointer</code> and
+<code class="sourceCode cpp">const_pointer</code> is not specified
+anywhere in the standard, so it is not clear whether it should be
+consistent with the allocator or consistent with the (raw) element
+storage. The definitions above are consistent with raw element storage,
+like <code class="sourceCode cpp">size_type</code> and
+<code class="sourceCode cpp">difference_type</code>, and is also
+consistent with the current use of
+<code class="sourceCode cpp">pointer</code> as the return type for
+<code class="sourceCode cpp">try_emplace_back</code> and
+<code class="sourceCode cpp">try_push_back</code>. Arthur believes that
+<code class="sourceCode cpp">pointer</code> should, instead be an alias
+for <code class="sourceCode cpp">allocator_traits<span class="op">::</span>pointer</code>.
+If LWG decides that the intended meaning of
+<code class="sourceCode cpp">pointer</code> matches Arthur’s
+understanding, then <code class="sourceCode cpp">try_emplace_back</code>
+and <code class="sourceCode cpp">try_push_back</code> should be changed
+to return <code class="sourceCode cpp">T<span class="op">*</span></code>
+instead of <code class="sourceCode cpp">pointer</code>. See <a href="https://quuxplusone.github.io/blog/2024/08/23/boost-interprocess-tutorial/">Arthur’s
+blog post</a> for a good treatment of when fancy pointers are useful
+(though it doesn’t argue one way or another on this particular
+issue).</td>
+</tr>
+</tbody>
+</table>
 <p>And add allocator-aware constructors and
 <code class="sourceCode cpp">get_allocator</code>:</p>
 <p><strong>Drafting Note</strong>: The use of <code class="sourceCode cpp">type_identity_t<span class="op">&lt;</span>Allocator<span class="op">&gt;</span></code>
@@ -1944,27 +1972,9 @@ swappable with <code class="sourceCode default">x[n]</code>
 <a href="https://wg21.link/N4986#swappable.requirements">[swappable.requirements]</a></span>).</p>
 </blockquote>
 <blockquote>
-<p><em>Effects</em>:</p>
-</blockquote>
-<blockquote>
-<blockquote>
-<ul>
-<li>If <code class="sourceCode default">allocator_traits&lt;A&gt;::propagate_on_container_swap::value &amp;&amp;</code>
-<code class="sourceCode default">! allocator_traits&lt;A&gt;::always_compare_equal::value</code>
-is <code class="sourceCode default">true</code>, swap the allocators of
+<p><em>Effects</em>: Exchanges the contents of
 <code class="sourceCode default">*this</code> and
-<code class="sourceCode default">x</code>.</li>
-<li>Then, swap the first <em>m</em> elements of
-<code class="sourceCode default">*this</code> and
-<code class="sourceCode default">x</code>, where <em>m</em> is the
-smaller of <code class="sourceCode default">this-&gt;size()</code> and
-<code class="sourceCode default">x.size()</code>.</li>
-<li>Then, move-insert the remaining elements from the longer
-<code class="sourceCode default">inplace_vector</code> to the end of the
-shorter one, then erase those elements from the longer
-<code class="sourceCode default">inplace_vector</code>.</li>
-</ul>
-</blockquote>
+<code class="sourceCode default">x</code>.</p>
 </blockquote>
 <blockquote>
 <p><em>Complexity</em>: Linear</p>
