@@ -45,10 +45,10 @@ resulting in a more powerful and consistent Standard.
   borrowed from an earlier contracts paper).
 
 ```C++
-     void f(int) [[ throws_nothing ]];          // Obey global build mode.
-     void g(int) [[ throws_nothing audit ]];    // observed only in audit build mode
-     void h(int) [[ throws_nothing enforce ]];  // always enforced
-     void j(int) [[ throws_nothing assume ]];   // Assume nonthrowing; don't check.
+     [[ throws_nothing ]]         void f(int);  // Obey global build mode.
+     [[ throws_nothing audit ]]   void g(int);  // observed only in audit build mode
+     [[ throws_nothing enforce ]] void h(int);  // always enforced
+     [[ throws_nothing assume ]]  void j(int);  // Assume nonthrowing; don't check.
 ```
 
 > The final line above (function `j`) would generate the smallest code because

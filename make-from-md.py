@@ -61,11 +61,11 @@ def createMakefile(mdfile, mdType, docnum):
 MPARK_REPO ?= ~/md-to-wg21
 MPARK_MAKEFILE = $(MPARK_REPO)/Makefile
 
-{docnum}.html : {mdfile}
+generated/{docnum}.html : {mdfile}
 	make -f $(MPARK_MAKEFILE) {mdroot}.html
 	cp -p generated/{mdroot}.html $@
 
-{docnum}.pdf : {mdfile}
+generated/{docnum}.pdf : {mdfile}
 	make -f $(MPARK_MAKEFILE) {mdroot}.pdf
 	cp -p generated/{mdroot}.pdf $@
 """
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     mddir, mdfile = os.path.split(mdfile)
     if mddir: os.chdir(mddir)
     mdType, docnum = readDocnumAndType(mdfile)
-    target = docnum + '.' + outType
+    target = 'generated/' + docnum + '.' + outType
 
     makefile = createMakefile(mdfile, mdType, docnum)
     if subprocess.run(["make", "-f", makefile, target]).returncode != 0:
