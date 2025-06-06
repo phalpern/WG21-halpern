@@ -1,7 +1,7 @@
 ---
 title: "Side Channels: Hierarchical Overview of Three Proposals"
 document: none
-date: <!-- $TimeStamp$ -->2025-05-30 15:32 EDT<!-- $ -->
+date: <!-- $TimeStamp$ -->2025-06-06 17:00 EDT<!-- $ -->
 audience: Internal
 author:
   - name: Pablo Halpern
@@ -17,21 +17,22 @@ Discussions of language support for allocators yielded three parts that
 can be proposed separately, where each part is dependent on the part
 before:
 
--   **Viral class properties** that cause extra "parameters" to be added
-    automatically to every constructor. We put "parameters" in quotes
-    because the original concept was that these would not be traditional
-    parameters but some other parameter-like side channel.
+- **Viral class properties** that cause extra "parameters" to be added
+  automatically to every constructor and implicitly propagate them to
+  containing objects (including compiler-generated types such as lambda
+  closures and arrays). We put "parameters" in quotes because the original
+  concept was that these would not be traditional parameters but some other
+  parameter-like side channel.
 
--   **Special side-channel argument values** for defaulted parameters
-    that automatically determine their value from the surrounding
-    context, e.g., if no explicit value is provided for the allocator
-    parameter in a member constructor, it should get its value from the
-    surrounding class's allocator argument.
+- **Contextual default-argument values** (aka, _side-channel argument values_)
+  that automatically determine defaulted argument values from the caller's
+  context, e.g., if no explicit value is provided for the allocator parameter
+  in a member constructor, it should get its value from the surrounding class's
+  allocator argument.
 
--   A syntax for passing arguments that bind to these special
-    parameters. After some discussion, we determined that **named
-    parameters** would be the most straightforward way and the easiest
-    proposal to sell to the committee.
+- A syntax for passing arguments that bind to these special parameters. After
+  some discussion, we determined that **named parameters** would be the most
+  straightforward way and the easiest proposal to sell to the committee.
 
 The last feature needs to be completed before the one above, which in
 turn needs to be completed before the first feature. Each feature is
@@ -77,8 +78,8 @@ constructors would still accept an allocator parameter. More than almost
 anything else, achieving the ability to apply to rule of zero to
 allocator-aware types is our fundamental goal.
 
-Special Side-Channel Argument Values for Defaulted Parameters
-=============================================================
+Contextual default-argument values
+==================================
 
 In the specific case of allocators, boilerplate code could be reduced if
 an object's constructor automatically passed its allocator argument to
@@ -164,13 +165,13 @@ very interested in adding this feature to C++.
 Road Map
 ========
 
-The viral-property proposal is dependent on the other two and the
-side-channel-argument proposal is dependent on the named-parameter
-proposal. We should, therefore, pursue named parameters first, then
-side-channel arguments, then viral-properties. This order is not only
-correct from a dependency standpoint but also starts from the most
-general proposal to the least general one, thus maximizing the chances
-of success. By the time we are ready to tackle viral annotations, the
-code-generation aspects of reflection are likely to be more developed,
-so it might even be possible for this feature to be largely or
-completely implemented as a library feature.
+The viral-property proposal is dependent on the other two and the contextual
+default-argument proposal is _probably_ dependent on the named-parameter
+proposal (e.g., if the syntax needs to refer to one of the caller's named
+arguments). We should, therefore, pursue named parameters first, then
+side-channel arguments, then viral-properties. This order is not only correct
+from a dependency standpoint but also starts from the most general proposal to
+the least general one, thus maximizing the chances of success. By the time we
+are ready to tackle viral annotations, the code-generation aspects of
+reflection are likely to be more developed, so it might even be possible for
+this feature to be largely or completely implemented as a library feature.
