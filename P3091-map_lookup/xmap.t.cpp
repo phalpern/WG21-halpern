@@ -438,6 +438,12 @@ void test_get_as_ref()
   }
 }
 
+// Test constexpr `get`
+constexpr std::experimental::ArrayMap<int, 3> AM1({ 3, 2, 1 });
+static_assert(AM1.get(1));
+static_assert(2 == AM1.get(1).value());
+static_assert(! AM1.get(10));
+
 int main()
 {
   test_get();
