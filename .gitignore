@@ -36,10 +36,10 @@ P2786-trivial-relocation
 *.t
 
 # Generated draft files
-generated
 snapshots
 [A-OQ-Za-oq-z]*.pdf
-[Dd][0-9][0-9][0-9][0-9].html
+[DdPp][0-9][0-9][0-9][0-9].pdf
+[DdPp][0-9][0-9][0-9][0-9].html
 [Dd][0-9][0-9][0-9][0-9][Rr][0-9].html
 
 # Untracked subdirectories
