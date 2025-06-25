@@ -9,6 +9,10 @@
 #include <xmap.h>
 #include <string>
 #include <iostream>
+#include <array>
+#include <vector>
+#include <span>
+#include <functional>
 #include <cassert>
 
 template <class Key, class T, class Compare = std::less<Key>,
@@ -432,15 +436,35 @@ void test_get_as_ref()
     expect<const NonCopyable&>(zero, value_or<const NonCopyable&>(m4.get(1), ZERO));
 
     // Shouldn't compile
-    // (void) value_or<      NonCopyable&>(m4.get(3), ZERO);
-    // (void) value_or<      NonCopyable&>(M4.get(3), zero);
+    // (void) value_or<       NonCopyable&>(m4.get(3), zero);
+    // (void) value_or<       NonCopyable&>(M4.get(3), zero);
     // (void) value_or<NonCopyableDerived&>(m4.get(3), zero);
   }
+}
+
+void test_span()
+{
+  using K = int;
+  using U = float;
+
+  xmap<K, std::vector<U>> m{ { 99, { 9.8f, 10.9f } }, { 55, { 5.5f, 4.4f } } };
+  std::array preset{ 1.2f, 3.4f, 5.6f };
+
+  auto x = xoptional<std::span<U>>(m.get(0)).value_or(preset);
+  assert(3 == x.size());
+  assert(3.4f == x[1]);
+
+  auto y = xoptional<std::span<U>>(m.get(99)).value_or(preset);
+  assert(2 == y.size());
+
+  auto z = xoptional<std::span<U>>(m.get(0)).value_or({});
+  assert(0 == z.size());
 }
 
 // Test constexpr `get`
 constexpr std::experimental::ArrayMap<int, 3> AM1({ 3, 2, 1 });
 static_assert(AM1.get(1));
+
 static_assert(2 == AM1.get(1).value());
 static_assert(! AM1.get(10));
 
@@ -451,6 +475,7 @@ int main()
   test_get_ref_derived();
   test_get_as();
   test_get_as_ref();
+  test_span();
 }
 
 // Local Variables:

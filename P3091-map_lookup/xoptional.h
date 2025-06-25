@@ -17,6 +17,25 @@ class optional : public std::optional<T> {
 public:
   using std::optional<T>::optional;
 
+  template <class U>
+  requires (is_constructible_v<T, const U&>)
+  explicit(! is_convertible_v<U, T>)
+    optional(const optional<U>& rhs) { if (rhs) *this = *rhs; }
+
+  template <class U>
+  requires (is_constructible_v<T, U>)
+  explicit(! is_convertible_v<U, T>)
+    optional(optional<U>&& rhs) { if (rhs) *this = *std::move(rhs); }
+
+  template <class U = remove_cv_t<T>>
+  T value_or(U&& u) const& {
+    return this->has_value() ? **this : static_cast<T>(std::forward<U>(u));
+  }
+  template <class U = remove_cv_t<T>>
+  T value_or(U&& u) && {
+    return this->has_value() ? **this : static_cast<T>(std::forward<U>(u));
+  }
+
   // TBD: All monadic operations need to be re-implemented here, as the
   // inherited ones mandate functors that return `std::optional` instead of
   // `std::experimental::optional`.
@@ -87,6 +106,11 @@ public:
   constexpr T& value() const {
     if (m_val) return *m_val;
     throw bad_optional_access();
+  }
+  template <class U = remove_cv_t<T>>
+  remove_cv_t<T> value_or(U&& u) const {
+    using X = remove_cv_t<T>;
+    return this->has_value() ? value() : static_cast<X>(std::forward<U>(u));
   }
 
   // ?.?.1.7, monadic operations
