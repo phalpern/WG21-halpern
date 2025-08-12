@@ -24,8 +24,9 @@ import os
 import re
 import subprocess
 
-mparkDocnumRe  = re.compile(r"^ *document: *(\S*).*$")
+pandocMetaRe   = re.compile(r"^% ")
 pandocDocnumRe = re.compile(r"^% ([PD][0-9][0-9][0-9][0-9]([Rr][0-9]+))\b.*$")
+mparkDocnumRe  = re.compile(r"^ *document: *(\S*).*$")
 
 def userError(errorStr):
     print(errorStr, file=sys.stderr)
@@ -42,46 +43,59 @@ def readDocnumAndType(filename):
     """Returns a tuple (type, docnum) for the specified filename, where *type*
     is either 'mpark' for Michael Park's WG21 md format or 'pandoc' for vanilla
     pandoc md format"""
+    docType = "mpark"
+    docNum  = None
     with open(filename) as mdfile:
         for line in mdfile:
             m = mparkDocnumRe.match(line)
             if m:
-                return ("mpark", m[1])
+                docType = "mpark"
+                docNum  = m[1]
+                break
             m = pandocDocnumRe.match(line)
             if m:
-                return ("pandoc", m[1])
-    print("Warning: Cannot read document number from " + filename, sys.stderr)
-    return ("pandic", filename.replace(".md", ""))
+                docType = "pandoc"
+                docNum  = m[1]
+                break
+            elif pandocMetaRe.match(line):
+                docType = "pandoc"
+    if docNum is None:
+        print("Warning: Cannot read document number from " + filename,
+              sys.stderr)
+    if docNum is None or docNum == "none":
+        docNum = filename.replace(".md", "")
+    return (docType, docNum)
 
-def createMakefile(mdfile, mdType, docnum):
+def createMakefile(mdfile, mdType, outroot):
 
     if mdType == "mpark":
         mdroot, md = os.path.splitext(mdfile)
+        cp = "# cp" if outroot == mdroot else "cp"
         mkfileContent = f"""
 MPARK_REPO ?= ~/md-to-wg21
 MPARK_MAKEFILE = $(MPARK_REPO)/Makefile
 
-generated/{docnum}.html : {mdfile}
+generated/{outroot}.html : {mdfile}
 	make -f $(MPARK_MAKEFILE) {mdroot}.html
-	cp -p generated/{mdroot}.html $@
+	{cp} -p generated/{mdroot}.html $@
 
-generated/{docnum}.pdf : {mdfile}
+generated/{outroot}.pdf : {mdfile}
 	make -f $(MPARK_MAKEFILE) {mdroot}.pdf
-	cp -p generated/{mdroot}.pdf $@
+	{cp} -p generated/{mdroot}.pdf $@
 """
 
     else:
         mkfileContent = f"""
-{docnum}.pdf : {mdfile}
+{outroot}.pdf : {mdfile}
 	pandoc -s -V geometry:margin=1in -V colorlinks=true --number-sections -f markdown $< -o $@
 
-{docnum}.html : {mdfile}
-	cat ~/WG21/html_header.html {mdfile} >> {docnum}.htmlsrc.md
-	pandoc -s -f markdown -t html {docnum}.htmlsrc.md -o $@
-	rm {docnum}.htmlsrc.md
+{outroot}.html : {mdfile}
+	cat ~/WG21/html_header.html {mdfile} >> {outroot}.htmlsrc.md
+	pandoc -s -f markdown -t html {outroot}.htmlsrc.md -o $@
+	rm {outroot}.htmlsrc.md
 """
 
-    mkfileName = docnum + ".mk"
+    mkfileName = outroot + ".mk"
     with open(mkfileName, 'w') as mkfile:
         mkfile.write(mkfileContent)
 
