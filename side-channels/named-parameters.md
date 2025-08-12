@@ -4,7 +4,7 @@ document: named-parameters
 # $TimeStamp$
 date: 2025-08-11 11:40 EDT
 # $
-audience: LEWGI
+audience: EWGI
 author:
   - name: Pablo Halpern
     email: <phalpern@halpernwightsoftware.com>
@@ -105,6 +105,17 @@ auto newShape = munge(myShape,              // bound to `shape`
                       [](Shape& s){ ... },  // bound to `transform`
                       .scale     = 1.5);    // `.scale =` is required
 ```
+
+<!-- JMB: A big question i'd have here is how the named parameters impact the
+     functino type, especially if they can also be positional.
+     Does adding a designator a paramter name change its type?
+     Can I convert a pointer to `int (int .name)` to a pointer to `int (int)`?
+     Can I convert the other way?
+     What about interopartion betweeon `int (int .name)` and `int (., int .name)`?
+
+     Overall, I feel like there's a lot more ambiguity and confusing cases to consider
+     if we allow parameters to be both named and positional
+  -->
 
 
 # Motivating Use Cases
@@ -355,6 +366,11 @@ Point p1(4.0, 3.0); // = Point p1(.x=4.0, .y=3.0);
 Point p2(.radius=5.0, .angle=0.6435);
 ```
 
+<!-- JMB: So the case I find confusing that arises here because of having
+     parameters that are both designated and postiional is that we can also
+     now invoke `Point p3(3.0, .y=5)` and that woudl work.  Similarly,
+     could we do `Point p4(.y=5.0, 3.0)`?    -->
+
 :::
 
 ## More Expressive Generic Programming
@@ -496,10 +512,24 @@ unordered_map(initializer_list<value_type> il,
               const allocator_type& .allocator);
 ```
 
+<!-- JMB: I'm confused, this looks like a very ambiguous overload set,
+     doesn't it?   Why would we need anything other than a single extra constructor
+     where everything is designated with defaults?
+
+     I guess if you're taking all of the defaulted arguments and making them
+     designatable you need can't just do that, but I think we want such a disambiguation
+     rule no matter what --- if two overloads match and one has defaulted
+     designed parameters then prefer the one without them.  But with such
+     disambugation we just need one alternate overload that has all of the
+     optional arguments as defaulted designated parameters, and then we don't
+     have super-confusing uses where we mix and match.
+
+     -->
+
 :::
 
 For now, we will explore a design space that includes designated positional
-parameters, so that we can find any difficulties and possible was of mitigating
+parameters, so that we can find any difficulties and possible ways of mitigating
 them. A straw-man syntax for separating positional parameters from
 nonpositional parameters within a declaration is a single dot pseudo-argument:
 
@@ -508,6 +538,9 @@ nonpositional parameters within a declaration is a single dot pseudo-argument:
 // nonpositional designated parameters `a` and `b`.
 void func(int .x, int .y, ., float .a, std::string .b = {});
 ```
+
+Note that a separator such as this is no longer needed if we simply choose
+to not support paramters that are both designated and positional. 
 
 # Parameter and Argument Order
 
@@ -604,6 +637,8 @@ For each designated argument, DA~d~,
 - otherwise, if the first unmatched positional parameter has type (possibly
   cvref-qualified) `T`, where `T` is a deduced template parameter, then DA~d~
   matches that positional parameter;
+  <!-- JMB:  Is this for some kind of forwarding reference?  -->
+             
 - otherwise, if there is a variadic parameter of type (possibly
   cvref-qualified) `Args...`, where `Args` is a deduced template parameter
   pack, then DA~d~ matches that variadic parameter (see
@@ -644,7 +679,7 @@ positional argument and a designated argument refer to the same parameter.
 
 # Interaction with Parameter Packs
 
-Consider a function template that simply preforms an action before and after
+Consider a function template that simply performs an action before and after
 calling an invocable entity, `f`, with supplied arguments:
 
 ```cpp
@@ -698,7 +733,7 @@ To make the `invocable` concept work, `Args` must describe not only the type,
 but also the designator (if any) associated with each argument at the point of
 instantiation.  What we propose is to expand the type system with _designator
 qualifiers_. In the expression, `verbose_call(func, 15, .name="Fred")`, the third
-argument has type `const char (&)[5]`, with `.name` is its designator
+argument has type `const char (&)[5]`, with `.name` as its designator
 qualifier. If we were to reify the designator qualifier as something that can
 be uttered directly by the programmer, we might say that `decltype(.length =
 5)` has type `int.length` or, more generally, that `decltype(.@_name_@ =
@@ -790,9 +825,25 @@ promotion or a standard conversion.
 
 TBD: How much more needs to be said about interaction with the type system?
 
+<!-- JMB: I think the biggest gap is the interaction between
+     functions where the parameters are designated and those where
+     parametesr are both designated and posiional.  In particular, can I use
+     `f(int .name)` with a function pointer of type `int (., int .name)` ---
+     I can certainly call both of those functions with a designed name.
+     
+
 # Interaction with Reflection
 
 TBD
+
+<!-- JMB: We definitely need to say something more clear about how designators
+     attach to a variable's type and how you can strip them off, and that inevitably
+     gets exposed through reflection.
+
+     We similarly need to be able to splice designators alongside a type, and posisbly
+     we might want to splice just desginators (which might need a disambugator of some
+     kind).  -->
+    
 
 # Possible Enhancements
 
@@ -804,6 +855,14 @@ TBD: Each of the enhancements listed here needs explanation.
 - Special designated arguments that are ignored on function calls that don't
   have such a designated parameter.
 
+  <!-- JMB: I think this one is about calling a generic function when you have
+       specified designated arguments it doesn't expect.   There are use
+       cases for both directions --- reject, and ignore arguments we don't
+       need to pass.  Ideally, if we have a syntax to say "here's extra
+       designated params that you might not need" then we would also short-circuit
+       the expressions in those params when they are not needed.
+       -->
+       
 - Variadic designated parameters
 
 - Designated template parameters (i.e., `template <class T, class .Allocator>`)
@@ -815,9 +874,19 @@ recognize parameters of the form `Allocator .allocator`.  We might also want to
 tackle some cases of tagged parameters; providing a prettier alternative by way
 of new overloads.
 
+<!-- JMB: we should also call out places such as emplace functions where we think
+  there won't be a need for any change to work with designated parameters.  -->
+  
+
 # ABI Considerations
 
 TBD: We anticipate little or no impact on ABI for existing code.
+
+<!-- JMB: If we have params that are both positional and designated then adding
+     a designator is an abi change because that has to be mangled along with the
+     function (because we can then overload on that designator).   That's an
+     important consideration for any library changes to make use of the feature,
+     but I agree it doesn't impact current functions.   -->
 
 # Alternative Syntax and Terminology
 
@@ -839,6 +908,19 @@ consider would be using a different delimiter, e.g., `/` or `|` instead of
 indicating positional and nonpositional designated parameters with a different
 tokens sequence, e.g., a `.^` prefix or `^:` suffix for designated parameters
 that are also positional.
+
+<!-- JMB: Considering that i consider parameters that are both positional and
+     designatable to be frought with potentials for misuse and confusion I lean
+     towards making that the harder syntax to write.   requirng that they
+     use `f(int .^name)` and then not needing the confusing `.,` parameters
+     would be fine, and would also make that whole aspect of the proposal something
+     that can be layered on top of the rest.
+
+     -->
+
+<!-- JMB: We should also call out that the main proposed syntax extends
+     that of designated intiializers and fits with how they work, while any
+     alternative would be a wholely new syntax to consider and learn.  -->
 
 # Previous Attempts at Designated Arguments
 
