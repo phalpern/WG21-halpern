@@ -1,9 +1,9 @@
 
-CXX       ?= g++
-CXX_OPT   ?= -g
-CXX_STD   ?= c++23
-CXX_FLAGS ?= -Wall $(CXX_OPT) -std=$(CXX_STD) -I.
-OBJDIR    ?= obj
+CXX      ?= g++
+CXXOPT   ?= -g
+CXXSTD   ?= c++23
+CXXFLAGS ?= -Wall $(CXXOPT) -std=$(CXXSTD) -I.
+OBJDIR   ?= obj
 
 GIT_ROOT := $(shell git rev-parse --show-toplevel)
 FROM_MD = $(GIT_ROOT)/make-from-md.py
@@ -21,7 +21,7 @@ vpath %.o $(OBJDIR)
 
 %.t : %.t.cpp *.h
 	mkdir -p $(OBJDIR)
-	$(CXX) $(CXX_FLAGS) -o $(OBJDIR)/$@ $<
+	$(CXX) $(CXXFLAGS) -o $(OBJDIR)/$@ $<
 
 %.html : %.md
 	$(FROM_MD) --html $<
