@@ -2,7 +2,7 @@
 title: "Designated Parameters"
 document: named-parameters
 # $TimeStamp$
-date: 2025-08-11 11:40 EDT
+date: 2025-09-22 17:56 EDT
 # $
 audience: EWGI
 author:
@@ -133,7 +133,7 @@ WinHandle makeWindow(int width,                       int height,
 ```
 
 Although some might consider the interface to be too large, it is at worst
-mildly so. Although the interface is straightforward, it is nevertheless
+mildly so. The interface is straightforward, but is nevertheless
 inconvenient and error prone to use. A number of problems with this interface
 are detailed below, followed by a description of how each is improved by using
 designated parameters as proposed in this paper.
@@ -213,13 +213,13 @@ clean and minimal.
 ### Without Designated Parameters
 
 ```cpp
-auto w = makeWindow(w, h, INT_MIN, INT_MIN, Color::grey50);
+auto w = makeWindow(width, height, INT_MIN, INT_MIN, Color::grey50);
 ```
 
 ### With Designated Parameters
 
 ```cpp
-auto w = makeWindow(w, h, .foreground = Color::grey50);
+auto w = makeWindow(width, height, .foreground = Color::grey50);
 ```
 
 :::
@@ -312,7 +312,7 @@ auto r2 = calculate(ThreadPool_arg, myThreadPool,
 
 
 template <class T = double, class... Args>
-T calculate(T& x = {}, Args&&... args, .,
+T calculate(T x = {}, Args&&... args, .,
             ThreadPool& .threadpool = defaultThreadPool);
 
 auto r1 = calculate(19.4, "encode", 1.0);
@@ -449,84 +449,109 @@ In this proposal, a function parameter can be
 One of the co-authors of this paper, Joshua Berne, is not sure that the third
 combination is needed for a successful feature, while the other co-author,
 Pablo Halpern, is convinced that it is needed to simplify wide adoption in
-existing libraries. For example `unordered_map` has the following
-`initializer_list` constructor (`constexpr` omitted for brevity):
+existing libraries. For example, consider the `makeWindow` example from earlier
+in this paper. We can _modernize_ `makeWindow` by providing designators for
+each argument, but we want to ensure that existing calls using purely
+positional arguments continue to work while also enabling the use of designated
+arguments:
 
 ```cpp
-unordered_map(initializer_list<value_type> il,
-              size_type                    n   = @_imp defined_@,
-              const hasher&                hf  = hasher(),
-              const key_equal&             eql = key_equal(),
-              const allocator_type&        a   = allocator_type());
+auto w1 = makeWindow(w, h, x, y);
+auto w2 = makeWindow(.top = y, .left = x, .width = w, .height = h);
 ```
 
-Ideally, `n`, `hf`, and `eql` could be specified independently (`a` _can_ be
-specified independently by way of additional overloads), but it is not possible
-to specify `hf` without specifying `n` and it is not possible to specify `eql`
-without specifying both `n` and `hf`. Designated arguments would allow each of
-those arguments to be specified separately (and in any order) but, to retain
-backward compatibility, it must still be possible to construct an
-`unordered_map` using positional arguments alone.
-
-If designated parameters can also be positional, then it is necessary only to
-assign designators to each optional parameter. If, however, designated
-parameters are disjoint from positional parameters, 4 new overloads would be
-required to realize the full potential of designated parameters without
-creating an overload ambiguity with the constructor having no designated
+Let's see how we might do this with and without designated positional
 parameters:
 
 ::: cmptable
 
-### With Designated Positional Arguments
+### Without Designated Positional Parameters
 
 ```cpp
-unordered_map(initializer_list<value_type> il,
-              size_type             .min_buckets = @_imp-defined_@,
-              const hasher&         .hash        = hasher(),
-              const key_equal&      .equal       = key_equal(),
-              const allocator_type& .allocator   = allocator_type());
+WinHandle makeWindow(int   width,                     int   height,
+                     int   left,                      int   top = INT_MIN,
+                     Color background = Color::white, Color foreground = Color::black);
+WinHandle makeWindow(int   .width,                     int   .height,
+                     int   .left         = INT_MIN,    int   .top = INT_MIN,
+                     Color .background = Color::white, Color .foreground = Color::black);
 ```
 
-### Without Designated Positional Arguments
-
+### With Designated Positional Parameters
 
 ```cpp
-unordered_map(initializer_list<value_type> il,
-              size_type             n   = @_imp-defined_@,
-              const hasher&         hf  = hasher(),
-              const key_equal&      eql = key_equal(),
-              const allocator_type& a   = allocator_type());
-unordered_map(initializer_list<value_type> il,
-              size_type             .min_buckets,
-              const hasher&         .hash        = hasher(),
-              const key_equal&      .equal       = key_equal(),
-              const allocator_type& .allocator   = allocator_type());
-unordered_map(initializer_list<value_type> il,
-              const hasher&         .hash,
-              const key_equal&      .equal       = key_equal(),
-              const allocator_type& .allocator   = allocator_type());
-unordered_map(initializer_list<value_type> il,
-              const key_equal&      .equal,
-              const allocator_type& .allocator   = allocator_type());
-unordered_map(initializer_list<value_type> il,
-              const allocator_type& .allocator);
+
+
+
+WinHandle makeWindow(.,int .width,                     int   .height,
+                     int   .left         = INT_MIN,    int   .top = INT_MIN,
+                     Color .background = Color::white, Color .foreground = Color::black);
 ```
 
-<!-- JMB: I'm confused, this looks like a very ambiguous overload set,
-     doesn't it?   Why would we need anything other than a single extra constructor
-     where everything is designated with defaults?
+:::
 
-     I guess if you're taking all of the defaulted arguments and making them
+The difference in effort between the two versions might seem minimal: simply
+add an extra overload in non-positional case, but the transformation is
+non-trivial. On the left side of the table, notice that, to prevent ambiguity,
+we needed to remove the default argument from `left` in the positional-only
+overload --- a change that makes the process more error prone. If there are
+many such functions, adding designated-parameter overloads could double the
+size of in the interface. Templates and variadic parameters complicate things
+further.
+
+One of the benefits of designated arguments is that it is possible to add new
+parameters to a function without disrupting existing calls, provided the new
+parameter has a default argument value. Assume we add a `.keep_on_top = false`
+parameter to `makeWindow` function. Using designated positional parameters
+results in a smaller minimal change to use the new parameter at existing call
+sites:
+
+::: cmptable
+
+### Without Designated Positional Parameters
+
+```cpp
+// Before:
+auto w = makeWindow(w, h, l, t);
+
+// After
+auto w = makeWindow(.width = w, .height = h, .left = l, .top = t,
+                    .keep_on_top = true);
+```
+
+### With Designated Positional Parameters
+
+```cpp
+// Before:
+auto w = makeWindow(w, h, l, t);
+
+// After
+auto w = makeWindow(w, h, l, t, .keep_on_top = true);
+```
+
+:::
+
+The change on the right is not only less work, but is also less error prone
+than on the left because it avoids errors from incorrectly naming the arguments
+as a result of forgetting the (less than totally intuitive) order of
+parameters.
+
+<!-- JMB: I guess if you're taking all of the defaulted arguments and making them
      designatable you need can't just do that, but I think we want such a disambiguation
      rule no matter what --- if two overloads match and one has defaulted
      designed parameters then prefer the one without them.  But with such
      disambugation we just need one alternate overload that has all of the
      optional arguments as defaulted designated parameters, and then we don't
      have super-confusing uses where we mix and match.
-
      -->
+<!-- PGH: Your proposed disambiguation rule solves the first complication, but
+     not the second, which I just added. It also feels like an arbitrary.
+     workaround, but might still be worth considering, regardless of our
+     decision on designated positional parameters. -->
 
-:::
+Finally, overloading is not always an option. It might be desirable for
+`auto p = &makeWindow` to unambiguously produce a pointer-to-function object,
+something that would not be possible if `makeWindow` were an overload set. See
+[Function-pointer Conversions](#function-pointer-conversions), below.
 
 For now, we will explore a design space that includes designated positional
 parameters, so that we can find any difficulties and possible ways of mitigating
@@ -540,7 +565,7 @@ void func(int .x, int .y, ., float .a, std::string .b = {});
 ```
 
 Note that a separator such as this is no longer needed if we simply choose
-to not support paramters that are both designated and positional. 
+to not support paramters that are both designated and positional.
 
 # Parameter and Argument Order
 
@@ -638,7 +663,7 @@ For each designated argument, DA~d~,
   cvref-qualified) `T`, where `T` is a deduced template parameter, then DA~d~
   matches that positional parameter;
   <!-- JMB:  Is this for some kind of forwarding reference?  -->
-             
+
 - otherwise, if there is a variadic parameter of type (possibly
   cvref-qualified) `Args...`, where `Args` is a deduced template parameter
   pack, then DA~d~ matches that variadic parameter (see
@@ -686,9 +711,10 @@ calling an invocable entity, `f`, with supplied arguments:
 template <class F, class... Args>
 auto verbose_call(F&& f, Args&&... args) -> decltype(auto) {
   std::cout << "Prologue\n";
-  decltype(auto) ret = std::forward<F>(f)(std::forward<Args>(args)...);
-  std::cout << "Epilogue\n";
-  return ret;
+  auto on_scope_exit = [](const char* s){ std::cout << s; };
+  std::unique_ptr<const char, decltype(on_scope_exit)> e("Epilogue\n",
+                                                         on_scope_exit);
+  return std::forward<F>(f)(std::forward<Args>(args)...);
 }
 ```
 
@@ -790,14 +816,15 @@ results without modification.  For example:
 ```cpp
 // `forward_as_tuple` returns a `tuple` instantiated with two designator-qualified types.
 // `p.second` is initialized with arguments `.value=x, .offset=-1`.
-std::pair<int, W> p(std::piecewise_construct, 99
+std::pair<int, W> p(std::piecewise_construct,
+                    std::forward_as_tuple(99),
                     std::forward_as_tuple(.value=x, .offset=-1));
 
 // Yields `tuple<const char *, int.angle, double.radius>`
 auto t = std::make_tuple("hello", .angle=30, .radius=2.5);
 
 // Invokes `func("hello", .angle=30, .radius=2.5)`
-apply(func, t);
+std::apply(func, t);
 ```
 
 # Interaction with Type System
@@ -810,6 +837,8 @@ function pointer can be declared with designators:
 ```cpp
 int (*fp1)(int x, int .value);
 ```
+
+## Function-pointer Conversions
 
 We can introduce a new rule whereby a pointer to function having
 designated positional parameters can be converted to a pointer to function
@@ -830,7 +859,6 @@ TBD: How much more needs to be said about interaction with the type system?
      parametesr are both designated and posiional.  In particular, can I use
      `f(int .name)` with a function pointer of type `int (., int .name)` ---
      I can certainly call both of those functions with a designed name.
-     
 
 # Interaction with Reflection
 
@@ -843,7 +871,7 @@ TBD
      We similarly need to be able to splice designators alongside a type, and posisbly
      we might want to splice just desginators (which might need a disambugator of some
      kind).  -->
-    
+
 
 # Possible Enhancements
 
@@ -862,7 +890,7 @@ TBD: Each of the enhancements listed here needs explanation.
        designated params that you might not need" then we would also short-circuit
        the expressions in those params when they are not needed.
        -->
-       
+
 - Variadic designated parameters
 
 - Designated template parameters (i.e., `template <class T, class .Allocator>`)
@@ -876,7 +904,7 @@ of new overloads.
 
 <!-- JMB: we should also call out places such as emplace functions where we think
   there won't be a need for any change to work with designated parameters.  -->
-  
+
 
 # ABI Considerations
 

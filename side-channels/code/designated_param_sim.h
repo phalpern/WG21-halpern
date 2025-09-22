@@ -129,11 +129,8 @@ public:
   static constexpr inline auto designator_v = DesV;
   using value_type                          = T;
 
-  constexpr designated_arg(const designated_arg& rhs)
-    : m_arg(std::forward<T>(rhs.m_arg)) { }
-
   /// Return the runtime value without the designator.
-  T&& get() { return std::forward<T>(m_arg); }
+  constexpr T&& get() { return std::forward<T>(m_arg); }
 };
 
 /// Factory class template for generating a `designated_arg`.  Typically, an
@@ -234,7 +231,8 @@ param<T, details::null_designator, true, details::no_default_arg_t> pp()
 }
 
 /// Return a nondesignated positional parameter with default argument.
-template <class T, class DefArg>
+template <class T, class DefArg = T>
+requires (! designator<DefArg>)
 constexpr param<T, details::null_designator, true, DefArg> pp(DefArg&& da)
 {
   using ret_type = param<T, details::null_designator, true, DefArg>;
@@ -249,7 +247,7 @@ constexpr param<T, DesT{}, true, details::no_default_arg_t> pp(DesT)
 }
 
 /// Return a designated positional parameter with default argument.
-template <class T, designator DesT, class DefArg>
+template <class T, designator DesT, class DefArg = T>
 constexpr param<T, DesT{}, true, DefArg> pp(DesT, DefArg&& da)
 {
   using ret_type = param<T, DesT{}, true, DefArg>;
@@ -264,7 +262,7 @@ constexpr param<T, DesT{}, false, details::no_default_arg_t> npp(DesT)
 }
 
 /// Return a designated nonpositional parameter with default argument.
-template <class T, designator DesT, class DefArg>
+template <class T, designator DesT, class DefArg = T>
 constexpr param<T, DesT{}, false, DefArg> npp(DesT, DefArg&& da)
 {
   using ret_type = param<T, DesT{}, false, DefArg>;
@@ -284,6 +282,22 @@ struct  has_no_default<param<T, DesV, IsPositional, DefaultArgT>>
   : std::is_same<DefaultArgT, no_default_arg_t>::type
 {
 };
+
+/// Remove cvref qualification from `designated_arg`, but leave other types
+/// unchanged.
+template <class A, class NA = std::remove_cvref_t<A>>
+struct norm_arg
+{
+  using type = A;
+};
+
+template <class A, auto DesV, class T>
+struct norm_arg<A, designated_arg<DesV, T>>
+{
+  using type = designated_arg<DesV, T>;
+};
+
+template <class A> using norm_arg_t = norm_arg<A>::type;
 
 /// Nested template
 template <auto DesV, class T>
@@ -371,7 +385,8 @@ consteval bool match_pa()
     // No more positional arguments
     return match_da<Params, Args>();
   }
-  else if constexpr (std::is_convertible_v<typename Args::head,
+  else if constexpr (Params::head::is_positional &&
+                     std::is_convertible_v<typename Args::head,
                                            typename Params::head::value_type>){
     // Matched one argument to one parameter; now match the rest, recursively.
     return match_pa<typename Params::tail, typename Args::tail>();
@@ -449,7 +464,8 @@ public:
   /// Mandates: `Params...` has been validated as being in valid.
   template <class... Args>
   consteval bool is_viable() const {
-    return details::match_pa<type_list<Params...>, type_list<Args...>>();
+    return details::match_pa<type_list<Params...>,
+                             type_list<details::norm_arg_t<Args>...>>();
   }
 
   /// Bind the specified `args` to the formal parameters. The returned `tuple`
