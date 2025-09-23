@@ -13,12 +13,67 @@
 
 namespace designated_params {
 
+/// Compile-time representation of a string used to designate a parameter or
+/// argument.  Two `designator_t` objects represent the same designator if they
+/// have the same type.  A constexpr object of type `designator_t` is typically
+/// generated using the `designator_from_raw_v` metafunction, below.
+/// The `designator_t` type differs from `details::raw_des` in that it a) it
+/// encodes its value entirely in its type, 2) produces easier-to-debug
+/// manglings and c) does not encode a prefix character.
+template <char...>
+struct designator_t
+{
+  // Two designators have the same value if they have the same type.
+  template <class Des2>
+  friend constexpr bool operator==(designator_t, Des2)
+    { return std::is_same_v<designator_t, Des2>; }
+};
+
+/// Designator placeholder for non-designated types.
+constexpr inline designator_t<> null_designator{};
+
+/// Type trait evaluating to `true_type` if `T` is a specialization of
+/// `designator_t`.  Note that a `designator_t` having zero characters (i.e.,
+/// the type of `null_designator`) is not considered a designator by this
+/// trait.
+template <class T> struct is_designator : std::false_type { };
+
+template <char C0, char... C>
+struct is_designator<designator_t<C0, C...>> : std::true_type { };
+
+template <class T>
+constexpr inline bool is_designator_v = is_designator<T>::value;
+
+/// Using this concept to constrain a template allows the use of `designator`
+/// as though it were a concrete type, i.e., `designator Des` specifies that
+/// `D` is a specialization of `designator_t`, where its (immutable,
+/// compile-time) value is carried by its type.
+template <class D>
+concept designator = is_designator_v<D>;
+
+// Forward declarations for `parmater` and `designated_arg`:
+template <class T, auto DesV, bool IsPositional, class DefaultArgT>
+requires (designator<decltype(DesV)> or DesV == null_designator)
+class parameter;
+
+template <designator auto DesV, class T>
+class designated_arg;
+
 namespace details {
 
 // Used for template debugging.  `print<T> x;` will display an error message
 // that includes the name of `T`.
 template <class T> struct print;
 template <auto V> struct printv;
+
+template <class Arg>
+struct is_designated_arg : std::false_type {};
+
+template <auto DesV, class T>
+struct is_designated_arg<designated_arg<DesV, T>> : std::true_type {};
+
+template <class Arg>
+constexpr inline bool is_designated_arg_v = is_designated_arg<Arg>::value;
 
 /// Structural type usable as a template argument, representing a raw
 /// designator having up to 64 characters and an optional prefix char.
@@ -59,40 +114,6 @@ struct raw_des
   friend
   constexpr bool operator==(const raw_des& a, const raw_des& b) = default;
 };
-
-} // close namespace details
-
-/// Compile-time representation of a string used to designate a parameter or
-/// argument.  Two `designator_t` objects represent the same designator if they
-/// have the same type.  A constexpr object of type `designator_t` is typically
-/// generated using the `designator_from_raw_v` metafunction, below.
-/// The `designator_t` type differs from `details::raw_des` in that it a) it
-/// encodes its value entirely in its type, 2) produces easier-to-debug
-/// manglings and c) does not encode a prefix character.
-template <char...>
-struct designator_t
-{
-  // Two designators have the same value if they have the same type.
-  template <class Des2>
-  friend constexpr bool operator==(designator_t, Des2)
-    { return std::is_same_v<designator_t, Des2>; }
-};
-
-namespace details {
-
-/// Designator placeholder for non-designated types.
-constexpr inline designator_t<> null_designator{};
-
-/// Type trait evaluating to `true_type` if `T` is a specialization of
-/// `designator_t`. Primary template evalutes to `false_type`.
-template <class T>
-struct is_designator : std::false_type { };
-
-/// Partial specialization for `designator_t` evaluates to `true_type`.
-/// Note that a `designator_t` having zero characters (i.e., the
-/// type of `null_designator`) is not considered a designator by this trait.
-template <char C0, char... C>
-struct is_designator<designator_t<C0, C...>> : std::true_type { };
 
 /// Placeholder argument for parameter having no default argument.
 struct no_default_arg_t { };
@@ -147,162 +168,6 @@ constexpr auto designator_from_raw_imp(std::index_sequence<I...>)
   return designator_t<RD[I]...>{};
 }
 
-} // close namespace details
-
-/// Metafunction to convert a raw designator to a designator.
-/// E.g, `designator_from_raw_v<"cat">` == `designator_t<'c', 'a', 't'>{}`.
-template <details::raw_des RD>
-struct designator_from_raw
-{
-  using type = decltype(details::designator_from_raw_imp<RD>(
-                          std::make_index_sequence<RD.size()>{}));
-};
-
-template <details::raw_des RD>
-using designator_from_raw_t = designator_from_raw<RD>::type;
-
-template <details::raw_des RD>
-constexpr inline designator_from_raw_t<RD> designator_from_raw_v{};
-
-/// Using this concept to constrain a template allows the use of `designator`
-/// as though it were a concrete type, i.e., `designator Des` specifies that
-/// `D` is a specialization of `designator_t`, where its (immutable,
-/// compile-time) value is carried by its type.
-template <class D>
-concept designator = details::is_designator<D>::value;
-
-template <designator auto DesV> struct designated_arg_factory;  // Forward decl
-
-/// Representation of a designated argument, i.e., a runtime value with a
-/// desginator.
-template <designator auto DesV, class T>
-class designated_arg
-{
-  T&& m_arg;
-
-public:
-  constexpr explicit designated_arg(T&& arg) : m_arg(std::forward<T>(arg)) { }
-
-  static constexpr inline auto designator_v = DesV;
-  using value_type                          = T;
-
-  /// Return the runtime value without the designator.
-  constexpr T&& get() { return std::forward<T>(m_arg); }
-};
-
-/// Factory function for generating a `designated_arg`.  Example:
-/// arg<"value">(3.2) will create a `designated_arg` having designator "value",
-/// type `double`, and value `3.2`.
-template <details::raw_des RD, class T>
-constexpr auto arg(T&& value)
-{
-  static_assert('\0' == RD.m_prefix,
-                "Argument designator must not have a prefix");
-  constexpr auto DesV = designator_from_raw_v<RD>;
-  return designated_arg<DesV, T&&>(std::forward<T>(value));
-}
-
-template <class Arg>
-struct is_designated_arg : std::false_type {};
-
-template <auto DesV, class T>
-struct is_designated_arg<designated_arg<DesV, T>> : std::true_type {};
-
-template <class Arg>
-constexpr inline bool is_designated_arg_v = is_designated_arg<Arg>::value;
-
-/// Representation of a possibly-designated parameter with optional default
-/// argument value. `DefaultArgSrc` is either the default argument value or a
-/// functor that generates the default argument value.
-template <class T, auto DesV, bool IsPositional, class DefaultArgT>
-requires (designator<decltype(DesV)> or DesV == details::null_designator)
-class parameter
-{
-  DefaultArgT m_default_arg;
-
-public:
-  static constexpr inline auto designator_v = DesV;
-  using value_type                          = T;
-
-  static constexpr inline bool is_designated =
-    (designator_v != details::null_designator);
-  static constexpr inline bool is_positional = IsPositional;
-  static constexpr inline bool has_default_arg =
-    ! std::is_same_v<DefaultArgT, details::no_default_arg_t>;
-
-  /// Construct with no default argument.
-  constexpr parameter() requires(! has_default_arg) { }
-
-  /// Construct with default argument.
-  /// Mandates that `DefaultArgT` either be convertible to `T` or be an
-  /// invocable whose return value is convertible to `T`.
-  constexpr explicit parameter(DefaultArgT&& da)
-    requires (std::is_convertible_v<DefaultArgT, T>)
-    : m_default_arg(std::forward<DefaultArgT>(da)) { }
-
-  constexpr explicit parameter(DefaultArgT&& da)
-    requires (std::is_convertible_v<std::invoke_result_t<DefaultArgT>, T>)
-    : m_default_arg(std::forward<DefaultArgT>(da))
-  {
-  }
-
-  /// Return the default argument stored in this parameter for cases where the
-  /// default argument is not a functor.
-  constexpr decltype(auto) default_arg() const
-    requires (std::is_convertible_v<DefaultArgT, T>) {
-    // TBD: Currently should not use this function if initializing a `T` would
-    // require materializing a temporary. Assert that is not the case.
-    static_assert(details::can_return_without_dangling_v<DefaultArgT, T>,
-                  "Not implemented. Default argument return would dangle.");
-    return m_default_arg;
-  }
-
-  /// Return the default argument stored in this parameter for cases where the
-  /// default argument is a functor.
-  constexpr decltype(auto) default_arg() const
-    requires (std::is_convertible_v<std::invoke_result_t<DefaultArgT>, T>) {
-    using DAResult = std::invoke_result_t<DefaultArgT>;
-    // TBD: Currently should not use this function if initializing a `T` would
-    // require materializing a temporary. Assert that is not the case.
-    static_assert(details::can_return_without_dangling_v<DAResult, T>,
-                  "Not implemented. Default argument return would dangle.");
-    return m_default_arg();
-  }
-};
-
-/// Factory functions for generating `parameter` instances:
-///  pp<T>(...)  returns a positional parameter. A designator and/or default
-///              argument can be optionally specified.
-///  npp<T>(...) returns a nonpositional parameter. A designator is required, a
-///              default argument can be optionally specified.
-
-/// Return a parameter without default argument.
-template <class T, details::raw_des RD = ".">
-constexpr
-parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix,
-          details::no_default_arg_t>
-param()
-{
-  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
-                "Parameter prefix must be empty or '.'");
-  return {};
-}
-
-/// Return a parameter with default argument.
-template <class T, details::raw_des RD = ".", class DefArg = T>
-constexpr
-parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>
-param(DefArg&& da)
-{
-  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
-                "Parameter prefix must be empty or '.'");
-  using ret_type =
-    parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>;
-  return ret_type(std::forward<DefArg>(da));
-}
-
-namespace details {
-
 template <class T>
 struct  has_no_default : std::true_type { };
 
@@ -318,18 +183,18 @@ struct  has_no_default<parameter<T, DesV, IsPositional, DefaultArgT>>
 /// Remove cvref qualification from `designated_arg`, but leave other types
 /// unchanged.
 template <class A, class NA = std::remove_cvref_t<A>>
-struct norm_arg
+struct nocvref_arg
 {
   using type = A;
 };
 
 template <class A, auto DesV, class T>
-struct norm_arg<A, designated_arg<DesV, T>>
+struct nocvref_arg<A, designated_arg<DesV, T>>
 {
   using type = designated_arg<DesV, T>;
 };
 
-template <class A> using norm_arg_t = norm_arg<A>::type;
+template <class A> using nocvref_arg_t = nocvref_arg<A>::type;
 
 /// Nested template
 template <auto DesV, class T>
@@ -461,6 +326,140 @@ constexpr decltype(auto) arg_lookup(const Param& p, std::tuple<Args...>& args)
 
 } // close namespace details
 
+/// Metafunction to convert a raw designator to a designator.
+/// E.g, `designator_from_raw_v<"cat">` == `designator_t<'c', 'a', 't'>{}`.
+template <details::raw_des RD>
+struct designator_from_raw
+{
+  using type = decltype(details::designator_from_raw_imp<RD>(
+                          std::make_index_sequence<RD.size()>{}));
+};
+
+template <details::raw_des RD>
+using designator_from_raw_t = designator_from_raw<RD>::type;
+
+template <details::raw_des RD>
+constexpr inline designator_from_raw_t<RD> designator_from_raw_v{};
+
+/// Representation of a designated argument, i.e., a runtime value with a
+/// desginator.
+template <designator auto DesV, class T>
+class designated_arg
+{
+  T&& m_arg;
+
+public:
+  constexpr explicit designated_arg(T&& arg) : m_arg(std::forward<T>(arg)) { }
+
+  static constexpr inline auto designator_v = DesV;
+  using value_type                          = T;
+
+  /// Return the runtime value without the designator.
+  constexpr T&& get() { return std::forward<T>(m_arg); }
+};
+
+/// Factory function for generating a `designated_arg`.  Example:
+/// arg<"value">(3.2) will create a `designated_arg` having designator "value",
+/// type `double`, and value `3.2`.
+template <details::raw_des RD, class T>
+constexpr auto arg(T&& value)
+{
+  static_assert('\0' == RD.m_prefix,
+                "Argument designator must not have a prefix");
+  constexpr auto DesV = designator_from_raw_v<RD>;
+  return designated_arg<DesV, T&&>(std::forward<T>(value));
+}
+
+/// Representation of a possibly-designated parameter with optional default
+/// argument value. `DefaultArgSrc` is either the default argument value or a
+/// functor that generates the default argument value.
+template <class T, auto DesV, bool IsPositional, class DefaultArgT>
+requires (designator<decltype(DesV)> or DesV == null_designator)
+class parameter
+{
+  DefaultArgT m_default_arg;
+
+public:
+  static constexpr inline auto designator_v = DesV;
+  using value_type                          = T;
+
+  static constexpr inline bool is_designated =
+    (designator_v != null_designator);
+  static constexpr inline bool is_positional = IsPositional;
+  static constexpr inline bool has_default_arg =
+    ! std::is_same_v<DefaultArgT, details::no_default_arg_t>;
+
+  /// Construct with no default argument.
+  constexpr parameter() requires(! has_default_arg) { }
+
+  /// Construct with default argument.
+  /// Mandates that `DefaultArgT` either be convertible to `T` or be an
+  /// invocable whose return value is convertible to `T`.
+  constexpr explicit parameter(DefaultArgT&& da)
+    requires (std::is_convertible_v<DefaultArgT, T>)
+    : m_default_arg(std::forward<DefaultArgT>(da)) { }
+
+  constexpr explicit parameter(DefaultArgT&& da)
+    requires (std::is_convertible_v<std::invoke_result_t<DefaultArgT>, T>)
+    : m_default_arg(std::forward<DefaultArgT>(da))
+  {
+  }
+
+  /// Return the default argument stored in this parameter for cases where the
+  /// default argument is not a functor.
+  constexpr decltype(auto) default_arg() const
+    requires (std::is_convertible_v<DefaultArgT, T>) {
+    // TBD: Currently should not use this function if initializing a `T` would
+    // require materializing a temporary. Assert that is not the case.
+    static_assert(details::can_return_without_dangling_v<DefaultArgT, T>,
+                  "Not implemented. Default argument return would dangle.");
+    return m_default_arg;
+  }
+
+  /// Return the default argument stored in this parameter for cases where the
+  /// default argument is a functor.
+  constexpr decltype(auto) default_arg() const
+    requires (std::is_convertible_v<std::invoke_result_t<DefaultArgT>, T>) {
+    using DAResult = std::invoke_result_t<DefaultArgT>;
+    // TBD: Currently should not use this function if initializing a `T` would
+    // require materializing a temporary. Assert that is not the case.
+    static_assert(details::can_return_without_dangling_v<DAResult, T>,
+                  "Not implemented. Default argument return would dangle.");
+    return m_default_arg();
+  }
+};
+
+/// Factory functions for generating `parameter` instances:
+///  pp<T>(...)  returns a positional parameter. A designator and/or default
+///              argument can be optionally specified.
+///  npp<T>(...) returns a nonpositional parameter. A designator is required, a
+///              default argument can be optionally specified.
+
+/// Return a parameter without default argument.
+template <class T, details::raw_des RD = ".">
+constexpr
+parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix,
+          details::no_default_arg_t>
+param()
+{
+  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
+                "Parameter prefix must be empty or '.'");
+  return {};
+}
+
+/// Return a parameter with default argument.
+template <class T, details::raw_des RD = ".", class DefArg = T>
+constexpr
+parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>
+param(DefArg&& da)
+{
+  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
+                "Parameter prefix must be empty or '.'");
+  using ret_type =
+    parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>;
+  return ret_type(std::forward<DefArg>(da));
+}
+
 /// Representation of a function signature.
 template <class... Params>
 class func_signature
@@ -497,7 +496,7 @@ public:
   template <class... Args>
   consteval bool is_viable() const {
     return details::match_pa<type_list<Params...>,
-                             type_list<details::norm_arg_t<Args>...>>();
+                             type_list<details::nocvref_arg_t<Args>...>>();
   }
 
   /// Bind the specified `args` to the formal parameters. The returned `tuple`

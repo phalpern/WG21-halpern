@@ -746,6 +746,10 @@ namespace test_details {
 
 using namespace dp::details;
 
+// test `is_designated_arg`
+static_assert(  is_designated_arg_v<xarg_t>);
+static_assert(! is_designated_arg_v<double>);
+
 // test `can_return_without_dangling`
 struct B { };
 struct W : B { };
@@ -840,10 +844,6 @@ static_assert(! match_pa<params, type_list<int, const char(&)[4], const char*,
                                            xarg_t, yarg_t, zarg_t>>());
 
 }
-
-// test `is_designated_arg`
-static_assert(  dp::is_designated_arg_v<xarg_t>);
-static_assert(! dp::is_designated_arg_v<double>);
 
 // A function signature for testing.  First argument is the same as pp1, but
 // we need to test using an rvalue, which is more typical.
