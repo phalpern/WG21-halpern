@@ -91,7 +91,6 @@ void print_type_and_value(T&& v)
   } while (false)
 
 namespace dp = designated_params;
-using namespace dp::literals;
 
 /******************************************************************************
  *                              USAGE EXAMPLES
@@ -125,11 +124,11 @@ struct Point { double x, y; };
 // Note that the `shape` parameter and `transform` parameters cannot be fully
 // emulated because the library not support deduced parameters. They are
 // substituted here by known types.
-dp::func_signature munge_sig(dp::pp<const Shape&>(),
-                             dp::pp<Transform>("transform"_des),
-                             dp::npp<double>("scale"_des, 1.0),
-                             dp::npp<const Point&>("translate"_des,
-                                                   { 0.0, 0.0 }));
+dp::func_signature munge_sig(dp::param<const Shape&>(),
+                             dp::param<Transform, ".transform">(),
+                             dp::param<double, "scale">(1.0),
+                             dp::param<const Point&,
+                                       "translate">({ 0.0, 0.0 }));
 
 // Ddefine `munge` function constrained by the above signature.
 template <class... Args>
@@ -167,7 +166,7 @@ void run()
   // ```
   auto newShape = munge(myShape,                     // bound to `shape`
                         [](Shape& s){ s.x -= 1.; },  // bound to `transform`
-                        "scale"_arg(1.5));           // bound to `scale`
+                        dp::arg<"scale">(1.5));      // bound to `scale`
 
   TEST_EQ(newShape, Square(0., 2., 4.5, 6.));
 }
@@ -204,10 +203,10 @@ using WinHandle = std::unique_ptr<WinAttr>;
 
 // Signature for `makeWindow`.
 dp::func_signature makeWindow_sig(
-  dp::pp<int>("width"_des), dp::pp<int>("height"_des),
-  dp::pp<int>("left"_des, INT_MIN), dp::pp<int>("top"_des, INT_MIN),
-  dp::pp<Color>("background"_des, Color::white),
-  dp::pp<Color>("foreground"_des, Color::black));
+  dp::param<int, ".width">(), dp::param<int, ".height">(),
+  dp::param<int, ".left">(INT_MIN), dp::param<int, ".top">(INT_MIN),
+  dp::param<Color, ".background">(Color::white),
+  dp::param<Color, ".foreground">(Color::black));
 
 template <class... Args>
 requires (makeWindow_sig.is_viable<Args...>())
@@ -225,16 +224,16 @@ void run()
   int top    = 100,  left  = 150;
   int height = 1100, width = 1000;
 
-  auto w = makeWindow("top"_arg(top),       "left"_arg(left),
-                      "height"_arg(height), "width"_arg(width));
+  auto w = makeWindow(dp::arg<"top">(top),       dp::arg<"left">(left),
+                      dp::arg<"height">(height), dp::arg<"width">(width));
   TEST_EQ(*w, WinAttr(1000, 1100, 150, 100, Color::white, Color::black));
 
-  w = makeWindow(width, height, "foreground"_arg(Color::grey50));
+  w = makeWindow(width, height, dp::arg<"foreground">(Color::grey50));
   TEST_EQ(*w, WinAttr(1000, 1100, INT_MIN, INT_MIN,
                       Color::white, Color::grey50));
 
-  w = makeWindow("width"_arg(1000), "height"_arg(1500),
-                 "left"_arg(10),    "top"_arg(20));
+  w = makeWindow(dp::arg<"width">(1000), dp::arg<"height">(1500),
+                 dp::arg<"left">(10),    dp::arg<"top">(20));
   TEST_EQ(*w, WinAttr(1000, 1500, 10, 20, Color::white, Color::black));
 }
 
@@ -256,9 +255,10 @@ ThreadPool defaultThreadPool;
 
 // This library emulation does not handle variadic parameters, so we use a
 // fixed parameter list.
-dp::func_signature calculate_sig(dp::pp<std::string>(""), dp::pp<double>(0.0),
-                                 dp::npp<ThreadPool&>("threadpool"_des,
-                                                      defaultThreadPool));
+dp::func_signature calculate_sig(dp::param<std::string>(""),
+                                 dp::param<double>(0.0),
+                                 dp::param<ThreadPool&,
+                                           "threadpool">(defaultThreadPool));
 template <class T, class... Args>
 T calculate(T x = {}, Args&&... args)
 {
@@ -280,7 +280,8 @@ void run()
   TEST_EQ(1, defaultThreadPool.m_count);
   TEST_EQ(0, myThreadPool.m_count);
 
-  auto r2 = calculate(19.4, "encode", 1.0, "threadpool"_arg(myThreadPool));
+  auto r2 = calculate(19.4, "encode", 1.0,
+                      dp::arg<"threadpool">(myThreadPool));
   TEST_EQ(20.4, r2);
   TEST_EQ(1, defaultThreadPool.m_count);
   TEST_EQ(1, myThreadPool.m_count);
@@ -294,10 +295,10 @@ namespace usage4 {
 // Note: This is probably not a particularly useful way to define a
 // cartesian/polar point, but it gets the point across
 
-dp::func_signature cartesian_ctor_sig(pp<double>("x"_des),
-                                      pp<double>("y"_des));
-dp::func_signature polar_ctor_sig(npp<double>("radius"_des),
-                                  npp<double>("angle"_des));
+dp::func_signature cartesian_ctor_sig(dp::param<double, ".x">(),
+                                      dp::param<double, ".y">());
+dp::func_signature polar_ctor_sig(dp::param<double, "radius">(),
+                                  dp::param<double, "angle">());
 
 class Point
 {
@@ -353,25 +354,25 @@ void run()
   TEST_EQ(p1.x(), 4.0);
   TEST_EQ(p1.y(), 3.0);
 
-  Point p2("radius"_arg(5.0), "angle"_arg(0.5));
+  Point p2(dp::arg<"radius">(5.0), dp::arg<"angle">(0.5));
   TEST_EQ(p2.coord_system(), Point::polar);
   TEST_EQ(p2.x(), 5.0);
   TEST_EQ(p2.y(), 0.5);
 
   // Weird, but legal.  Note that it works as a `constexpr` definition.
-  constexpr Point p3(4.0, "y"_arg(3.0));
+  constexpr Point p3(4.0, dp::arg<"y">(3.0));
   TEST_EQ(p3.coord_system(), Point::cartesian);
   TEST_EQ(p3.x(), 4.0);
   TEST_EQ(p3.y(), 3.0);
 
   // Reversing order of arguments works.
-  constexpr Point p4("y"_arg(3.0), "x"_arg(4.0));
+  constexpr Point p4(dp::arg<"y">(3.0), dp::arg<"x">(4.0));
   TEST_EQ(p4.coord_system(), Point::cartesian);
   TEST_EQ(p4.x(), 4.0);
   TEST_EQ(p4.y(), 3.0);
 
   // Putting non-positiona arg second doesn't work.
-  // constexpr Point p5( "y"_arg(3.0), 4.0);
+  // constexpr Point p5( dp::arg<"y">(3.0), 4.0);
 }
 
 } // close namespace usage4
@@ -381,10 +382,10 @@ namespace usage5 {
 // Variation of `Point` example from paper that avoids mixing positional and
 // designated parmaters.
 
-dp::func_signature cartesian_ctor_sig(npp<double>("x"_des),
-                                      npp<double>("y"_des));
-dp::func_signature polar_ctor_sig(npp<double>("radius"_des),
-                                  npp<double>("angle"_des));
+dp::func_signature cartesian_ctor_sig(dp::param<double, "x">(),
+                                      dp::param<double, "y">());
+dp::func_signature polar_ctor_sig(dp::param<double, "radius">(),
+                                  dp::param<double, "angle">());
 
 class Point
 {
@@ -446,13 +447,13 @@ void run()
   TEST_EQ(p1.x(), 4.0);
   TEST_EQ(p1.y(), 3.0);
 
-  Point p2("radius"_arg(5.0), "angle"_arg(0.5));
+  Point p2(dp::arg<"radius">(5.0), dp::arg<"angle">(0.5));
   TEST_EQ(p2.coord_system(), Point::polar);
   TEST_EQ(p2.x(), 5.0);
   TEST_EQ(p2.y(), 0.5);
 
   // Mixed positional/designated no longer finds a matching constructor.
-  // constexpr Point p3(4.0, "y"_arg(3.0));
+  // constexpr Point p3(4.0, dp::arg<"y">(3.0));
 }
 
 } // close namespace usage5
@@ -467,11 +468,11 @@ using usage2::WinAttr;
 using usage2::WinHandle;
 
 dp::func_signature makeWindow_sig(
-  dp::npp<int>("width"_des), dp::npp<int>("height"_des),
-  dp::npp<int>("left"_des, INT_MIN), dp::npp<int>("top"_des, INT_MIN),
-  dp::npp<Color>("background"_des, Color::white),
-  dp::npp<Color>("foreground"_des, Color::black),
-  dp::npp<bool>("keep_on_top"_des, false));
+  dp::param<int, "width">(),       dp::param<int, "height">(),
+  dp::param<int, "left">(INT_MIN), dp::param<int, "top">(INT_MIN),
+  dp::param<Color, "background">(Color::white),
+  dp::param<Color, "foreground">(Color::black),
+  dp::param<bool, "keep_on_top">(false));
 
 WinHandle makeWindow(int   width,                     int   height,
                      int   left,                      int   top = INT_MIN,
@@ -502,9 +503,9 @@ void run()
   auto w1 = makeWindow(w, h, l, t);
   TEST_EQ(*w1, WinAttr(1000, 1100, 150, 100, Color::white, Color::black));
 
-  auto w2 = makeWindow("width"_arg(w), "height"_arg(h),
-                       "left"_arg(l),  "top"_arg(t),
-                       "keep_on_top"_arg(true));
+  auto w2 = makeWindow(dp::arg<"width">(w), dp::arg<"height">(h),
+                       dp::arg<"left">(l),  dp::arg<"top">(t),
+                       dp::arg<"keep_on_top">(true));
   TEST_EQ(*w2, WinAttr(1000, 1100, 150, 100, Color::white, Color::black));
 }
 
@@ -520,11 +521,11 @@ using usage2::WinAttr;
 using usage2::WinHandle;
 
 dp::func_signature makeWindow_sig(
-  dp::pp<int>("width"_des), dp::pp<int>("height"_des),
-  dp::pp<int>("left"_des, INT_MIN), dp::pp<int>("top"_des, INT_MIN),
-  dp::pp<Color>("background"_des, Color::white),
-  dp::pp<Color>("foreground"_des, Color::black),
-  dp::npp<bool>("keep_on_top"_des, false));
+  dp::param<int, ".width">(), dp::param<int, ".height">(),
+  dp::param<int, ".left">(INT_MIN), dp::param<int, ".top">(INT_MIN),
+  dp::param<Color, ".background">(Color::white),
+  dp::param<Color, ".foreground">(Color::black),
+  dp::param<bool, "keep_on_top">(false));
 
 template <class... Args>
 requires (makeWindow_sig.is_viable<Args...>())
@@ -547,7 +548,7 @@ void run()
   auto w1 = makeWindow(w, h, l, t);
   TEST_EQ(*w1, WinAttr(1000, 1100, 150, 100, Color::white, Color::black));
 
-  auto w2 = makeWindow(w, h, l, t, "keep_on_top"_arg(true));
+  auto w2 = makeWindow(w, h, l, t, dp::arg<"keep_on_top">(true));
   TEST_EQ(*w2, WinAttr(1000, 1100, 150, 100, Color::white, Color::black));
 }
 
@@ -557,8 +558,8 @@ namespace usage8 {
 
 // Examples from "Parameter and Argument Order"
 
-dp::func_signature f1_sig(dp::pp<int>(), dp::pp<int>(0),
-                          npp<double>("scale"_des, 1.0));
+dp::func_signature f1_sig(dp::param<int>(), dp::param<int>(0),
+                          dp::param<double, "scale">(1.0));
 
 template <class... Args>
 requires (f1_sig.is_viable<Args...>())
@@ -572,10 +573,12 @@ void f1(Args&&...)
 
 void run()
 {
-  f1(9, 8, "scale"_arg(2.0)); // All arguments are explicitly specified
-  f1(9, "scale"_arg(1.5));    // y = 0 by default
-  f1(9, 8);                   // scale = 1.0 by default
-//  f1(9, "scale"_arg(.5), 8);  // Ill formed: undesignated arg after designated arg
+  f1(9, 8, dp::arg<"scale">(2.0)); // All arguments are explicitly specified
+  f1(9, dp::arg<"scale">(1.5));    // y = 0 by default
+  f1(9, 8);                        // scale = 1.0 by default
+
+  // Ill formed: undesignated arg after designated arg:
+  // f1(9, dp::arg<"scale">(.5), 8);
 }
 
 } // close namespace usage8
@@ -590,10 +593,10 @@ public:
   enum class Mode { READ, WRITE, APPEND };
 
   static constexpr inline dp::func_signature
-  open1_sig{dp::pp<Mode>("mode"_des), dp::pp<std::string>("filename"_des)};
+  open1_sig{dp::param<Mode, ".mode">(), dp::param<std::string, ".filename">()};
 
   static constexpr inline dp::func_signature
-  open2_sig{dp::pp<Mode>("mode"_des), dp::pp<std::string>("url"_des)};
+  open2_sig{dp::param<Mode, ".mode">(), dp::param<std::string, ".url">()};
 
   // distinct overloads of `open`
   template <class... Args>
@@ -609,7 +612,7 @@ void run()
 {
   Stream s;
 
-  s.open(Stream::Mode::READ, "filename"_arg("myinput.txt"));    // OK
+  s.open(Stream::Mode::READ, dp::arg<"filename">("myinput.txt"));    // OK
   // s.open(Stream::Mode::READ, "https::/isocpp.org/myinput"); // Error: ambiguous
 }
 
@@ -627,11 +630,12 @@ auto verbose_call(F&& f, Args&&... args) -> decltype(auto) {
   return std::forward<F>(f)(std::forward<Args>(args)...);
 }
 
-dp::func_signature func1_sig(dp::pp<int>(), dp::npp<const char*>("name"_des));
+dp::func_signature func1_sig(dp::param<int>(),
+                             dp::param<const char*, "name">());
 
-dp::func_signature func2_sig(dp::pp<const char*>(),
-                             dp::npp<double>("angle"_des),
-                             dp::npp<double>("radius"_des));
+dp::func_signature func2_sig(dp::param<const char*>(),
+                             dp::param<double, "angle">(),
+                             dp::param<double, "radius">());
 
 
 // In the paper, `func` is a non-template function. The designated-parameter
@@ -659,7 +663,7 @@ struct {
 
 } constexpr func;
 
-dp::func_signature W_ctor_sig(npp<int>("value"_des), npp<int>("offset"_des));
+dp::func_signature W_ctor_sig(dp::param<int, "value">(), dp::param<int, "offset">());
 
 struct W
 {
@@ -676,17 +680,19 @@ struct W
 
 void run()
 {
-  verbose_call(func, 5, "name"_arg("Fred"));
+  verbose_call(func, 5, dp::arg<"name">("Fred"));
 
   constexpr  int x = 5;
   std::pair<int, W> p(std::piecewise_construct,
                       std::forward_as_tuple(99),
-                      std::forward_as_tuple("value"_arg(x), "offset"_arg(-1)));
+                      std::forward_as_tuple(dp::arg<"value">(x),
+                                            dp::arg<"offset">(-1)));
   TEST_EQ(p.first, 99);
   TEST_EQ(p.second.m_value, x);
   TEST_EQ(p.second.m_offset, -1);
 
-  auto t = std::make_tuple("Hello", "angle"_arg(30), "radius"_arg(2.5));
+  auto t = std::make_tuple("Hello",
+                           dp::arg<"angle">(30), dp::arg<"radius">(2.5));
   std::apply(func, t);
 }
 
@@ -696,29 +702,26 @@ void run()
  *                              END USAGE EXAMPLES
  *****************************************************************************/
 
-// Test `_des` UDL
-constexpr auto h = "hello"_des;
-constexpr auto x = "x"_des;
-
-// extern function to suppress unused-variable warnings
-void suppress_test_warnings1()
-{
-  (void) h;
-  (void) x;
-}
+// Test `designator_from_raw`
+constexpr auto h_des = dp::designator_from_raw_v<"hello">;
+constexpr auto x_des = dp::designator_from_raw_v<"x">;
+constexpr auto y_des = dp::designator_from_raw_v<".y">;
+static_assert(h_des == dp::designator_t<'h','e','l','l','o'>{});
+static_assert(x_des == dp::designator_t<'x'>{});
+static_assert(y_des == dp::designator_t<'y'>{});
 
 // Parameter declarations
-constexpr auto pp1    = dp::pp<const double&>();      // const double& a
-constexpr auto pp2    = dp::pp<const char*>(nullptr); // const char *b =nullptr
-constexpr auto xparam = dp::npp<int>("x"_des);        // int .x
+constexpr auto pp1    = dp::param<const double&>();      // const double& a
+constexpr auto pp2    = dp::param<const char*>(nullptr); // const char *b =nullptr
+constexpr auto xparam = dp::param<int, "x">();           // int .x
 // TBD: Workound for inability to use default arguments that would materialize
 // temporaries when used.
 struct Five { operator int&&() const {
   static int r = 5; return std::move(r); }
 } five;
-constexpr auto yparam = dp::npp<int&&>("y"_des, five);// int&& .y = 5
-//constexpr auto yparam = dp::npp<int&&>("y"_des, 5);   // int&& .y = 5
-constexpr auto zparam = dp::pp<std::string>("z"_des,  // string .z = "hello"
+constexpr auto yparam = dp::param<int&&, "y">(five);  // int&& .y = 5
+//constexpr auto yparam = dp::param<int&&, "y">(5);   // int&& .y = 5
+constexpr auto zparam = dp::param<std::string, ".z">( // string .z = "hello"
   [] -> std::string { return "hello"; });
 
 using xparam_t = decltype(xparam);
@@ -728,10 +731,10 @@ using pp2_t    = decltype(pp2   );
 using zparam_t = decltype(zparam);
 
 // Designated-argument types
-auto xarg   = "x"_arg(short(9));   // .x = short(9)
-auto nxarg  = "x"_arg(nullptr);    // .x = nullptr
-auto yarg   = "y"_arg(99);         // .y = 99
-auto zarg   = "z"_arg("bye");      // .z = "bye"
+auto xarg   = dp::arg<"x">(short(9));   // .x = short(9)
+auto nxarg  = dp::arg<"x">(nullptr);    // .x = nullptr
+auto yarg   = dp::arg<"y">(99);         // .y = 99
+auto zarg   = dp::arg<"z">("bye");      // .z = "bye"
 
 using xarg_t  = decltype(xarg );
 using nxarg_t = decltype(nxarg);
@@ -794,9 +797,9 @@ static_assert(  has_no_default<xparam_t>::value);
 static_assert(! has_no_default<yparam_t>::value);
 
 // test `match_des`
-static_assert(  match_des<"x"_des>::apply<xparam_t>::value);
-static_assert(  match_des<"y"_des>::apply<yparam_t>::value);
-static_assert(! match_des<"x"_des>::apply<yparam_t>::value);
+static_assert(  match_des<x_des>::apply<xparam_t>::value);
+static_assert(  match_des<y_des>::apply<yparam_t>::value);
+static_assert(! match_des<x_des>::apply<yparam_t>::value);
 
 // basic test for `match_da`
 static_assert(  match_da<type_list<>, type_list<>>());
@@ -845,7 +848,7 @@ static_assert(! dp::is_designated_arg_v<double>);
 // A function signature for testing.  First argument is the same as pp1, but
 // we need to test using an rvalue, which is more typical.
 constexpr dp::func_signature sig1 = {
-  dp::pp<const double&>(), pp2, zparam, xparam, yparam
+  dp::param<const double&>(), pp2, zparam, xparam, yparam
 };
 
 static_assert(! sig1.is_viable<>());
@@ -900,8 +903,8 @@ int main()
   {
     double d = 1.2;
     auto [p1, p2, z, x, y] = sig1.get_param_values(d, "a", "b",
-                                                   "y"_arg(99),
-                                                   "x"_arg(short(9)));
+                                                   dp::arg<"y">(99),
+                                                   dp::arg<"x">(short(9)));
 
     TEST_TYPE_IS(p1, const double&);
     TEST_TYPE_IS(p2, const char*);
@@ -915,8 +918,8 @@ int main()
   {
     constexpr double d = 1.2;
     auto [p1, p2, z, x, y] = sig1.get_param_values(d, "a",
-                                                   "y"_arg(99),
-                                                   "x"_arg(short(9)));
+                                                   dp::arg<"y">(99),
+                                                   dp::arg<"x">(short(9)));
 
     TEST_TYPE_IS(p1, const double&);
     TEST_TYPE_IS(p2, const char*);
@@ -928,13 +931,13 @@ int main()
   }
 
   TEST_EQ(std::tuple(1.2, "a", "b", 9, 99),
-          f1(1.2,  "a", "b", "y"_arg(99), "x"_arg(short(9))));
+          f1(1.2,  "a", "b", dp::arg<"y">(99), dp::arg<"x">(short(9))));
 
   TEST_EQ(std::tuple(3.4, "c", "hello", 8, 88),
-          f1(3.4,  "c", "x"_arg(short(8)), "y"_arg(88)));
+          f1(3.4,  "c", dp::arg<"x">(short(8)), dp::arg<"y">(88)));
 
   TEST_EQ(std::tuple(5.6, "d", "bye", 7, 5),
-          f1(5.6,  "d", "x"_arg(7), "z"_arg("bye")));
+          f1(5.6,  "d", dp::arg<"x">(7), dp::arg<"z">("bye")));
 
   return error_count;
 }
