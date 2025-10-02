@@ -40,7 +40,10 @@ snapshots
 [A-OQ-Za-oq-z]*.pdf
 [DdPp][0-9][0-9][0-9][0-9].pdf
 [DdPp][0-9][0-9][0-9][0-9].html
+[Dd][0-9][0-9][0-9][0-9][Rr][0-9].pdf
 [Dd][0-9][0-9][0-9][0-9][Rr][0-9].html
+[DdPp]xxxx*.pdf
+[DdPp]xxxx*.html
 
 # Untracked subdirectories
 NinaPapers
