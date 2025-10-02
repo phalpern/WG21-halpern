@@ -40,10 +40,10 @@ concept maybe = requires(const T a) {
 template <class R = void, maybe T, class... U>
 constexpr auto value_or(T&& m, U&&... u) -> decltype(auto)
 {
-  // Construct the return value from either `*m` or `forward<U>(u)... )`.
+  // Construct the return value from either `*m` or `std::forward<U>(u)... )`.
 
   // Find the type returned by dereferencing `m`
-  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
+  using DerefType = decltype(*std::forward<T>(m));   // Often a reference type.
   using ValueType = remove_cvref_t<DerefType>;  // Non-reference value
 
   // If `U...` represents exactly one argument type, then `RetCalc::type` is
@@ -79,14 +79,14 @@ constexpr auto value_or(T&& m, U&&... u) -> decltype(auto)
                   "Would construct a dangling reference from a temporary");
   }
 
-  return bool(m) ? static_cast<Ret>(*forward<T>(m)) : Ret(forward<U>(u)...);
+  return bool(m) ? static_cast<Ret>(*std::forward<T>(m)) : Ret(std::forward<U>(u)...);
 }
 
 template <class R = void, maybe T, class IT, class... U>
 constexpr auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(auto)
 {
   // Find the type returned by dereferencing `m`
-  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
+  using DerefType = decltype(*std::forward<T>(m));   // Often a reference type.
   using ValueType = remove_cvref_t<DerefType>;  // Non-reference value
 
   using Ret = conditional_t<is_same_v<R, void>, ValueType, R>;
@@ -97,16 +97,16 @@ constexpr auto value_or(T&& m, initializer_list<IT> il, U&&... u) -> decltype(au
   static_assert(is_constructible_v<Ret, initializer_list<IT>, U...>,
                 "Cannot construct return type from argument types");
 
-  return bool(m) ? static_cast<Ret>(*m) : Ret(il, forward<U>(u)...);
+  return bool(m) ? static_cast<Ret>(*m) : Ret(il, std::forward<U>(u)...);
 }
 
 template <class R = void, maybe T, class U>
 constexpr auto reference_or(T&& m, U&& u) -> decltype(auto)
 {
-  // Construct the return value from either `*m` or `forward<U>(u)... )`.
+  // Construct the return value from either `*m` or `std::forward<U>(u)... )`.
 
   // Find the type returned by dereferencing `m`
-  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
+  using DerefType = decltype(*std::forward<T>(m));   // Often a reference type.
 
   // If `U...` represents exactly one argument type, then `RetCalc::type` is
   // the common type of `ValueType` and `U`; otherwise `RetCalc::type` is
@@ -134,16 +134,16 @@ constexpr auto reference_or(T&& m, U&& u) -> decltype(auto)
   static_assert(!reference_constructs_from_temporary_v<Ret, U>,
                 "Would construct a dangling reference from a temporary");
 
-  return bool(m) ? static_cast<Ret>(*forward<T>(m)) : static_cast<Ret>(forward<U>(u));
+  return bool(m) ? static_cast<Ret>(*std::forward<T>(m)) : static_cast<Ret>(std::forward<U>(u));
 }
 
 template <class R = void, maybe T, class I>
 constexpr auto or_invoke(T&& m, I&& invocable) -> decltype(auto)
 {
-  // Construct the return value from either `*m` or `forward<U>(u)... )`.
+  // Construct the return value from either `*m` or `std::forward<U>(u)... )`.
 
   // Find the type returned by dereferencing `m`
-  using DerefType = decltype(*forward<T>(m));   // Often a reference type.
+  using DerefType = decltype(*std::forward<T>(m));   // Often a reference type.
   using InvokeRet = invoke_result_t<I>;
 
   // If `U...` represents exactly one argument type, then `RetCalc::type` is
@@ -172,7 +172,7 @@ constexpr auto or_invoke(T&& m, I&& invocable) -> decltype(auto)
   static_assert(!reference_constructs_from_temporary_v<Ret, InvokeRet>,
                 "Would construct a dangling reference from a temporary");
 
-  return bool(m) ? static_cast<Ret>(*forward<T>(m)) : static_cast<Ret>(invocable());
+  return bool(m) ? static_cast<Ret>(*std::forward<T>(m)) : static_cast<Ret>(invocable());
 }
 
 }  // close namespace std::experimental
