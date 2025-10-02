@@ -115,10 +115,6 @@ struct raw_des
   constexpr bool operator==(const raw_des& a, const raw_des& b) = default;
 };
 
-/// Placeholder argument for parameter having no default argument.
-struct no_default_arg_t { };
-constexpr inline no_default_arg_t no_default_arg{};
-
 /// Trait has value `true` if `T` can bind to a temporary, i.e., if `T` is an
 /// rvalue reference or a const lvalue reference.
 template <class T>
@@ -163,22 +159,26 @@ constexpr inline bool can_return_without_dangling_v =
   can_return_without_dangling<From, To>::value;
 
 template <raw_des RD, std::size_t... I>
-constexpr auto designator_from_raw_imp(std::index_sequence<I...>)
+constexpr auto from_raw_des_imp(std::index_sequence<I...>)
 {
   return designator_t<RD[I]...>{};
 }
 
-template <class T>
-struct  has_no_default : std::true_type { };
+/// Metafunction to convert a raw designator to a designator.
+/// E.g, `is_same<from_raw_des_t<"cat">, designator_t<'c', 'a', 't'>>`.
+template <details::raw_des RD>
+using from_raw_des_t =
+  decltype(from_raw_des_imp<RD>(std::make_index_sequence<RD.size()>{}));
 
-template <class T>
-struct  has_no_default<const T> : has_no_default<T>::type { };
+/// Construct a designator constant from a string literal.
+/// E.g., `from_raw_des_v<"cat"> == designator_t<'c', 'a', 't'>{}`
+template <details::raw_des RD>
+constexpr inline from_raw_des_t<RD> from_raw_des_v{};
 
-template <class T, auto DesV, bool IsPositional, class DefaultArgT>
-struct  has_no_default<parameter<T, DesV, IsPositional, DefaultArgT>>
-  : std::is_same<DefaultArgT, no_default_arg_t>::type
-{
-};
+/// Metafunction returns true if `T` is a `parameter` instantiation without a
+/// default argument value.
+template <class T>
+struct  has_no_default : std::bool_constant<! T::has_default_arg> { };
 
 /// Remove cvref qualification from `designated_arg`, but leave other types
 /// unchanged.
@@ -326,21 +326,6 @@ constexpr decltype(auto) arg_lookup(const Param& p, std::tuple<Args...>& args)
 
 } // close namespace details
 
-/// Metafunction to convert a raw designator to a designator.
-/// E.g, `designator_from_raw_v<"cat">` == `designator_t<'c', 'a', 't'>{}`.
-template <details::raw_des RD>
-struct designator_from_raw
-{
-  using type = decltype(details::designator_from_raw_imp<RD>(
-                          std::make_index_sequence<RD.size()>{}));
-};
-
-template <details::raw_des RD>
-using designator_from_raw_t = designator_from_raw<RD>::type;
-
-template <details::raw_des RD>
-constexpr inline designator_from_raw_t<RD> designator_from_raw_v{};
-
 /// Representation of a designated argument, i.e., a runtime value with a
 /// desginator.
 template <designator auto DesV, class T>
@@ -366,7 +351,7 @@ constexpr auto arg(T&& value)
 {
   static_assert('\0' == RD.m_prefix,
                 "Argument designator must not have a prefix");
-  constexpr auto DesV = designator_from_raw_v<RD>;
+  constexpr auto DesV = details::from_raw_des_v<RD>;
   return designated_arg<DesV, T&&>(std::forward<T>(value));
 }
 
@@ -386,11 +371,7 @@ public:
   static constexpr inline bool is_designated =
     (designator_v != null_designator);
   static constexpr inline bool is_positional = IsPositional;
-  static constexpr inline bool has_default_arg =
-    ! std::is_same_v<DefaultArgT, details::no_default_arg_t>;
-
-  /// Construct with no default argument.
-  constexpr parameter() requires(! has_default_arg) { }
+  static constexpr inline bool has_default_arg = true;
 
   /// Construct with default argument.
   /// Mandates that `DefaultArgT` either be convertible to `T` or be an
@@ -412,7 +393,7 @@ public:
     // TBD: Currently should not use this function if initializing a `T` would
     // require materializing a temporary. Assert that is not the case.
     static_assert(details::can_return_without_dangling_v<DefaultArgT, T>,
-                  "Not implemented. Default argument return would dangle.");
+                  "Not implemented: Default argument return would dangle.");
     return m_default_arg;
   }
 
@@ -424,9 +405,27 @@ public:
     // TBD: Currently should not use this function if initializing a `T` would
     // require materializing a temporary. Assert that is not the case.
     static_assert(details::can_return_without_dangling_v<DAResult, T>,
-                  "Not implemented. Default argument return would dangle.");
+                  "Not implemented: Default argument return would dangle.");
     return m_default_arg();
   }
+};
+
+/// Specialization of `parameter` having no default argument.
+template <class T, auto DesV, bool IsPositional>
+requires (designator<decltype(DesV)> or DesV == null_designator)
+class parameter<T, DesV, IsPositional, void>
+{
+public:
+  static constexpr inline auto designator_v = DesV;
+  using value_type                          = T;
+
+  static constexpr inline bool is_designated =
+    (designator_v != null_designator);
+  static constexpr inline bool is_positional = IsPositional;
+  static constexpr inline bool has_default_arg = false;
+
+  /// Construct with no default argument.
+  constexpr parameter() { }
 };
 
 /// Factory functions for generating `parameter` instances:
@@ -436,27 +435,26 @@ public:
 ///              default argument can be optionally specified.
 
 /// Return a parameter without default argument.
-template <class T, details::raw_des RD = ".">
+template <class T, details::raw_des RD = "^">
 constexpr
-parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix,
-          details::no_default_arg_t>
+parameter<T, details::from_raw_des_v<RD>, '^' == RD.m_prefix, void>
 param()
 {
-  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
-                "Parameter prefix must be empty or '.'");
+  static_assert('\0' == RD.m_prefix || '^' == RD.m_prefix,
+                "Parameter prefix must be empty or '^'");
   return {};
 }
 
 /// Return a parameter with default argument.
-template <class T, details::raw_des RD = ".", class DefArg = T>
+template <class T, details::raw_des RD = "^", class DefArg = T>
 constexpr
-parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>
+parameter<T, details::from_raw_des_v<RD>, '^' == RD.m_prefix, DefArg>
 param(DefArg&& da)
 {
-  static_assert('\0' == RD.m_prefix || '.' == RD.m_prefix,
-                "Parameter prefix must be empty or '.'");
+  static_assert('\0' == RD.m_prefix || '^' == RD.m_prefix,
+                "Parameter prefix must be empty or '^'");
   using ret_type =
-    parameter<T, designator_from_raw_v<RD>, '.' == RD.m_prefix, DefArg>;
+    parameter<T, details::from_raw_des_v<RD>, '^' == RD.m_prefix, DefArg>;
   return ret_type(std::forward<DefArg>(da));
 }
 

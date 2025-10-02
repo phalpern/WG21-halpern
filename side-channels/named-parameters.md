@@ -2,7 +2,7 @@
 title: "Designated Parameters"
 document: named-parameters
 # $TimeStamp$
-date: 2025-09-22 17:56 EDT
+date: 2025-09-24 18:06 EDT
 # $
 audience: EWGI
 author:
@@ -60,25 +60,29 @@ provide overload disambiguation and some measure of interface evolution. These
 techniques are ad-hoc, inconsistent with one another, don't resemble normal
 parameter declarations, and don't allow arguments to be reordered.
 
-# A Very Short Summary of the Proposal
+# A Very Short Syntax Summary
 
 The syntax used in this document is not from fully baked; some alternatives are
 described in the
 [Alternative Syntax and Terminology](#alternative-syntax-and-terminology)
-section, below.
+section, below. This section provides just enough description to understand the
+[Motivating Use Cases](#motivating-use-cases) section. Syntactic constraints
+and detailed semantics, including impact on the type system are described
+later, in the [Proposal Details](#proposal-details) section.
 
 We propose a function-parameter declaration syntax where a dot (`.`)
 followed by a parameter name forms a _designator_, a name with semantic
 significance that must be the same in every declaration of the function and is
-used to identify the parameter at function invocation. There would be no change
-to the meaning of parameter names _not_ preceded by a dot:
+used to identify the parameter at function invocation. A caret (`^`) before a
+parameter name indicates that the designated parameter is _also_ a positional
+parameter (see below). There would be no change to the meaning of parameter
+names _not_ preceded by a dot:
 
 ```cpp
 template <class Shape, class Transform>
-Shape munge(const Shape&     shape,       // normal parameter
-            const Transform& .transform,  // `transform` is a designator
-            .,                            // separator, see below
-            double           .scale     = 1.0,
+Shape munge(const Shape&     shape,            // normal parameter
+            const Transform& .^transform,      // @**positional**@ designator
+            double           .scale     = 1.0, // @**nonpositional**@ designators
             const Point&     .translate = {0.0, 0.0});
 ```
 
@@ -94,11 +98,10 @@ auto newShape = munge(myShape, // bound to first parameter (`shape`)
                       .scale     = 1.5);
 ```
 
-The single-dot psuedo-parameter between `.transform` and `.scale` is used to
-separate positional parameters form non-positional parameters. Arguments can be
-bound to positional parameters with or without a designator whereas positional
-arguments can be specified only by using the designated-argument syntax. Thus,
-the following invocation of `munge` is equivalent to the one above.
+Arguments can be bound to positional designated parameters with or without a
+designator whereas nonpositional parameters can be bound only by using the
+designated-argument syntax. Thus, the following invocation of `munge` is
+equivalent to the one above because `transform` is positional.
 
 ```cpp
 auto newShape = munge(myShape,              // bound to `shape`
@@ -202,8 +205,8 @@ between the argument designator and parameter designator.
 
 ## More Convenient
 
-Default arguments are a convenience feature, but to supply a non-default value
-for one parameter, the caller must provide non-default values for all preceding
+Default arguments are a convenience feature, but to supply a nondefault value
+for one parameter, the caller must provide nondefault values for all preceding
 parameters. In the example below, the `INT_MIN` arguments on the left are pure
 noise and make the call harder to write and read. The code on the right is
 clean and minimal.
@@ -312,7 +315,7 @@ auto r2 = calculate(ThreadPool_arg, myThreadPool,
 
 
 template <class T = double, class... Args>
-T calculate(T x = {}, Args&&... args, .,
+T calculate(T x = {}, Args&&... args,
             ThreadPool& .threadpool = defaultThreadPool);
 
 auto r1 = calculate(19.4, "encode", 1.0);
@@ -358,20 +361,20 @@ public:
 
 
 
-  constexpr Point(double .x, double .y);
-  constexpr Point(., double .radius, double .angle);
+  constexpr Point(double .^x, double .^y);
+  constexpr Point(double .radius, double .angle);
 };
 
-Point p1(4.0, 3.0); // = Point p1(.x=4.0, .y=3.0);
+Point p1(4.0, 3.0); // same as Point p1(.x=4.0, .y=3.0);
 Point p2(.radius=5.0, .angle=0.6435);
 ```
+
+:::
 
 <!-- JMB: So the case I find confusing that arises here because of having
      parameters that are both designated and postiional is that we can also
      now invoke `Point p3(3.0, .y=5)` and that woudl work.  Similarly,
      could we do `Point p4(.y=5.0, 3.0)`?    -->
-
-:::
 
 ## More Expressive Generic Programming
 
@@ -394,8 +397,8 @@ through the use of designated parameters:
 template <class... Args, class Allocator = std::allocator<>>
 class Service {
 public:
-  Service(int x, Args&&... args, .,
-          Logger& .logger      = global_logger(),
+  Service(int x, Args&&... args,
+          Logger&   .logger    = global_logger(),
           Allocator .allocator = {});
 
   void doSomething();
@@ -424,8 +427,9 @@ from the caller's environment, replacing some current (unsafe) uses of global
 and thread-local variables, while reducing the noise of passing arguments down
 an arbitrarily deep function-call hierarchy.
 
+# Proposal Details
 
-# Nomenclature
+## Designated and Positional Parameters
 
 We introduce two new terms for describing function parameters:
 
@@ -440,11 +444,11 @@ We introduce two new terms for describing function parameters:
 
 In this proposal, a function parameter can be
 
-1. Undesignated and positional (the only option in C++26)
-2. Designated and nonpositional
-3. Designated and positional
+1. Positional and undesignated (the only option in C++26)
+2. Nonpositional and designated
+3. Positional and designated
 
-## Designated Positional Parameters: Divergence in Co-author Opinions
+## Divergence in Co-author Opinions
 
 One of the co-authors of this paper, Joshua Berne, is not sure that the third
 combination is needed for a successful feature, while the other co-author,
@@ -460,12 +464,12 @@ auto w1 = makeWindow(w, h, x, y);
 auto w2 = makeWindow(.top = y, .left = x, .width = w, .height = h);
 ```
 
-Let's see how we might do this with and without designated positional
+Let's see how we might do this with and without positional designated
 parameters:
 
 ::: cmptable
 
-### Without Designated Positional Parameters
+### Without Positional Designated Parameters
 
 ```cpp
 WinHandle makeWindow(int   width,                     int   height,
@@ -476,23 +480,23 @@ WinHandle makeWindow(int   .width,                     int   .height,
                      Color .background = Color::white, Color .foreground = Color::black);
 ```
 
-### With Designated Positional Parameters
+### With Positional Designated Parameters
 
 ```cpp
 
 
 
-WinHandle makeWindow(.,int .width,                     int   .height,
-                     int   .left         = INT_MIN,    int   .top = INT_MIN,
-                     Color .background = Color::white, Color .foreground = Color::black);
+WinHandle makeWindow(int   .^width,                     int   .^height,
+                     int   .^left         = INT_MIN,    int   .^top = INT_MIN,
+                     Color .^background = Color::white, Color .^foreground = Color::black);
 ```
 
 :::
 
 The difference in effort between the two versions might seem minimal: simply
-add an extra overload in non-positional case, but the transformation is
-non-trivial. On the left side of the table, notice that, to prevent ambiguity,
-we needed to remove the default argument from `left` in the positional-only
+add an extra overload in nonpositional case, but the transformation is
+nontrivial. On the left side of the table, notice that, to prevent ambiguity,
+we needed to remove the default argument from `left` in the nondesignated
 overload --- a change that makes the process more error prone. If there are
 many such functions, adding designated-parameter overloads could double the
 size of in the interface. Templates and variadic parameters complicate things
@@ -501,13 +505,13 @@ further.
 One of the benefits of designated arguments is that it is possible to add new
 parameters to a function without disrupting existing calls, provided the new
 parameter has a default argument value. Assume we add a `.keep_on_top = false`
-parameter to `makeWindow` function. Using designated positional parameters
+parameter to `makeWindow` function. Using positional designated parameters
 results in a smaller minimal change to use the new parameter at existing call
 sites:
 
 ::: cmptable
 
-### Without Designated Positional Parameters
+### Without Positional Designated Parameters
 
 ```cpp
 // Before:
@@ -518,7 +522,7 @@ auto w = makeWindow(.width = w, .height = h, .left = l, .top = t,
                     .keep_on_top = true);
 ```
 
-### With Designated Positional Parameters
+### With Positional Designated Parameters
 
 ```cpp
 // Before:
@@ -546,38 +550,37 @@ parameters.
 <!-- PGH: Your proposed disambiguation rule solves the first complication, but
      not the second, which I just added. It also feels like an arbitrary.
      workaround, but might still be worth considering, regardless of our
-     decision on designated positional parameters. -->
+     decision on positional designated parameters. -->
 
 Finally, overloading is not always an option. It might be desirable for
 `auto p = &makeWindow` to unambiguously produce a pointer-to-function object,
 something that would not be possible if `makeWindow` were an overload set. See
 [Function-pointer Conversions](#function-pointer-conversions), below.
 
-For now, we will explore a design space that includes designated positional
+For now, we will explore a design space that includes positional designated
 parameters, so that we can find any difficulties and possible ways of mitigating
-them. A straw-man syntax for separating positional parameters from
-nonpositional parameters within a declaration is a single dot pseudo-argument:
+them. A straw-man syntax indicates that a designated parameter is positional by
+adding an caret before the parameter name:
 
 ```cpp
 // `func` has positional designated parameters `x` and `y` and
 // nonpositional designated parameters `a` and `b`.
-void func(int .x, int .y, ., float .a, std::string .b = {});
+void func(int .^x, int .^y, float .a, std::string .b = {});
 ```
 
 Note that a separator such as this is no longer needed if we simply choose
-to not support paramters that are both designated and positional.
+to not support paramters that are both positional and designated.
 
-# Parameter and Argument Order
+## Parameter and Argument Order
 
 Parameters in a function declaration must appear in the following order (any or
 all of the following may be absent):
 
-1. Undesignated positional parameters without default arguments
-2. Designated positional parameters without default arguments
-3. Designated and undesignated positional parameters with default arguments
+1. Positional undesignated parameters without default arguments
+2. Positional designated parameters without default arguments
+3. Positional designated and undesignated parameters with default arguments
 4. An undesignated variadic parameter (with ellipsis)
-5. Designated nonpositional parameters, preceded by (in this straw man syntax),
-   a pseudo-parameter consisting of a single dot (`.`).
+5. Nonpositional designated parameters
 
 For positional parameters, the order of types and position of designators is
 significant; two declarations that differ in the order of positional parameters
@@ -588,10 +591,10 @@ parameters refer to the same function.
 Examples:
 
 ```cpp
-void f1(int x, int y = 0, ., double .scale = 1.0);
+void f1(int x, int y = 0, double .scale = 1.0);
 
 template <class... V>
-void f2(int x, int .y = 0, int z = 0, V&&...v, ., int .origin, int .offset = 0);
+void f2(int x, int .^y = 0, int z = 0, V&&...v, int .origin, int .offset = 0);
 ```
 
 When calling a function, undesignated arguments must appear before first, in
@@ -618,7 +621,7 @@ f2(1, 2, 3, 'd', 0.4);  // Overload failure: no value specified for origin
 f2(1, .y = 2, 3, 'd', 0.4, .origin = 0);
 ```
 
-# Interaction with Overload Resolution
+## Interaction with Overload Resolution
 
 Parameter designators are part of a function's signature (and thus its type,
 see [Interaction with Type System](#interaction-with-type-system)).  It is thus
@@ -632,8 +635,8 @@ public:
 
   ...
   // distinct overloads of `open`
-  int open(Mode .mode, const std::string .filename); // overload #1
-  int open(Mode .mode, const std::string .url);      // overload #2
+  int open(Mode .mode, const std::string .^filename); // overload #1
+  int open(Mode .mode, const std::string .^url);      // overload #2
   ...
 };
 ```
@@ -674,10 +677,10 @@ For each designated argument, DA~d~,
 To be a viable function,
 
 - each argument must match exactly one parameter, and
-- each non-variadic parameter must match exactly one argument or else match no
+- each nonvariadic parameter must match exactly one argument or else match no
   arguments and have a default argument.
 
-Note that a designated positional parameter can be matched either by position
+Note that a positional designated parameter can be matched either by position
 or by designator, but if it matches more than one distinct argument, the
 function would be nonviable.
 
@@ -702,7 +705,7 @@ void f()
 TBD: Need examples of overload resolution, including examples of errors where
 positional argument and a designated argument refer to the same parameter.
 
-# Interaction with Parameter Packs
+## Interaction with Parameter Packs
 
 Consider a function template that simply performs an action before and after
 calling an invocable entity, `f`, with supplied arguments:
@@ -723,7 +726,7 @@ continue to work unchanged in the world of designated parameters. Given the
 following declaration and call:
 
 ```cpp
-void func(int, ., const char* .name);
+void func(int, const char* .^name);
 verbose_call(func, 15, .name="Fred");
 ```
 
@@ -731,8 +734,8 @@ We would want the invocation of f within `verbose_call` to expand to something
 equivalent to the following.
 
 ```cpp
-  decltype(auto) ret = std::forward<void (&)(int, const char* .name)>(func)(
-    std::forward<int>(15), .name=std::forward<const char (&)[5]>("Fred"));
+  decltype(auto) ret = std::forward<void (&)(int, const char* .^name)>(func)(
+    std::forward<int>(15), .name = std::forward<const char (&)[5]>("Fred"));
 ```
 
 In the
@@ -772,7 +775,7 @@ the invocation of f within `verbose_call` would forward the `.name` argument as
 a designator-qualified array of `const char`:
 
 ```cpp
-  decltype(auto) ret = std::forward<void (&)(int, const char* .name)>(func)(
+  decltype(auto) ret = std::forward<void (&)(int, const char* .^name)>(func)(
     std::forward<int>(15), std::forward<const char (&.name)[5]>("Fred"));
 ```
 
@@ -827,7 +830,7 @@ auto t = std::make_tuple("hello", .angle=30, .radius=2.5);
 std::apply(func, t);
 ```
 
-# Interaction with Type System
+## Interaction with Type System
 
 Designated parameters are encoded in the type system. Because
 designator-qualified types are part of a function's signature, a function's
@@ -835,13 +838,13 @@ type naturally includes the designators for its parameters.  Similarly, a
 function pointer can be declared with designators:
 
 ```cpp
-int (*fp1)(int x, int .value);
+int (*fp1)(int x, int .^value);
 ```
 
 ## Function-pointer Conversions
 
 We can introduce a new rule whereby a pointer to function having
-designated positional parameters can be converted to a pointer to function
+positional designated parameters can be converted to a pointer to function
 having the same positional parameters, but where some of them are not
 designated:
 
@@ -860,7 +863,7 @@ TBD: How much more needs to be said about interaction with the type system?
      `f(int .name)` with a function pointer of type `int (., int .name)` ---
      I can certainly call both of those functions with a designed name.
 
-# Interaction with Reflection
+## Interaction with Reflection
 
 TBD
 
@@ -918,24 +921,33 @@ TBD: We anticipate little or no impact on ABI for existing code.
 
 # Alternative Syntax and Terminology
 
-**Alternative Nomenclature**: Use the term _label_ instead of _designator_
-(similarly _labeled parameter_, _labeled argument_, _label-qualified type_).
+**Alternative Nomenclature**: Consider using the term _label_ instead of
+_designator_ (and corresponding _labeled parameter_, _labeled argument_,
+_label-qualified type_).
 
-**Alternative designator syntax**: `void func(T t:, U (&f:)());` instead of
-`void func(T .t, U (&.f)());` and `func(t : expr1, f : expr2)` instead of
-`func(.t = expr1, .f = expr2)` (and similarly `T:name` instead of `T.name` for
-a designator-qualified type).  Advantage: in the call syntax, the argument name
-is not preceded by a gratuitous dot and the argument does not look like an
-assignment expression. _Editorial note: Pablo prefers this syntax.  The term_
-label _is probably better for this syntax_.
+**Alternative designator syntax**: The current proposed call syntax resembles
+designated initializers for structs in ways that are both good and bad.
+Although designated initializers are a somewhat-familiar syntax at the _call
+site_, parameter passing is _not_ the same thing as struct initialization and
+the resemblance could cause confusion, especially with nondesignated arguments
+in the mix. Moreover, the parameter _declaration_ syntax is entirely new.
 
-**Alternative separator syntax**: The straw-man syntax for separating
-positional from nonpositional parameters is arbitrary.  Alternatives to
-consider would be using a different delimiter, e.g., `/` or `|` instead of
-`,.,`; grouping nonpositional parameters in square or curly braces; or
-indicating positional and nonpositional designated parameters with a different
-tokens sequence, e.g., a `.^` prefix or `^:` suffix for designated parameters
-that are also positional.
+An alternative worth considering is the syntax, `func(t : expr1, f :expr2)` for
+calling a function and `void func(T t:, U (&f:)());` for declaring it.
+Advantage: in this alternative call syntax, the argument name is not preceded
+by a gratuitous dot and a function argument does not look like an assignment
+expression. _Editorial note: Pablo prefers this syntax. The term_ label _is
+probably better than_ designator _for this syntax_.
+
+**Alternative positional/nonpositional syntax**: The straw-man syntax (a
+leading `^`) for distinguishing positional from nonpositional designated
+parameters is arbitrary; a different prefix or suffix character could be chosen
+or an entirely different syntax can be proposed.  One alternative to consider
+would be using a delimiter, e.g., `,.,`, `/` or `|`, where positional
+parameters come before the delimiter and nonpositional parameters after the
+delimiter. Another alternative would be to group nonpositional parameters in
+square or curly braces, where anything not within the braces would be
+positional.
 
 <!-- JMB: Considering that i consider parameters that are both positional and
      designatable to be frought with potentials for misuse and confusion I lean
@@ -945,10 +957,6 @@ that are also positional.
      that can be layered on top of the rest.
 
      -->
-
-<!-- JMB: We should also call out that the main proposed syntax extends
-     that of designated intiializers and fits with how they work, while any
-     alternative would be a wholely new syntax to consider and learn.  -->
 
 # Previous Attempts at Designated Arguments
 
@@ -986,7 +994,7 @@ discussion notes on each proposal and see why the committee rejected them.
 > This paper is the most similar to our proposal.  After a garden-path walk
 > through an unworkable library solution, it proposes putting a label before
 > the parameter declaration and using `label : expr` for arguments.  For
-> non-positional parameters, `explicit` is used ahead of the label, which is
+> nonpositional parameters, `explicit` is used ahead of the label, which is
 > interesting. It also re-orders the parameter naming so that you would write
 > `name : type` instead of `type .name` or `type name:`, which is a gratuitous
 > change to the declaration syntax.  Ultimately, it is not a well-written paper

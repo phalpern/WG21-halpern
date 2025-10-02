@@ -125,7 +125,7 @@ struct Point { double x, y; };
 // emulated because the library not support deduced parameters. They are
 // substituted here by known types.
 dp::func_signature munge_sig(dp::param<const Shape&>(),
-                             dp::param<Transform, ".transform">(),
+                             dp::param<Transform, "^transform">(),
                              dp::param<double, "scale">(1.0),
                              dp::param<const Point&,
                                        "translate">({ 0.0, 0.0 }));
@@ -203,10 +203,10 @@ using WinHandle = std::unique_ptr<WinAttr>;
 
 // Signature for `makeWindow`.
 dp::func_signature makeWindow_sig(
-  dp::param<int, ".width">(), dp::param<int, ".height">(),
-  dp::param<int, ".left">(INT_MIN), dp::param<int, ".top">(INT_MIN),
-  dp::param<Color, ".background">(Color::white),
-  dp::param<Color, ".foreground">(Color::black));
+  dp::param<int, "^width">(), dp::param<int, "^height">(),
+  dp::param<int, "^left">(INT_MIN), dp::param<int, "^top">(INT_MIN),
+  dp::param<Color, "^background">(Color::white),
+  dp::param<Color, "^foreground">(Color::black));
 
 template <class... Args>
 requires (makeWindow_sig.is_viable<Args...>())
@@ -295,8 +295,8 @@ namespace usage4 {
 // Note: This is probably not a particularly useful way to define a
 // cartesian/polar point, but it gets the point across
 
-dp::func_signature cartesian_ctor_sig(dp::param<double, ".x">(),
-                                      dp::param<double, ".y">());
+dp::func_signature cartesian_ctor_sig(dp::param<double, "^x">(),
+                                      dp::param<double, "^y">());
 dp::func_signature polar_ctor_sig(dp::param<double, "radius">(),
                                   dp::param<double, "angle">());
 
@@ -521,10 +521,10 @@ using usage2::WinAttr;
 using usage2::WinHandle;
 
 dp::func_signature makeWindow_sig(
-  dp::param<int, ".width">(), dp::param<int, ".height">(),
-  dp::param<int, ".left">(INT_MIN), dp::param<int, ".top">(INT_MIN),
-  dp::param<Color, ".background">(Color::white),
-  dp::param<Color, ".foreground">(Color::black),
+  dp::param<int, "^width">(), dp::param<int, "^height">(),
+  dp::param<int, "^left">(INT_MIN), dp::param<int, "^top">(INT_MIN),
+  dp::param<Color, "^background">(Color::white),
+  dp::param<Color, "^foreground">(Color::black),
   dp::param<bool, "keep_on_top">(false));
 
 template <class... Args>
@@ -593,10 +593,10 @@ public:
   enum class Mode { READ, WRITE, APPEND };
 
   static constexpr inline dp::func_signature
-  open1_sig{dp::param<Mode, ".mode">(), dp::param<std::string, ".filename">()};
+  open1_sig{dp::param<Mode, "^mode">(), dp::param<std::string, "^filename">()};
 
   static constexpr inline dp::func_signature
-  open2_sig{dp::param<Mode, ".mode">(), dp::param<std::string, ".url">()};
+  open2_sig{dp::param<Mode, "^mode">(), dp::param<std::string, "^url">()};
 
   // distinct overloads of `open`
   template <class... Args>
@@ -702,14 +702,6 @@ void run()
  *                              END USAGE EXAMPLES
  *****************************************************************************/
 
-// Test `designator_from_raw`
-constexpr auto h_des = dp::designator_from_raw_v<"hello">;
-constexpr auto x_des = dp::designator_from_raw_v<"x">;
-constexpr auto y_des = dp::designator_from_raw_v<".y">;
-static_assert(h_des == dp::designator_t<'h','e','l','l','o'>{});
-static_assert(x_des == dp::designator_t<'x'>{});
-static_assert(y_des == dp::designator_t<'y'>{});
-
 // Parameter declarations
 constexpr auto pp1    = dp::param<const double&>();      // const double& a
 constexpr auto pp2    = dp::param<const char*>(nullptr); // const char *b =nullptr
@@ -721,7 +713,7 @@ struct Five { operator int&&() const {
 } five;
 constexpr auto yparam = dp::param<int&&, "y">(five);  // int&& .y = 5
 //constexpr auto yparam = dp::param<int&&, "y">(5);   // int&& .y = 5
-constexpr auto zparam = dp::param<std::string, ".z">( // string .z = "hello"
+constexpr auto zparam = dp::param<std::string, "^z">( // string .z = "hello"
   [] -> std::string { return "hello"; });
 
 using xparam_t = decltype(xparam);
@@ -749,6 +741,14 @@ using namespace dp::details;
 // test `is_designated_arg`
 static_assert(  is_designated_arg_v<xarg_t>);
 static_assert(! is_designated_arg_v<double>);
+
+// Test `from_raw_des`
+constexpr auto h_des = from_raw_des_v<"hello">;
+constexpr auto x_des = from_raw_des_v<"x">;
+constexpr auto y_des = from_raw_des_v<"^y">;
+static_assert(h_des == dp::designator_t<'h','e','l','l','o'>{});
+static_assert(x_des == dp::designator_t<'x'>{});
+static_assert(y_des == dp::designator_t<'y'>{});
 
 // test `can_return_without_dangling`
 struct B { };
