@@ -9,6 +9,7 @@ P2786-trivial-relocation
 *.lo
 *.o
 *.obj
+obj/
 
 # Precompiled Headers
 *.gch

@@ -1,0 +1,112 @@
+14:04:56 From Patrice.Roy to Everyone:
+	@Khalil Estell (he/him) glad you're here!
+14:05:13 From Andre Kostur to Everyone:
+	Reacted to "@Khalil Estell (he/h..." with ➕
+14:05:14 From Patrice.Roy to Everyone:
+	Welcome @Jonas Persson (SE - Iar)
+14:05:25 From Patrice.Roy to Everyone:
+	Glad to have you here @Brad Larson
+14:05:34 From Andre Kostur to Everyone:
+	Reacted to "Glad to have you her..." with ➕
+14:05:37 From Andre Kostur to Everyone:
+	Reacted to "Welcome @Jonas Perss..." with ➕
+14:06:16 From Patrice.Roy to Everyone:
+	Welcome to the groupe @Andrew Drakeford
+14:06:20 From Andre Kostur to Everyone:
+	Reacted to "Welcome to the group..." with ➕
+14:06:23 From Patrice.Roy to Everyone:
+	^groupe^group
+14:06:36 From Michael Caisse (Intel) to Everyone:
+	^Caise^Caisse
+14:06:38 From Michael Caisse (Intel) to Everyone:
+	(o;
+14:06:40 From Khalil Estell (he/him) to Everyone:
+	Reacted to "@Khalil Estell (he/h..." with ➕
+14:06:44 From Khalil Estell (he/him) to Everyone:
+	Reacted to "@Khalil Estell (he/h..." with ❤️
+14:06:50 From Brad Larson to Everyone:
+	Reacted to "Glad to have you her..." with ❤️
+14:07:03 From Andre Kostur to Everyone:
+	^Andrew Kostur^Andre Kostur
+14:09:22 From Khalil Estell (he/him) to Everyone:
+	https://isocpp.org/files/papers/P3313R0.html
+14:11:32 From Khalil Estell (he/him) to Everyone:
+	I can help at CppCon this year if you need any additional committee members there 🙂
+14:12:02 From Bryan St. Amour {CA - MayStreet} to Everyone:
+	I'll be there as well
+14:12:40 From Michael Caisse (US - Intel) to Everyone:
+	I should also be at CppCon this year.
+14:20:58 From Patrice.Roy to Everyone:
+	@Pablo Halpern {US - HWI} there's a missing '>' in the type of lst
+14:21:35 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	And possibly a missing ", MyAlloc>". I'm not really sure what's the intent there with the scoped_allocator_adaptor.
+14:21:39 From Guy Davidson (he/him) - {GB} to Everyone:
+	Pablo can’t see the chat.
+14:22:37 From Patrice.Roy to Everyone:
+	Hopefully it will help him later (I'm guessing these slides will be useful to him in the future 🙂 )
+14:25:02 From Andre Kostur to Everyone:
+	I’m also going to Cppcon
+14:25:38 From Michael Caisse (US - Intel) to Everyone:
+	Which paper is this?
+14:25:50 From Khalil Estell (he/him) to Everyone:
+	https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p3160r1.html
+14:26:06 From Paul Bendixen to Everyone:
+	What does then differentiate to std::vector if we start pulling in the allocator mechanisms? Why not use std::vector?
+14:26:18 From Michael Caisse (US - Intel) to Everyone:
+	Replying to "https://www.open-s..."
+	
+	thank you
+14:27:49 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	Replying to "What does then dif..."
+	
+	The difference is that inplace_vector doesn't allocate; it keeps its elements in-line inside the inplace_vector object itself. But, like any container, it should be able to propagate an allocator to its elements.
+14:27:55 From Detlef Vollmann, CH to Everyone:
+	inplace_vector doesn't allocate for its own storage
+14:36:46 From Brad Larson to Everyone:
+	Just a counter-point to @Ville Voutilainen {FI} (and maybe I misunderstood his argument) - we would definitely leverage a std::inplace_vector for the embedded products I work on.  @Pablo Halpern {US - HWI}, FYI
+14:44:48 From Michael Caisse (US - Intel) to Everyone:
+	Replying to "Just a counter-poi..."
+	
+	Would you use `std::inplace_vector` and an allocator with it? We have our own `inplace_vector` and would be happy to have this functionality in the standard; however, we are not going to ever use the allocator.
+14:45:11 From Ville Voutilainen {FI} to Everyone:
+	Arthur, the explanation for how a type like this works, and how propagation works in it, is in https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p2047r7.html
+14:46:12 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	FWIW, a use-case that I think is cute but Pablo isn't excited by, is that an AA inplace_vector could also be used by e.g. boost::interprocess — that is, use the Allocator parameter to smuggle in a fancy pointer type without doing anything weird about the source-of-heap-memory.
+14:53:42 From Paul Bendixen to Everyone:
+	Just spitballing: Could one imagine something similiar to basic_inplace_vector that has no default or requirement on the "allocator" type, and an inplace_vector_aa that has std::allocator as a default type as a typedef?
+14:53:50 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	I believe it's feasible to make the skeleton of `std::allocator` freestanding, and just omit the `allocate` and `deallocate` methods. See Ben Craig's recent https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2407r5.html for the standardese.
+14:56:10 From Patrice.Roy to Everyone:
+	Even allocate is not a problem for some use cases (using preexisting / preallocated memory such as an existing buffer instead of performing actual allocations). We might want to find a way to define the contours of what allocators that target freestanding have to conform to, though
+14:58:19 From Khalil Estell (he/him) to Everyone:
+	+1 Micheal Caisse
+14:58:21 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	@PatriceRoy: I meant `std::allocator::allocate` specifically (which calls `new`, by definition). Of course an allocator that's not `std::allocator` can do whatever it likes.
+	I was saying that the C++ Standard could add `//freestanding` to std::allocator, and simultaneously add `//freestanding-deleted` to std::allocator::allocate.
+14:58:37 From Patrice.Roy to Everyone:
+	Noted
+15:01:52 From Paul Bendixen to Everyone:
+	Do you mean throwing in that one?
+15:06:03 From Michael Wong (CA) to Everyone:
+	6/8/1/3/0
+15:06:32 From Khalil Estell (he/him) to Everyone:
+	To me those embedded issues are: 
+	
+	1. Zero object space cost when using the default allocator type
+	2. Exceptions do not get used or pulled into the binary if using the default allocator type is used
+15:07:23 From Andre Kostur to Everyone:
+	Reacted to "To me those embedded..." with ➕
+15:07:30 From Arthur O'Dwyer (US - Blue Algorithm) to Everyone:
+	To me the issues are:
+	Nothing about memory layout; that's a solved problem.
+	We need to add wording that permits naming the `std::allocator` type in freestanding, despite still forbidding heap allocation in freestanding. That's all.
+15:07:32 From Paul Bendixen to Everyone:
+	The embedded issues in my view is also the freestanding compatibility
+15:08:42 From Bryan St. Amour {CA - MayStreet} to Everyone:
+	I anticipate some fun when std::allocator meets or does not meet the stated allocator type requirements depending on whether its compiled on freestanding or not.
+15:09:08 From Patrice.Roy to Everyone:
+	It will require some «blanket words» massaging Indeed :)
+15:09:19 From Ville Voutilainen {FI} to Everyone:
+	And to me, also compatibility with anvironments that don't use exceptions. A container operation can fail only via an exception in the stdlib containers, to a fair extent because that's the only way an allocator operation can fail.
+15:10:04 From Ville Voutilainen {FI} to Everyone:
+	So, on exceptions-disabled embedded, I would want 1) allocators 2) recovery from allocation failure 3) without using exceptions

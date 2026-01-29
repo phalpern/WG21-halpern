@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="mpark/wg21" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Designated Parameters</title>
+  <style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.csl-block{margin-left: 1.5em;}
+ul.task-list{list-style: none;}
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ background-color: #f6f8fa; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span { } 
+code span.al { color: #ff0000; } 
+code span.an { } 
+code span.at { } 
+code span.bn { color: #9f6807; } 
+code span.bu { color: #9f6807; } 
+code span.cf { color: #00607c; } 
+code span.ch { color: #9f6807; } 
+code span.cn { } 
+code span.co { color: #008000; font-style: italic; } 
+code span.cv { color: #008000; font-style: italic; } 
+code span.do { color: #008000; } 
+code span.dt { color: #00607c; } 
+code span.dv { color: #9f6807; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #9f6807; } 
+code span.fu { } 
+code span.im { } 
+code span.in { color: #008000; } 
+code span.kw { color: #00607c; } 
+code span.op { color: #af1915; } 
+code span.ot { } 
+code span.pp { color: #6f4e37; } 
+code span.re { } 
+code span.sc { color: #9f6807; } 
+code span.ss { color: #9f6807; } 
+code span.st { color: #9f6807; } 
+code span.va { } 
+code span.vs { color: #9f6807; } 
+code span.wa { color: #008000; font-weight: bold; } 
+code.diff {color: #898887}
+code.diff span.va {color: #006e28}
+code.diff span.st {color: #bf0303}
+</style>
+  <style type="text/css">
+body {
+margin: 5em;
+font-family: serif;
+
+hyphens: auto;
+line-height: 1.35;
+text-align: left;
+}
+@media screen and (max-width: 30em) {
+body {
+margin: 1.5em;
+}
+}
+div.wrapper {
+max-width: 60em;
+margin: auto;
+}
+
+ul {
+list-style-type: none;
+padding-left: 2.5em;
+margin-top: -0.2em;
+margin-bottom: -0.2em;
+}
+ol {
+padding-left: 2.5em;
+}
+a {
+text-decoration: none;
+color: #4183C4;
+}
+a.hidden_link {
+text-decoration: none;
+color: inherit;
+}
+li {
+margin-top: 0.6em;
+margin-bottom: 0.6em;
+}
+h1, h2, h3, h4 {
+position: relative;
+line-height: 1;
+}
+a.self-link {
+position: absolute;
+top: 0;
+left: calc(-1 * (3.5rem - 26px));
+width: calc(3.5rem - 26px);
+height: 2em;
+text-align: center;
+border: none;
+transition: opacity .2s;
+opacity: .5;
+font-family: sans-serif;
+font-weight: normal;
+font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+ul > li:before {
+content: "\2014";
+position: absolute;
+margin-left: -1.5em;
+}
+
+#TOC ul > li:before {
+content: none;
+}
+#TOC > ul {
+padding-left: 0;
+}
+
+.toc-section-number {
+margin-right: 0.5em;
+}
+:target { background-color: #C9FBC9; }
+:target .codeblock { background-color: #C9FBC9; }
+:target ul { background-color: #C9FBC9; }
+.abbr_ref { float: right; }
+.folded_abbr_ref { float: right; }
+:target .folded_abbr_ref { display: none; }
+:target .unfolded_abbr_ref { float: right; display: inherit; }
+.unfolded_abbr_ref { display: none; }
+.secnum { display: inline-block; min-width: 35pt; }
+.header-section-number { display: inline-block; min-width: 35pt; }
+.annexnum { display: block; }
+div.sourceLinkParent {
+float: right;
+}
+a.sourceLink {
+position: absolute;
+opacity: 0;
+margin-left: 10pt;
+}
+a.sourceLink:hover {
+opacity: 1;
+}
+a.itemDeclLink {
+position: absolute;
+font-size: 75%;
+text-align: right;
+width: 5em;
+opacity: 0;
+}
+a.itemDeclLink:hover { opacity: 1; }
+span.marginalizedparent {
+position: relative;
+left: -5em;
+}
+li span.marginalizedparent { left: -7em; }
+li ul > li span.marginalizedparent { left: -9em; }
+li ul > li ul > li span.marginalizedparent { left: -11em; }
+li ul > li ul > li ul > li span.marginalizedparent { left: -13em; }
+div.footnoteNumberParent {
+position: relative;
+left: -4.7em;
+}
+a.marginalized {
+position: absolute;
+font-size: 75%;
+text-align: right;
+width: 5em;
+}
+a.enumerated_item_num {
+position: relative;
+left: -3.5em;
+display: inline-block;
+margin-right: -3em;
+text-align: right;
+width: 3em;
+}
+div.para { margin-bottom: 0.6em; margin-top: 0.6em; text-align: left; }
+div.section { text-align: left; }
+div.sentence { display: inline; }
+span.indexparent {
+display: inline;
+position: relative;
+float: right;
+right: -1em;
+}
+a.index {
+position: absolute;
+display: none;
+}
+a.index:before { content: "⟵"; }
+
+a.index:target {
+display: inline;
+}
+.indexitems {
+margin-left: 2em;
+text-indent: -2em;
+}
+div.itemdescr {
+margin-left: 3em;
+}
+.bnf {
+font-family: serif;
+margin-left: 40pt;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+}
+.ncbnf {
+font-family: serif;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+margin-left: 40pt;
+}
+.ncsimplebnf {
+font-family: serif;
+font-style: italic;
+margin-top: 0.5em;
+margin-bottom: 0.5em;
+margin-left: 40pt;
+background: inherit; 
+}
+span.textnormal {
+font-style: normal;
+font-family: serif;
+white-space: normal;
+display: inline-block;
+}
+span.rlap {
+display: inline-block;
+width: 0px;
+}
+span.descr { font-style: normal; font-family: serif; }
+span.grammarterm { font-style: italic; }
+span.term { font-style: italic; }
+span.terminal { font-family: monospace; font-style: normal; }
+span.nonterminal { font-style: italic; }
+span.tcode { font-family: monospace; font-style: normal; }
+span.textbf { font-weight: bold; }
+span.textsc { font-variant: small-caps; }
+a.nontermdef { font-style: italic; font-family: serif; }
+span.emph { font-style: italic; }
+span.techterm { font-style: italic; }
+span.mathit { font-style: italic; }
+span.mathsf { font-family: sans-serif; }
+span.mathrm { font-family: serif; font-style: normal; }
+span.textrm { font-family: serif; }
+span.textsl { font-style: italic; }
+span.mathtt { font-family: monospace; font-style: normal; }
+span.mbox { font-family: serif; font-style: normal; }
+span.ungap { display: inline-block; width: 2pt; }
+span.textit { font-style: italic; }
+span.texttt { font-family: monospace; }
+span.tcode_in_codeblock { font-family: monospace; font-style: normal; }
+span.phantom { color: white; }
+
+span.math { font-style: normal; }
+span.mathblock {
+display: block;
+margin-left: auto;
+margin-right: auto;
+margin-top: 1.2em;
+margin-bottom: 1.2em;
+text-align: center;
+}
+span.mathalpha {
+font-style: italic;
+}
+span.synopsis {
+font-weight: bold;
+margin-top: 0.5em;
+display: block;
+}
+span.definition {
+font-weight: bold;
+display: block;
+}
+.codeblock {
+margin-left: 1.2em;
+line-height: 127%;
+}
+.outputblock {
+margin-left: 1.2em;
+line-height: 127%;
+}
+div.itemdecl {
+margin-top: 2ex;
+}
+code.itemdeclcode {
+white-space: pre;
+display: block;
+}
+span.textsuperscript {
+vertical-align: super;
+font-size: smaller;
+line-height: 0;
+}
+.footnotenum { vertical-align: super; font-size: smaller; line-height: 0; }
+.footnote {
+font-size: small;
+margin-left: 2em;
+margin-right: 2em;
+margin-top: 0.6em;
+margin-bottom: 0.6em;
+}
+div.minipage {
+display: inline-block;
+margin-right: 3em;
+}
+div.numberedTable {
+text-align: center;
+margin: 2em;
+}
+div.figure {
+text-align: center;
+margin: 2em;
+}
+table {
+border: 1px solid black;
+border-collapse: collapse;
+margin-left: auto;
+margin-right: auto;
+margin-top: 0.8em;
+text-align: left;
+hyphens: none; 
+}
+td, th {
+padding-left: 1em;
+padding-right: 1em;
+vertical-align: top;
+}
+td.empty {
+padding: 0px;
+padding-left: 1px;
+}
+td.left {
+text-align: left;
+}
+td.right {
+text-align: right;
+}
+td.center {
+text-align: center;
+}
+td.justify {
+text-align: justify;
+}
+td.border {
+border-left: 1px solid black;
+}
+tr.rowsep, td.cline {
+border-top: 1px solid black;
+}
+tr.even, tr.odd {
+border-bottom: 1px solid black;
+}
+tr.capsep {
+border-top: 3px solid black;
+border-top-style: double;
+}
+tr.header {
+border-bottom: 3px solid black;
+border-bottom-style: double;
+}
+th {
+border-bottom: 1px solid black;
+}
+span.centry {
+font-weight: bold;
+}
+div.table {
+display: block;
+margin-left: auto;
+margin-right: auto;
+text-align: center;
+width: 90%;
+}
+span.indented {
+display: block;
+margin-left: 2em;
+margin-bottom: 1em;
+margin-top: 1em;
+}
+ol.enumeratea { list-style-type: none; background: inherit; }
+ol.enumerate { list-style-type: none; background: inherit; }
+
+code.sourceCode > span { display: inline; }
+</style>
+  <link href="data:image/vnd.microsoft.icon;base64,AAABAAIAEBAAAAEAIABoBAAAJgAAACAgAAABACAAqBAAAI4EAAAoAAAAEAAAACAAAAABACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAVoJEAN6CRADegkQAWIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wCCRAAAgkQAAIJEAACCRAAsgkQAvoJEAP+CRAD/gkQA/4JEAP+CRADAgkQALoJEAACCRAAAgkQAAP///wD///8AgkQAAIJEABSCRACSgkQA/IJEAP99PQD/dzMA/3czAP99PQD/gkQA/4JEAPyCRACUgkQAFIJEAAD///8A////AHw+AFiBQwDqgkQA/4BBAP9/PxP/uZd6/9rJtf/bybX/upd7/39AFP+AQQD/gkQA/4FDAOqAQgBc////AP///wDKklv4jlEa/3o7AP+PWC//8+3o///////////////////////z7un/kFox/35AAP+GRwD/mVYA+v///wD///8A0Zpk+NmibP+0d0T/8evj///////+/fv/1sKz/9bCs//9/fr//////+/m2/+NRwL/nloA/5xYAPj///8A////ANKaZPjRmGH/5cKh////////////k149/3UwAP91MQD/lmQ//86rhv+USg3/m1YA/5hSAP+bVgD4////AP///wDSmmT4zpJY/+/bx///////8+TV/8mLT/+TVx//gkIA/5lVAP+VTAD/x6B//7aEVv/JpH7/s39J+P///wD///8A0ppk+M6SWP/u2sf///////Pj1f/Nj1T/2KFs/8mOUv+eWhD/lEsA/8aee/+0glT/x6F7/7J8Rvj///8A////ANKaZPjRmGH/48Cf///////+/v7/2qt//82PVP/OkFX/37KJ/86siv+USg7/mVQA/5hRAP+bVgD4////AP///wDSmmT40ppk/9CVXP/69O////////7+/v/x4M//8d/P//7+/f//////9u7n/6tnJf+XUgD/nFgA+P///wD///8A0ppk+NKaZP/RmWL/1qNy//r07///////////////////////+vXw/9akdP/Wnmn/y5FY/6JfFvj///8A////ANKaZFTSmmTo0ppk/9GYYv/Ql1//5cWm//Hg0P/x4ND/5cWm/9GXYP/RmGH/0ppk/9KaZOjVnmpY////AP///wDSmmQA0ppkEtKaZI7SmmT60ppk/9CWX//OkVb/zpFW/9CWX//SmmT/0ppk/NKaZJDSmmQS0ppkAP///wD///8A0ppkANKaZADSmmQA0ppkKtKaZLrSmmT/0ppk/9KaZP/SmmT/0ppkvNKaZCrSmmQA0ppkANKaZAD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkUtKaZNzSmmTc0ppkVNKaZADSmmQA0ppkANKaZADSmmQA////AP5/AAD4HwAA4AcAAMADAACAAQAAgAEAAIABAACAAQAAgAEAAIABAACAAQAAgAEAAMADAADgBwAA+B8AAP5/AAAoAAAAIAAAAEAAAAABACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////AP///wCCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAAyCRACMgkQA6oJEAOqCRACQgkQAEIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wD///8A////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRABigkQA5oJEAP+CRAD/gkQA/4JEAP+CRADqgkQAZoJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAAD///8A////AP///wD///8AgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAA4gkQAwoJEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQAxIJEADyCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAAgkQAAP///wD///8A////AP///wCCRAAAgkQAAIJEAACCRAAAgkQAAIJEAACCRAAWgkQAmIJEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAJyCRAAYgkQAAIJEAACCRAAAgkQAAIJEAACCRAAA////AP///wD///8A////AIJEAACCRAAAgkQAAIJEAACCRAAAgkQAdIJEAPCCRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAP+CRAD/gkQA/4JEAPSCRAB4gkQAAIJEAACCRAAAgkQAAIJEAAD///8A////AP///wD///8AgkQAAIJEAACCRAAAgkQASoJEANKCRAD/gkQA/4JEAP+CRAD/g0YA/39AAP9zLgD/bSQA/2shAP9rIQD/bSQA/3MuAP9/PwD/g0YA/4JEAP+CRAD/gkQA/4JEAP+CRADUgkQAToJEAACCRAAAgkQAAP///wD///8A////AP///wB+PwAAgkUAIoJEAKiCRAD/gkQA/4JEAP+CRAD/hEcA/4BBAP9sIwD/dTAA/5RfKv+viF7/vp56/76ee/+wiF7/lWAr/3YxAP9sIwD/f0AA/4RHAP+CRAD/gkQA/4JEAP+CRAD/gkQArIJEACaBQwAA////AP///wD///8A////AIBCAEBzNAD6f0EA/4NFAP+CRAD/gkQA/4VIAP92MwD/bSUA/6N1Tv/ezsL/////////////////////////////////38/D/6V3Uv9uJgD/dTEA/4VJAP+CRAD/gkQA/4JEAP+BQwD/fUAA/4FDAEj///8A////AP///wD///8AzJRd5qBlKf91NgD/dDUA/4JEAP+FSQD/cy4A/3YyAP/PuKP//////////////////////////////////////////////////////9K7qP94NQD/ciwA/4VJAP+CRAD/fkEA/35BAP+LSwD/mlYA6v///wD///8A////AP///wDdpnL/4qx3/8KJUv+PUhf/cTMA/3AsAP90LgD/4dK+/////////////////////////////////////////////////////////////////+TYxf91MAD/dTIA/31CAP+GRwD/llQA/6FcAP+gWwD8////AP///wD///8A////ANGZY/LSm2X/4ap3/92mcP+wdT3/byQA/8mwj////////////////////////////////////////////////////////////////////////////+LYxv9zLgP/jUoA/59bAP+hXAD/nFgA/5xYAPL///8A////AP///wD///8A0ppk8tKaZP/RmWL/1p9q/9ubXv/XqXj////////////////////////////7+fD/vZyG/6BxS/+gcUr/vJuE//r37f//////////////////////3MOr/5dQBf+dVQD/nVkA/5xYAP+cWAD/nFgA8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/SmWP/yohJ//jo2P//////////////////////4NTG/4JDFf9lGAD/bSQA/20kAP9kGAD/fz8S/+Xb0f//////5NG9/6txN/+LOgD/m1QA/51aAP+cWAD/m1cA/5xYAP+cWADy////AP///wD///8A////ANKaZPLSmmT/0ppk/8+TWf/Unmv//v37//////////////////////+TWRr/VwsA/35AAP+ERgD/g0UA/4JGAP9lHgD/kFga/8KXX/+TRwD/jT4A/49CAP+VTQD/n10A/5xYAP+OQQD/lk4A/55cAPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/y4tO/92yiP//////////////////////8NnE/8eCQP+rcTT/ez0A/3IyAP98PgD/gEMA/5FSAP+USwD/jj8A/5lUAP+JNwD/yqV2/694Mf+HNQD/jkAA/82rf/+laBj/jT4A8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/LiUr/4byY///////////////////////gupX/0I5P/+Wuev/Lklz/l1sj/308AP+QSwD/ol0A/59aAP+aVQD/k0oA/8yoh///////+fXv/6pwO//Lp3v///////Pr4f+oay7y////AP///wD///8A////ANKaZPLSmmT/0ppk/8uJSv/hvJj//////////////////////+G7l//Jhkb/0ppk/96nc//fqXX/x4xO/6dkFP+QSQD/llEA/5xXAP+USgD/yaOA///////38uv/qG05/8ijdv//////8efb/6ZpLPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/zIxO/9yxh///////////////////////7dbA/8iEQf/Sm2X/0Zlj/9ScZv/eqHf/2KJv/7yAQf+XTgD/iToA/5lSAP+JNgD/yKFv/611LP+HNQD/jT8A/8qmeP+kZRT/jT4A8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/Pk1n/1J5q//78+//////////////////+/fv/1aFv/8iEQv/Tm2b/0ppl/9GZY//Wn2z/1pZc/9eldf/Bl2b/kUcA/4w9AP+OQAD/lUwA/59eAP+cWQD/jT8A/5ZOAP+eXADy////AP///wD///8A////ANKaZPLSmmT/0ppk/9KZY//KiEn/8d/P///////////////////////47+f/05tm/8iCP//KiEj/yohJ/8eCP//RmGH//vfy///////n1sP/rXQ7/4k4AP+TTAD/nVoA/5xYAP+cVwD/nFgA/5xYAPL///8A////AP///wD///8A0ppk8tKaZP/SmmT/0ptl/8uLTf/aq37////////////////////////////+/fz/6c2y/961jv/etY7/6Myx//78+v//////////////////////3MWv/5xXD/+ORAD/mFQA/51ZAP+cWAD/nFgA8v///wD///8A////AP///wDSmmTy0ppk/9KaZP/SmmT/0ppk/8mFRP/s1b//////////////////////////////////////////////////////////////////////////////+PD/0JFU/7NzMv+WUQD/kUsA/5tXAP+dWQDy////AP///wD///8A////ANKaZP/SmmT/0ppk/9KaZP/Sm2X/z5NZ/8yMT//z5NX/////////////////////////////////////////////////////////////////9Ofa/8yNUP/UmGH/36p5/8yTWv+qaSD/kksA/5ROAPz///8A////AP///wD///8A0ppk5NKaZP/SmmT/0ppk/9KaZP/TnGf/zY9T/82OUv/t1sD//////////////////////////////////////////////////////+7Yw//OkFX/zI5R/9OcZ//SmmP/26V0/9ymdf/BhUf/ol8R6P///wD///8A////AP///wDSmmQ80ppk9tKaZP/SmmT/0ppk/9KaZP/TnGj/zpFW/8qJSv/dson/8uHS//////////////////////////////////Lj0//etIv/y4lL/86QVf/TnGj/0ppk/9KaZP/RmWP/05xn/9ymdfjUnWdC////AP///wD///8A////ANKaZADSmmQc0ppkotKaZP/SmmT/0ppk/9KaZP/Tm2b/0Zli/8qJSf/NjlH/16Z3/+G8mP/myKr/5siq/+G8mP/Xp3f/zY5S/8qISf/RmGH/05tm/9KaZP/SmmT/0ppk/9KaZP/SmmSm0pljINWdaQD///8A////AP///wD///8A0ppkANKaZADSmmQA0ppkQtKaZMrSmmT/0ppk/9KaZP/SmmT/0ptl/9GYYf/Nj1P/y4lL/8qISP/KiEj/y4lK/82PU//RmGH/0ptl/9KaZP/SmmT/0ppk/9KaZP/SmmTO0ppkRtKaZADSmmQA0ppkAP///wD///8A////AP///wDSmmQA0ppkANKaZADSmmQA0ppkANKaZGzSmmTu0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmTw0ppkcNKaZADSmmQA0ppkANKaZADSmmQA////AP///wD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZBLSmmSQ0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppklNKaZBTSmmQA0ppkANKaZADSmmQA0ppkANKaZAD///8A////AP///wD///8A0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQy0ppkutKaZP/SmmT/0ppk/9KaZP/SmmT/0ppk/9KaZP/SmmT/0ppkvtKaZDbSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkAP///wD///8A////AP///wDSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkXNKaZODSmmT/0ppk/9KaZP/SmmT/0ppk5NKaZGDSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA////AP///wD///8A////ANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkBtKaZIbSmmTo0ppk6tKaZIrSmmQK0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZADSmmQA0ppkANKaZAD///8A////AP/8P///+B///+AH//+AAf//AAD//AAAP/AAAA/gAAAHwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA+AAAAfwAAAP/AAAP/8AAP//gAH//+AH///4H////D//" rel="icon" />
+  
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<div class="wrapper">
+<header id="title-block-header">
+<h1 class="title" style="text-align:center">Designated Parameters</h1>
+<table style="border:none;float:right">
+  <tr>
+    <td>Document #:</td>
+    <td>named-parameters</td>
+  </tr>
+  <tr>
+    <td>Date:</td>
+    <td>2025-09-24 18:06 EDT</td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Project:</td>
+    <td>Programming Language C++</td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Audience:</td>
+    <td>
+      EWGI<br>
+    </td>
+  </tr>
+  <tr>
+    <td style="vertical-align:top">Reply-to:</td>
+    <td>
+      Pablo Halpern<br>&lt;<a href="mailto:phalpern@halpernwightsoftware.com" class="email">phalpern@halpernwightsoftware.com</a>&gt;<br>
+      Joshua Berne<br>&lt;<a href="mailto:jberne4@bloomberg.net" class="email">jberne4@bloomberg.net</a>&gt;<br>
+    </td>
+  </tr>
+</table>
+</header>
+<div style="clear:both">
+<div id="TOC" role="doc-toc">
+<h1 id="toctitle">Contents</h1>
+<ul>
+<li><a href="#abstract" id="toc-abstract"><span class="toc-section-number">1</span> Abstract</a></li>
+<li><a href="#motivation" id="toc-motivation"><span class="toc-section-number">2</span> Motivation</a></li>
+<li><a href="#a-very-short-syntax-summary" id="toc-a-very-short-syntax-summary"><span class="toc-section-number">3</span> A Very Short Syntax Summary</a></li>
+<li><a href="#motivating-use-cases" id="toc-motivating-use-cases"><span class="toc-section-number">4</span> Motivating Use Cases</a>
+<ul>
+<li><a href="#less-error-prone" id="toc-less-error-prone"><span class="toc-section-number">4.1</span> Less Error Prone</a></li>
+<li><a href="#more-convenient" id="toc-more-convenient"><span class="toc-section-number">4.2</span> More Convenient</a></li>
+<li><a href="#self-documenting" id="toc-self-documenting"><span class="toc-section-number">4.3</span> Self Documenting</a></li>
+<li><a href="#simpler-code-evolution-and-fewer-overloads" id="toc-simpler-code-evolution-and-fewer-overloads"><span class="toc-section-number">4.4</span> Simpler Code Evolution and Fewer
+Overloads</a></li>
+<li><a href="#more-expressive-overloading" id="toc-more-expressive-overloading"><span class="toc-section-number">4.5</span> More Expressive
+Overloading</a></li>
+<li><a href="#more-expressive-generic-programming" id="toc-more-expressive-generic-programming"><span class="toc-section-number">4.6</span> More Expressive Generic
+Programming</a></li>
+</ul></li>
+<li><a href="#proposal-details" id="toc-proposal-details"><span class="toc-section-number">5</span> Proposal Details</a>
+<ul>
+<li><a href="#designated-and-positional-parameters" id="toc-designated-and-positional-parameters"><span class="toc-section-number">5.1</span> Designated and Positional
+Parameters</a></li>
+<li><a href="#divergence-in-co-author-opinions" id="toc-divergence-in-co-author-opinions"><span class="toc-section-number">5.2</span> Divergence in Co-author
+Opinions</a></li>
+<li><a href="#parameter-and-argument-order" id="toc-parameter-and-argument-order"><span class="toc-section-number">5.3</span> Parameter and Argument
+Order</a></li>
+<li><a href="#interaction-with-overload-resolution" id="toc-interaction-with-overload-resolution"><span class="toc-section-number">5.4</span> Interaction with Overload
+Resolution</a></li>
+<li><a href="#interaction-with-parameter-packs" id="toc-interaction-with-parameter-packs"><span class="toc-section-number">5.5</span> Interaction with Parameter
+Packs</a></li>
+<li><a href="#interaction-with-type-system" id="toc-interaction-with-type-system"><span class="toc-section-number">5.6</span> Interaction with Type
+System</a></li>
+<li><a href="#function-pointer-conversions" id="toc-function-pointer-conversions"><span class="toc-section-number">5.7</span> Function-pointer
+Conversions</a></li>
+</ul></li>
+<li><a href="#possible-enhancements" id="toc-possible-enhancements"><span class="toc-section-number">6</span>
+Possible Enhancements</a></li>
+<li><a href="#impact-on-the-standard-library" id="toc-impact-on-the-standard-library"><span class="toc-section-number">7</span> Impact on the Standard
+Library</a></li>
+<li><a href="#abi-considerations" id="toc-abi-considerations"><span class="toc-section-number">8</span> ABI Considerations</a></li>
+<li><a href="#alternative-syntax-and-terminology" id="toc-alternative-syntax-and-terminology"><span class="toc-section-number">9</span> Alternative Syntax and
+Terminology</a></li>
+<li><a href="#previous-attempts-at-designated-arguments" id="toc-previous-attempts-at-designated-arguments"><span class="toc-section-number">10</span> Previous Attempts at Designated
+Arguments</a>
+<ul>
+<li><a href="#language-proposals" id="toc-language-proposals"><span class="toc-section-number">10.1</span> Language Proposals</a></li>
+<li><a href="#library-workaround-using-designated-aggregate-initializers" id="toc-library-workaround-using-designated-aggregate-initializers"><span class="toc-section-number">10.2</span> Library Workaround Using
+Designated Aggregate Initializers</a></li>
+</ul></li>
+<li><a href="#bibliography" id="toc-bibliography"><span class="toc-section-number">11</span> References</a></li>
+</ul>
+</div>
+<h1 data-number="1" id="abstract"><span class="header-section-number">1</span> Abstract<a href="#abstract" class="self-link"></a></h1>
+<p>Naming specific arguments at a function call site is supported in a
+number of popular programming languages, including Python, Swift, C#,
+Ada, and JavaScript, among others. This document describes how C++ can
+benefit from adopting a syntax for designating (named) parameters,
+provides a number of motivating use cases, and provides a proposed
+syntax and semantics for the proposed new designated-parameter feature.
+Though formal wording is not proposed at this time, we thoroughly
+explore how the new feature would interact with other aspects of C++,
+including overload resolution, template argument deduction, and the type
+system. We also explore why previous proposals in this area have failed
+and how this proposal overcomes the deficiencies of those earlier
+proposals. This proposal is in the exploratory phase and its target
+audience is EWGI.</p>
+<p>Note to early reviewers: This document started out as a collection of
+Pablo’s musings but turned into something that is well on the way to
+being a complete proposal.</p>
+<h1 data-number="2" id="motivation"><span class="header-section-number">2</span> Motivation<a href="#motivation" class="self-link"></a></h1>
+<p>Existing languages that provide the ability to name arguments at a
+function call site (e.g., Python, Swift, and Ada), benefit from easier
+to read (self-documenting) function calls, resistance to certain common
+errors (such as out-of-order arguments), and easier-to-evolve function
+interfaces. Along with the benefits enjoyed by other languages,
+designated parameters would benefit C++ in ways peculiar to its
+syntactic weaknesses, such as potential overload ambiguities and
+constraints on default- and variadic-argument ordering. Additionally,
+designated parameters would make C++ more expressive by expanding the
+range of potential overloads and supporting cleaner idioms for generic
+programming. Each of these benefits is described in detail in the <a href="#motivating-use-cases">Motivating Use Cases</a> section,
+below.</p>
+<p>In the absence of designated parameters, programmers have devised a
+number of library-only techniques attempting to get some of the benefits
+of designated parameters in C++. The use of a
+<code class="sourceCode cpp"><span class="kw">struct</span></code>
+parameter with designated initializers (see <a href="#library-workaround-using-designated-aggregate-initializers">Library
+Workaround Using Designated Aggregate Initializers</a>) makes calls
+easier to read, less error prone, and/or making the interface easier to
+evolve. Tagged parameters (see <a href="#simpler-code-evolution-and-fewer-overloads">Simpler Code
+Evolution and Fewer Overloads</a>) provide overload disambiguation and
+some measure of interface evolution. These techniques are ad-hoc,
+inconsistent with one another, don’t resemble normal parameter
+declarations, and don’t allow arguments to be reordered.</p>
+<h1 data-number="3" id="a-very-short-syntax-summary"><span class="header-section-number">3</span> A Very Short Syntax Summary<a href="#a-very-short-syntax-summary" class="self-link"></a></h1>
+<p>The syntax used in this document is not from fully baked; some
+alternatives are described in the <a href="#alternative-syntax-and-terminology">Alternative Syntax and
+Terminology</a> section, below. This section provides just enough
+description to understand the <a href="#motivating-use-cases">Motivating
+Use Cases</a> section. Syntactic constraints and detailed semantics,
+including impact on the type system are described later, in the <a href="#proposal-details">Proposal Details</a> section.</p>
+<p>We propose a function-parameter declaration syntax where a dot
+(<code class="sourceCode cpp"><span class="op">.</span></code>) followed
+by a parameter name forms a <em>designator</em>, a name with semantic
+significance that must be the same in every declaration of the function
+and is used to identify the parameter at function invocation. A caret
+(<code class="sourceCode cpp"><span class="op">^</span></code>) before a
+parameter name indicates that the designated parameter is <em>also</em>
+a positional parameter (see below). There would be no change to the
+meaning of parameter names <em>not</em> preceded by a dot:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> Shape, <span class="kw">class</span> Transform<span class="op">&gt;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>Shape munge<span class="op">(</span><span class="kw">const</span> Shape<span class="op">&amp;</span>     shape,            <span class="co">// normal parameter</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>            <span class="kw">const</span> Transform<span class="op">&amp;</span> <span class="op">.^</span>transform,      <span class="co">// <strong>positional</strong> designator</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>            <span class="dt">double</span>           <span class="op">.</span>scale     <span class="op">=</span> <span class="fl">1.0</span>, <span class="co">// <strong>nonpositional</strong> designators</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>            <span class="kw">const</span> Point<span class="op">&amp;</span>     <span class="op">.</span>translate <span class="op">=</span> <span class="op">{</span><span class="fl">0.0</span>, <span class="fl">0.0</span><span class="op">})</span>;</span></code></pre></div>
+<p>The argument-passing syntax at the call site resembles designated
+member initialization for aggregate types (<span>9.5.2
+<a href="https://wg21.link/N5008#dcl.init.aggr">[dcl.init.aggr]</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></span>). The
+<code class="sourceCode cpp">munge</code> function would be called like
+this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Munge `myShape` using the specified lambda and scale by 1.5. The translation</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">// is not specifed, so the default translation is used.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> newShape <span class="op">=</span> munge<span class="op">(</span>myShape, <span class="co">// bound to first parameter (`shape`)</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                      <span class="op">.</span>transform <span class="op">=</span> <span class="op">[](</span>Shape<span class="op">&amp;</span> s<span class="op">){</span> <span class="op">...</span> <span class="op">}</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                      <span class="op">.</span>scale     <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span>;</span></code></pre></div>
+<p>Arguments can be bound to positional designated parameters with or
+without a designator whereas nonpositional parameters can be bound only
+by using the designated-argument syntax. Thus, the following invocation
+of <code class="sourceCode cpp">munge</code> is equivalent to the one
+above because <code class="sourceCode cpp">transform</code> is
+positional.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> newShape <span class="op">=</span> munge<span class="op">(</span>myShape,              <span class="co">// bound to `shape`</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>                      <span class="op">[](</span>Shape<span class="op">&amp;</span> s<span class="op">){</span> <span class="op">...</span> <span class="op">}</span>,  <span class="co">// bound to `transform`</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>                      <span class="op">.</span>scale     <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span>;    <span class="co">// `.scale =` is required</span></span></code></pre></div>
+<!-- JMB: A big question i'd have here is how the named parameters impact the
+     functino type, especially if they can also be positional.
+     Does adding a designator a paramter name change its type?
+     Can I convert a pointer to `int (int .name)` to a pointer to `int (int)`?
+     Can I convert the other way?
+     What about interopartion betweeon `int (int .name)` and `int (., int .name)`?
+
+     Overall, I feel like there's a lot more ambiguity and confusing cases to consider
+     if we allow parameters to be both named and positional
+  -->
+<h1 data-number="4" id="motivating-use-cases"><span class="header-section-number">4</span> Motivating Use Cases<a href="#motivating-use-cases" class="self-link"></a></h1>
+<p>Consider a <code class="sourceCode cpp">makeWindow</code> function
+that creates a rectangular user-interface window. Of its 6 parameters,
+only the width and height are required. If the top-left is not
+specified, the window manager will place the window on the screen
+according to some algorithm. If the background and foreground colors are
+not specified, white and black are used, respectively:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>WinHandle makeWindow<span class="op">(</span><span class="dt">int</span> width,                       <span class="dt">int</span> height,</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>                     <span class="dt">int</span> left         <span class="op">=</span> INT_MIN,      <span class="dt">int</span> top <span class="op">=</span> INT_MIN,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>                     Color background <span class="op">=</span> Color<span class="op">::</span>white, Color foreground <span class="op">=</span> Color<span class="op">::</span>black<span class="op">)</span>;</span></code></pre></div>
+<p>Although some might consider the interface to be too large, it is at
+worst mildly so. The interface is straightforward, but is nevertheless
+inconvenient and error prone to use. A number of problems with this
+interface are detailed below, followed by a description of how each is
+improved by using designated parameters as proposed in this paper.</p>
+<h2 data-number="4.1" id="less-error-prone"><span class="header-section-number">4.1</span> Less Error Prone<a href="#less-error-prone" class="self-link"></a></h2>
+<p>The first 4 parameters all have type
+<code class="sourceCode cpp"><span class="dt">int</span></code>. It is
+thus very easy to supply arguments in the wrong order or even assume the
+wrong meaning:</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb5"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> top   <span class="op">=</span> <span class="dv">100</span>,   left  <span class="op">=</span> <span class="dv">150</span>;</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> height <span class="op">=</span> <span class="dv">1100</span>, width <span class="op">=</span> <span class="dv">1000</span>;</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">// </span><span class="al">BUG</span><span class="co">, but compiles</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>top, left, height, width<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb6"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> top    <span class="op">=</span> <span class="dv">100</span>,  left  <span class="op">=</span> <span class="dv">150</span>;</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> height <span class="op">=</span> <span class="dv">1100</span>, width <span class="op">=</span> <span class="dv">1000</span>;</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">// OK</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(.</span>top<span class="op">=</span>top,       <span class="op">.</span>left<span class="op">=</span>left,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>                    <span class="op">.</span>height<span class="op">=</span>height, <span class="op">.</span>width<span class="op">=</span>width<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+<tr class="even">
+<td><div>
+
+<div class="sourceCode" id="cb7"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> top    <span class="op">=</span> <span class="dv">100</span>,  left  <span class="op">=</span> <span class="dv">150</span>;</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bottom <span class="op">=</span> <span class="dv">1100</span>, right <span class="op">=</span> <span class="dv">1250</span>;</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">// </span><span class="al">BUG</span><span class="co">, but compiles</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>top, left, bottom, right<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb8"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> top    <span class="op">=</span> <span class="dv">100</span>,  left <span class="op">=</span> <span class="dv">150</span>;</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> bottom <span class="op">=</span> <span class="dv">1100</span>, right <span class="op">=</span> <span class="dv">1250</span>;</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Error: No such parameters `.bottom` and `.right`</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(.</span>top<span class="op">=</span>top,       <span class="op">.</span>left<span class="op">=</span>left,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>                    <span class="op">.</span>bottom<span class="op">=</span>bottom, <span class="op">.</span>right<span class="op">=</span>right<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<p>For some functions, the “obvious” order of arguments is not the
+correct order. In the first case, we often talk about the “top-left
+corner”, but traditionally the x coordinate (left) comes first. Moreover
+it is counterintuitive to put the width and height before the top and
+left, but the author of <code class="sourceCode cpp">makeWindow</code>
+had no choice because mandatory arguments must always come before
+optional ones. The designated arguments can appear in any order, so the
+version on the right yields the expected result.</p>
+<p>In the second case, the arguments are not only in the wrong order,
+but are ascribed the wrong meaning. Again, the code looks correct and
+compiles successfully, but result is not what is desired. The version on
+the right will flag the error at compile time, as the misunderstanding
+results in a mismatch between the argument designator and parameter
+designator.</p>
+<h2 data-number="4.2" id="more-convenient"><span class="header-section-number">4.2</span> More Convenient<a href="#more-convenient" class="self-link"></a></h2>
+<p>Default arguments are a convenience feature, but to supply a
+nondefault value for one parameter, the caller must provide nondefault
+values for all preceding parameters. In the example below, the
+<code class="sourceCode cpp">INT_MIN</code> arguments on the left are
+pure noise and make the call harder to write and read. The code on the
+right is clean and minimal.</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb9"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>width, height, INT_MIN, INT_MIN, Color<span class="op">::</span>grey50<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb10"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>width, height, <span class="op">.</span>foreground <span class="op">=</span> Color<span class="op">::</span>grey50<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="4.3" id="self-documenting"><span class="header-section-number">4.3</span> Self Documenting<a href="#self-documenting" class="self-link"></a></h2>
+<p>Most code is read more often than it’s written. Reading code, e.g.,
+during a code review, is more convenient when the reader doesn’t need to
+look up the parameter list for many functions.</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb11"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">// What are all those numbers?</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span><span class="dv">1000</span>, <span class="dv">1500</span>, <span class="dv">10</span>, <span class="dv">20</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb12"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Obvious meaning</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(.</span>width <span class="op">=</span> <span class="dv">1000</span>, <span class="op">.</span>height <span class="op">=</span> <span class="dv">1500</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>                    <span class="op">.</span>left  <span class="op">=</span> <span class="dv">10</span>,   <span class="op">.</span>top <span class="op">=</span> <span class="dv">20</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<p>Designated arguments reduce the cognitive load for both reading and
+writing functions having as few as two parameters, with an exponentially
+bigger benefit on each additional parameter.</p>
+<h2 data-number="4.4" id="simpler-code-evolution-and-fewer-overloads"><span class="header-section-number">4.4</span> Simpler Code Evolution and
+Fewer Overloads<a href="#simpler-code-evolution-and-fewer-overloads" class="self-link"></a></h2>
+<p>Consider this function, whose parameter list ends with a variadic
+parameter pack:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T <span class="op">=</span> <span class="dt">int</span>, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> calculate<span class="op">(</span>T<span class="op">&amp;</span> x <span class="op">=</span> <span class="op">{}</span>, Args<span class="op">&amp;&amp;...</span> args<span class="op">)</span>;</span></code></pre></div>
+<p>A later version of the library adds the ability to specify an
+optional <code class="sourceCode cpp">ThreadPool</code> object that
+<code class="sourceCode cpp">calculate</code> can use to speed up
+computation. There is no place to put the
+<code class="sourceCode cpp">ThreadPool</code> parameter without
+breaking the API, either in the original function or by adding an
+overload. One solution, used in a few places in the standard library, is
+to create a tag type at namespace scope that precedes the
+<code class="sourceCode cpp">ThreadPool</code> parameter, where the tag
+type is expected never to be used for any other purpose. This technique
+is necessitates a new overload for each updated function and is a clunky
+workaround for the lack of designated parameters in the language.
+Designated parameters, conversely, allow us to cleanly add the
+<code class="sourceCode cpp">ThreadPool</code> parameter on the existing
+function without creating overload ambiguities:</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb14"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Define tag type</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> ThreadPool_arg_t <span class="op">{</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">explicit</span> ThreadPool_arg_t<span class="op">()</span> <span class="op">=</span> <span class="cf">default</span>;</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="kw">inline</span> <span class="kw">constexpr</span> ThreadPool_arg_t ThreadPool_arg<span class="op">{}</span>;</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T <span class="op">=</span> <span class="dt">double</span>, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>T calculate<span class="op">(</span>T<span class="op">&amp;</span> x <span class="op">=</span> <span class="op">{}</span>, Args<span class="op">&amp;&amp;...</span> args<span class="op">)</span>;</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T <span class="op">=</span> <span class="dt">double</span>, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>T calculate<span class="op">(</span>ThreadPool_arg_t, ThreadPool<span class="op">&amp;</span> threadpool,</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>            T<span class="op">&amp;</span> x <span class="op">=</span> <span class="op">{}</span>, Args<span class="op">&amp;&amp;...</span> args<span class="op">)</span>;</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> r1 <span class="op">=</span> calculate<span class="op">(</span><span class="fl">19.4</span>, <span class="st">&quot;encode&quot;</span>, <span class="fl">1.0</span><span class="op">)</span>;</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> r2 <span class="op">=</span> calculate<span class="op">(</span>ThreadPool_arg, myThreadPool,</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>                    <span class="fl">19.4</span>, <span class="st">&quot;encode&quot;</span>, <span class="fl">1.0</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb15"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T <span class="op">=</span> <span class="dt">double</span>, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>T calculate<span class="op">(</span>T x <span class="op">=</span> <span class="op">{}</span>, Args<span class="op">&amp;&amp;...</span> args,</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>            ThreadPool<span class="op">&amp;</span> <span class="op">.</span>threadpool <span class="op">=</span> defaultThreadPool<span class="op">)</span>;</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> r1 <span class="op">=</span> calculate<span class="op">(</span><span class="fl">19.4</span>, <span class="st">&quot;encode&quot;</span>, <span class="fl">1.0</span><span class="op">)</span>;</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> r2 <span class="op">=</span> calculate<span class="op">(</span><span class="fl">19.4</span>, <span class="st">&quot;encode&quot;</span>, <span class="fl">1.0</span>,</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>                    <span class="op">.</span>threadpool <span class="op">=</span> myThreadPool<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="4.5" id="more-expressive-overloading"><span class="header-section-number">4.5</span> More Expressive Overloading<a href="#more-expressive-overloading" class="self-link"></a></h2>
+<p>Consider a <code class="sourceCode cpp">Point</code> class
+representing a point in 2-dimensional space. A
+<code class="sourceCode cpp">Point</code> can be constructed using
+either Cartesian coordinates or polar coordinates. In both cases, the
+constructor take two parameters of type
+<code class="sourceCode cpp"><span class="dt">double</span></code>.
+Designated parameters allow the two constructors to coexist without
+using a disambiguating tag type:</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb16"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Point</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span><span class="op">:</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">struct</span> polar_coord_t <span class="op">{</span> <span class="kw">explicit</span> polar_coord_t<span class="op">()</span> <span class="op">=</span> <span class="cf">default</span>; <span class="op">}</span>;</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">static</span> <span class="kw">inline</span> <span class="kw">constexpr</span> polar_coord_t polar_coord<span class="op">{}</span>;</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  Point<span class="op">(</span><span class="dt">double</span> x, <span class="dt">double</span> y<span class="op">)</span>;</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>  Point<span class="op">(</span>polar_coord_t, <span class="dt">double</span> radius, <span class="dt">double</span> angle<span class="op">)</span>;</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>Point p1<span class="op">(</span><span class="fl">4.0</span>, <span class="fl">3.0</span><span class="op">)</span>;</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>Point p2<span class="op">(</span>Point<span class="op">::</span>polar_coord, <span class="fl">5.0</span>, <span class="fl">0.6435</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb17"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Point</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span><span class="op">:</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">constexpr</span> Point<span class="op">(</span><span class="dt">double</span> <span class="op">.^</span>x, <span class="dt">double</span> <span class="op">.^</span>y<span class="op">)</span>;</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">constexpr</span> Point<span class="op">(</span><span class="dt">double</span> <span class="op">.</span>radius, <span class="dt">double</span> <span class="op">.</span>angle<span class="op">)</span>;</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>Point p1<span class="op">(</span><span class="fl">4.0</span>, <span class="fl">3.0</span><span class="op">)</span>; <span class="co">// same as Point p1(.x=4.0, .y=3.0);</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>Point p2<span class="op">(.</span>radius<span class="op">=</span><span class="fl">5.0</span>, <span class="op">.</span>angle<span class="op">=</span><span class="fl">0.6435</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<!-- JMB: So the case I find confusing that arises here because of having
+     parameters that are both designated and postiional is that we can also
+     now invoke `Point p3(3.0, .y=5)` and that woudl work.  Similarly,
+     could we do `Point p4(.y=5.0, 3.0)`?    -->
+<h2 data-number="4.6" id="more-expressive-generic-programming"><span class="header-section-number">4.6</span> More Expressive Generic
+Programming<a href="#more-expressive-generic-programming" class="self-link"></a></h2>
+<p>Although some version of designated arguments have been proposed
+several times (see the <a href="#previous-attempts">Previous
+Attempts</a> section) for promoting code-clarity and preventing errors,
+the proximate reason that the authors are revisiting this topic at this
+time is for generic programming. In particular, it is often desirable to
+pass a contextual argument through multiple levels of generic code to a
+function or constructor that needs it. Examples include allocators,
+logging streams, and thread pools. Currently, passing such a parameter
+requires rigid parameter-order rules that might conflict with one
+another. Typically a function having one of these cross-cutting
+parameters must put that parameter last (which conflicts with variadic
+parameters) or first (which makes it difficult to give it a default
+argument value). Both conventions can cause conflicts if two or more of
+these environmental parameters are needed on the same function. All of
+those issues are obviated through the use of designated parameters:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span><span class="op">...</span> Args, <span class="kw">class</span> Allocator <span class="op">=</span> std<span class="op">::</span>allocator<span class="op">&lt;&gt;&gt;</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Service <span class="op">{</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span><span class="op">:</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  Service<span class="op">(</span><span class="dt">int</span> x, Args<span class="op">&amp;&amp;...</span> args,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>          Logger<span class="op">&amp;</span>   <span class="op">.</span>logger    <span class="op">=</span> global_logger<span class="op">()</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>          Allocator <span class="op">.</span>allocator <span class="op">=</span> <span class="op">{})</span>;</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">void</span> doSomething<span class="op">()</span>;</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> S, <span class="kw">class</span><span class="op">...</span> CtorArgs<span class="op">&gt;</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> func<span class="op">(</span>CtorArgs<span class="op">&amp;&amp;</span> ctorArgs<span class="op">)</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>  Logger myLogger;</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Generically pass a logger to the `S` constructor.</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>  S svc<span class="op">(</span>std<span class="op">::</span>forward<span class="op">&lt;</span>CtorArgs<span class="op">&gt;(</span>ctorArgs<span class="op">)...</span>, <span class="op">.</span>logger <span class="op">=</span> myLogger<span class="op">)</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>  svc<span class="op">.</span>doSomething<span class="op">()</span>;</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>In the above example, the only thing
+<code class="sourceCode cpp">func</code> needs to know to pass a logger
+to the <code class="sourceCode cpp">S</code> constructor is that the
+constructor takes a designated parameter named “logger.” Some of the
+enhancements described in the <a href="#possible-enhancements">Possible
+Enhancements</a> section would make even this knowledge unnecessary.</p>
+<p>A planned future proposal built on top of this designated-parameter
+proposal would expand on this feature by allowing default arguments to
+get their values from the caller’s environment, replacing some current
+(unsafe) uses of global and thread-local variables, while reducing the
+noise of passing arguments down an arbitrarily deep function-call
+hierarchy.</p>
+<h1 data-number="5" id="proposal-details"><span class="header-section-number">5</span> Proposal Details<a href="#proposal-details" class="self-link"></a></h1>
+<h2 data-number="5.1" id="designated-and-positional-parameters"><span class="header-section-number">5.1</span> Designated and Positional
+Parameters<a href="#designated-and-positional-parameters" class="self-link"></a></h2>
+<p>We introduce two new terms for describing function parameters:</p>
+<ul>
+<li><strong>Designated</strong> - Indicates that the parameter’s name
+applies not only to a local-variable declaration, but to a semantically
+significant name used to identify the matching argument at the call
+site. Designated parameters are sometimes refered to as <em>named</em>
+parameters, but the term, <em>named</em>, does not distinguish between
+local names and semantically significant designators.</li>
+<li><strong>Positional</strong> - Indicates that the position of the
+parameter or argument in the overall list of parameters is meaningful.
+C++26 parameters and arguments are always positional.</li>
+</ul>
+<p>In this proposal, a function parameter can be</p>
+<ol type="1">
+<li>Positional and undesignated (the only option in C++26)</li>
+<li>Nonpositional and designated</li>
+<li>Positional and designated</li>
+</ol>
+<h2 data-number="5.2" id="divergence-in-co-author-opinions"><span class="header-section-number">5.2</span> Divergence in Co-author
+Opinions<a href="#divergence-in-co-author-opinions" class="self-link"></a></h2>
+<p>One of the co-authors of this paper, Joshua Berne, is not sure that
+the third combination is needed for a successful feature, while the
+other co-author, Pablo Halpern, is convinced that it is needed to
+simplify wide adoption in existing libraries. For example, consider the
+<code class="sourceCode cpp">makeWindow</code> example from earlier in
+this paper. We can <em>modernize</em>
+<code class="sourceCode cpp">makeWindow</code> by providing designators
+for each argument, but we want to ensure that existing calls using
+purely positional arguments continue to work while also enabling the use
+of designated arguments:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w1 <span class="op">=</span> makeWindow<span class="op">(</span>w, h, x, y<span class="op">)</span>;</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w2 <span class="op">=</span> makeWindow<span class="op">(.</span>top <span class="op">=</span> y, <span class="op">.</span>left <span class="op">=</span> x, <span class="op">.</span>width <span class="op">=</span> w, <span class="op">.</span>height <span class="op">=</span> h<span class="op">)</span>;</span></code></pre></div>
+<p>Let’s see how we might do this with and without positional designated
+parameters:</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Positional Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Positional Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb20"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>WinHandle makeWindow<span class="op">(</span><span class="dt">int</span>   width,                     <span class="dt">int</span>   height,</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>                     <span class="dt">int</span>   left,                      <span class="dt">int</span>   top <span class="op">=</span> INT_MIN,</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>                     Color background <span class="op">=</span> Color<span class="op">::</span>white, Color foreground <span class="op">=</span> Color<span class="op">::</span>black<span class="op">)</span>;</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>WinHandle makeWindow<span class="op">(</span><span class="dt">int</span>   <span class="op">.</span>width,                     <span class="dt">int</span>   <span class="op">.</span>height,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>                     <span class="dt">int</span>   <span class="op">.</span>left         <span class="op">=</span> INT_MIN,    <span class="dt">int</span>   <span class="op">.</span>top <span class="op">=</span> INT_MIN,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>                     Color <span class="op">.</span>background <span class="op">=</span> Color<span class="op">::</span>white, Color <span class="op">.</span>foreground <span class="op">=</span> Color<span class="op">::</span>black<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb21"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>WinHandle makeWindow<span class="op">(</span><span class="dt">int</span>   <span class="op">.^</span>width,                     <span class="dt">int</span>   <span class="op">.^</span>height,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>                     <span class="dt">int</span>   <span class="op">.^</span>left         <span class="op">=</span> INT_MIN,    <span class="dt">int</span>   <span class="op">.^</span>top <span class="op">=</span> INT_MIN,</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>                     Color <span class="op">.^</span>background <span class="op">=</span> Color<span class="op">::</span>white, Color <span class="op">.^</span>foreground <span class="op">=</span> Color<span class="op">::</span>black<span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<p>The difference in effort between the two versions might seem minimal:
+simply add an extra overload in nonpositional case, but the
+transformation is nontrivial. On the left side of the table, notice
+that, to prevent ambiguity, we needed to remove the default argument
+from <code class="sourceCode cpp">left</code> in the nondesignated
+overload — a change that makes the process more error prone. If there
+are many such functions, adding designated-parameter overloads could
+double the size of in the interface. Templates and variadic parameters
+complicate things further.</p>
+<p>One of the benefits of designated arguments is that it is possible to
+add new parameters to a function without disrupting existing calls,
+provided the new parameter has a default argument value. Assume we add a
+<code class="sourceCode cpp"><span class="op">.</span>keep_on_top <span class="op">=</span> <span class="kw">false</span></code>
+parameter to <code class="sourceCode cpp">makeWindow</code> function.
+Using positional designated parameters results in a smaller minimal
+change to use the new parameter at existing call sites:</p>
+<table>
+<thead>
+<tr class="header">
+<th><div style="text-align:center">
+<strong>Without Positional Designated Parameters</strong>
+</div></th>
+<th><div style="text-align:center">
+<strong>With Positional Designated Parameters</strong>
+</div></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><div>
+
+<div class="sourceCode" id="cb22"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Before:</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>w, h, l, t<span class="op">)</span>;</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co">// After</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(.</span>width <span class="op">=</span> w, <span class="op">.</span>height <span class="op">=</span> h, <span class="op">.</span>left <span class="op">=</span> l, <span class="op">.</span>top <span class="op">=</span> t,</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>                    <span class="op">.</span>keep_on_top <span class="op">=</span> <span class="kw">true</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+<td><div>
+
+<div class="sourceCode" id="cb23"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Before:</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>w, h, l, t<span class="op">)</span>;</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co">// After</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> w <span class="op">=</span> makeWindow<span class="op">(</span>w, h, l, t, <span class="op">.</span>keep_on_top <span class="op">=</span> <span class="kw">true</span><span class="op">)</span>;</span></code></pre></div>
+
+</div></td>
+</tr>
+</tbody>
+</table>
+<p>The change on the right is not only less work, but is also less error
+prone than on the left because it avoids errors from incorrectly naming
+the arguments as a result of forgetting the (less than totally
+intuitive) order of parameters.</p>
+<!-- JMB: I guess if you're taking all of the defaulted arguments and making them
+     designatable you need can't just do that, but I think we want such a disambiguation
+     rule no matter what --- if two overloads match and one has defaulted
+     designed parameters then prefer the one without them.  But with such
+     disambugation we just need one alternate overload that has all of the
+     optional arguments as defaulted designated parameters, and then we don't
+     have super-confusing uses where we mix and match.
+     -->
+<!-- PGH: Your proposed disambiguation rule solves the first complication, but
+     not the second, which I just added. It also feels like an arbitrary.
+     workaround, but might still be worth considering, regardless of our
+     decision on positional designated parameters. -->
+<p>Finally, overloading is not always an option. It might be desirable
+for <code class="sourceCode cpp"><span class="kw">auto</span> p <span class="op">=</span> <span class="op">&amp;</span>makeWindow</code>
+to unambiguously produce a pointer-to-function object, something that
+would not be possible if <code class="sourceCode cpp">makeWindow</code>
+were an overload set. See <a href="#function-pointer-conversions">Function-pointer Conversions</a>,
+below.</p>
+<p>For now, we will explore a design space that includes positional
+designated parameters, so that we can find any difficulties and possible
+ways of mitigating them. A straw-man syntax indicates that a designated
+parameter is positional by adding an caret before the parameter
+name:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co">// `func` has positional designated parameters `x` and `y` and</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co">// nonpositional designated parameters `a` and `b`.</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> func<span class="op">(</span><span class="dt">int</span> <span class="op">.^</span>x, <span class="dt">int</span> <span class="op">.^</span>y, <span class="dt">float</span> <span class="op">.</span>a, std<span class="op">::</span>string <span class="op">.</span>b <span class="op">=</span> <span class="op">{})</span>;</span></code></pre></div>
+<p>Note that a separator such as this is no longer needed if we simply
+choose to not support paramters that are both positional and
+designated.</p>
+<h2 data-number="5.3" id="parameter-and-argument-order"><span class="header-section-number">5.3</span> Parameter and Argument Order<a href="#parameter-and-argument-order" class="self-link"></a></h2>
+<p>Parameters in a function declaration must appear in the following
+order (any or all of the following may be absent):</p>
+<ol type="1">
+<li>Positional undesignated parameters without default arguments</li>
+<li>Positional designated parameters without default arguments</li>
+<li>Positional designated and undesignated parameters with default
+arguments</li>
+<li>An undesignated variadic parameter (with ellipsis)</li>
+<li>Nonpositional designated parameters</li>
+</ol>
+<p>For positional parameters, the order of types and position of
+designators is significant; two declarations that differ in the order of
+positional parameters declare different functions. For nonpositional
+parameters, order is not significant; two declarations that differ only
+in the order of nonpositional parameters refer to the same function.</p>
+<p>Examples:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> f1<span class="op">(</span><span class="dt">int</span> x, <span class="dt">int</span> y <span class="op">=</span> <span class="dv">0</span>, <span class="dt">double</span> <span class="op">.</span>scale <span class="op">=</span> <span class="fl">1.0</span><span class="op">)</span>;</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span><span class="op">...</span> V<span class="op">&gt;</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> f2<span class="op">(</span><span class="dt">int</span> x, <span class="dt">int</span> <span class="op">.^</span>y <span class="op">=</span> <span class="dv">0</span>, <span class="dt">int</span> z <span class="op">=</span> <span class="dv">0</span>, V<span class="op">&amp;&amp;...</span>v, <span class="dt">int</span> <span class="op">.</span>origin, <span class="dt">int</span> <span class="op">.</span>offset <span class="op">=</span> <span class="dv">0</span><span class="op">)</span>;</span></code></pre></div>
+<p>When calling a function, undesignated arguments must appear before
+first, in positional order, followed by designated arguments. The
+relative ordering of designated arguments is not significant.</p>
+<p>Examples:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>f1<span class="op">(</span><span class="dv">9</span>, <span class="dv">8</span>, <span class="op">.</span>scale <span class="op">=</span> <span class="fl">2.0</span><span class="op">)</span>;  <span class="co">// All arguments are explicitly specified</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>f1<span class="op">(</span><span class="dv">9</span>, <span class="op">.</span>scale <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span>;     <span class="co">// y = 0 by default</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>f1<span class="op">(</span><span class="dv">9</span>, <span class="dv">8</span><span class="op">)</span>;                <span class="co">// scale = 1.0 by default</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>f1<span class="op">(</span><span class="dv">9</span>, <span class="op">.</span>scale <span class="op">=</span> <span class="fl">.5</span>, <span class="dv">8</span><span class="op">)</span>;   <span class="co">// Ill formed: undesignated arg after designated arg</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co">// x = 1, y = 2, z = 3, v...[0] = &#39;d&#39;, v...[1] = 0.4, origin = 0, offset = 0</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>f2<span class="op">(</span><span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="ch">&#39;d&#39;</span>, <span class="fl">0.4</span>, <span class="op">.</span>origin <span class="op">=</span> <span class="dv">0</span><span class="op">)</span>;</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co">// x = 1, y = 2, z = 0, sizeof...(v) = 0, origin = 0, offset = 1</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>f2<span class="op">(</span><span class="dv">1</span>, <span class="op">.</span>origin <span class="op">=</span> <span class="dv">0</span>, <span class="op">.</span>y <span class="op">=</span> <span class="dv">2</span>, <span class="op">.</span>offset <span class="op">=</span> <span class="dv">1</span><span class="op">)</span>;</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>f2<span class="op">(</span><span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="ch">&#39;d&#39;</span>, <span class="fl">0.4</span><span class="op">)</span>;  <span class="co">// Overload failure: no value specified for origin</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co">// Ill-formed: undesignated arg after designated arg</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>f2<span class="op">(</span><span class="dv">1</span>, <span class="op">.</span>y <span class="op">=</span> <span class="dv">2</span>, <span class="dv">3</span>, <span class="ch">&#39;d&#39;</span>, <span class="fl">0.4</span>, <span class="op">.</span>origin <span class="op">=</span> <span class="dv">0</span><span class="op">)</span>;</span></code></pre></div>
+<h2 data-number="5.4" id="interaction-with-overload-resolution"><span class="header-section-number">5.4</span> Interaction with Overload
+Resolution<a href="#interaction-with-overload-resolution" class="self-link"></a></h2>
+<p>Parameter designators are part of a function’s signature (and thus
+its type, see <a href="#interaction-with-type-system">Interaction with
+Type System</a>). It is thus possible to overload solely on designator
+names:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Stream</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span><span class="op">:</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">enum</span> <span class="kw">class</span> Mode <span class="op">{</span> READ, WRITE, APPEND <span class="op">}</span>;</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="op">...</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">// distinct overloads of `open`</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> open<span class="op">(</span>Mode <span class="op">.</span>mode, <span class="kw">const</span> std<span class="op">::</span>string <span class="op">.^</span>filename<span class="op">)</span>; <span class="co">// overload #1</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> open<span class="op">(</span>Mode <span class="op">.</span>mode, <span class="kw">const</span> std<span class="op">::</span>string <span class="op">.^</span>url<span class="op">)</span>;      <span class="co">// overload #2</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">...</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span></code></pre></div>
+<p>Changes in overload resolution (<span>12.2
+<a href="https://wg21.link/N5008#over.match">[over.match]</a></span>)
+should be modest, affecting mostly the first step of identifying viable
+functions in section <span>12.2.3
+<a href="https://wg21.link/N5008#over.match.viable">[over.match.viable]</a></span>.
+Rather than specifying this step based on the number of arguments, we
+specify an algorithm for matching each argument to a corresponding
+function parameter.</p>
+<p>For a function call having <em>N</em> positional arguments
+PA<sub>i</sub>, for integer <em>i</em> in the range 1…<em>N</em>,
+followed by <em>M</em> designated arguments, DA<sub>d</sub>, where each
+<em>d</em> is a designator name (not an integer), arguments are matched
+to parameters as follows.</p>
+<p>For each nondesignated argument, PA<sub>i</sub>,</p>
+<ul>
+<li>if a positional parameter PP<sub>i</sub> exists, then PA<sub>i</sub>
+matches PP<sub>i</sub>;</li>
+<li>otherwise, if there is a variadic parameter, then PA<sub>i</sub>
+matches the variadic parameter;</li>
+<li>otherwise, PA<sub>i</sub> has no match.</li>
+</ul>
+<p>For each designated argument, DA<sub>d</sub>,</p>
+<ul>
+<li><p>if a designated parameter DP<sub>d</sub> exists, then
+DA<sub>d</sub> matches DP<sub>d</sub>;</p></li>
+<li><p>otherwise, if the first unmatched positional parameter has type
+(possibly cvref-qualified) <code class="sourceCode cpp">T</code>, where
+<code class="sourceCode cpp">T</code> is a deduced template parameter,
+then DA<sub>d</sub> matches that positional parameter;
+<!-- JMB:  Is this for some kind of forwarding reference?  --></p></li>
+<li><p>otherwise, if there is a variadic parameter of type (possibly
+cvref-qualified)
+<code class="sourceCode cpp">Args<span class="op">...</span></code>,
+where <code class="sourceCode cpp">Args</code> is a deduced template
+parameter pack, then DA<sub>d</sub> matches that variadic parameter (see
+<a href="#interaction-with-parameter-packs">Interaction with Parameter
+Packs</a>, below);</p></li>
+<li><p>otherwise, DA<sub>d</sub> has no match.</p></li>
+</ul>
+<p>To be a viable function,</p>
+<ul>
+<li>each argument must match exactly one parameter, and</li>
+<li>each nonvariadic parameter must match exactly one argument or else
+match no arguments and have a default argument.</li>
+</ul>
+<p>Note that a positional designated parameter can be matched either by
+position or by designator, but if it matches more than one distinct
+argument, the function would be nonviable.</p>
+<p>The specification for the best viable function in section
+<span>12.2.4
+<a href="https://wg21.link/N5008#over.match.best">[over.match.best]</a></span>
+would be modified to refer to the argument-parameter matches determined
+by the algorithm above instead of to the <em>i<sup>th</sup></em>
+argument and <em>i<sup>th</sup></em> parameter. Otherwise, there should
+be few other changes to the rest of overload resolution section
+(<span>12.2
+<a href="https://wg21.link/N5008#over.match">[over.match]</a></span>).</p>
+<p>As in C++26, overload resolution can result in an ambiguity at the
+call site:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> f<span class="op">()</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  Stream s;</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  s<span class="op">.</span>open<span class="op">(</span>Stream<span class="op">::</span>Mode<span class="op">::</span>READ, <span class="op">.</span>filename <span class="op">=</span> <span class="st">&quot;myinput.txt&quot;</span><span class="op">)</span>;    <span class="co">// OK</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  s<span class="op">.</span>open<span class="op">(</span>Stream<span class="op">::</span>Mode<span class="op">::</span>READ, <span class="st">&quot;https::/isocpp.org/myinput&quot;</span><span class="op">)</span>; <span class="co">// Error: ambiguous</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>TBD: Need examples of overload resolution, including examples of
+errors where positional argument and a designated argument refer to the
+same parameter.</p>
+<h2 data-number="5.5" id="interaction-with-parameter-packs"><span class="header-section-number">5.5</span> Interaction with Parameter
+Packs<a href="#interaction-with-parameter-packs" class="self-link"></a></h2>
+<p>Consider a function template that simply performs an action before
+and after calling an invocable entity,
+<code class="sourceCode cpp">f</code>, with supplied arguments:</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> F, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> verbose_call<span class="op">(</span>F<span class="op">&amp;&amp;</span> f, Args<span class="op">&amp;&amp;...</span> args<span class="op">)</span> <span class="op">-&gt;</span> <span class="kw">decltype</span><span class="op">(</span><span class="kw">auto</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>cout <span class="op">&lt;&lt;</span> <span class="st">&quot;Prologue</span><span class="sc">\n</span><span class="st">&quot;</span>;</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">auto</span> on_scope_exit <span class="op">=</span> <span class="op">[](</span><span class="kw">const</span> <span class="dt">char</span><span class="op">*</span> s<span class="op">){</span> std<span class="op">::</span>cout <span class="op">&lt;&lt;</span> s; <span class="op">}</span>;</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>  std<span class="op">::</span>unique_ptr<span class="op">&lt;</span><span class="kw">const</span> <span class="dt">char</span>, <span class="kw">decltype</span><span class="op">(</span>on_scope_exit<span class="op">)&gt;</span> e<span class="op">(</span><span class="st">&quot;Epilogue</span><span class="sc">\n</span><span class="st">&quot;</span>,</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>                                                         on_scope_exit<span class="op">)</span>;</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> std<span class="op">::</span>forward<span class="op">&lt;</span>F<span class="op">&gt;(</span>f<span class="op">)(</span>std<span class="op">::</span>forward<span class="op">&lt;</span>Args<span class="op">&gt;(</span>args<span class="op">)...)</span>;</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>It is extremely desirable for the above template, which is valid
+C++26, to continue to work unchanged in the world of designated
+parameters. Given the following declaration and call:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> func<span class="op">(</span><span class="dt">int</span>, <span class="kw">const</span> <span class="dt">char</span><span class="op">*</span> <span class="op">.^</span>name<span class="op">)</span>;</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>verbose_call<span class="op">(</span>func, <span class="dv">15</span>, <span class="op">.</span>name<span class="op">=</span><span class="st">&quot;Fred&quot;</span><span class="op">)</span>;</span></code></pre></div>
+<p>We would want the invocation of f within
+<code class="sourceCode cpp">verbose_call</code> to expand to something
+equivalent to the following.</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">decltype</span><span class="op">(</span><span class="kw">auto</span><span class="op">)</span> ret <span class="op">=</span> std<span class="op">::</span>forward<span class="op">&lt;</span><span class="dt">void</span> <span class="op">(&amp;)(</span><span class="dt">int</span>, <span class="kw">const</span> <span class="dt">char</span><span class="op">*</span> <span class="op">.^</span>name<span class="op">)&gt;(</span>func<span class="op">)(</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    std<span class="op">::</span>forward<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;(</span><span class="dv">15</span><span class="op">)</span>, <span class="op">.</span>name <span class="op">=</span> std<span class="op">::</span>forward<span class="op">&lt;</span><span class="kw">const</span> <span class="dt">char</span> <span class="op">(&amp;)[</span><span class="dv">5</span><span class="op">]&gt;(</span><span class="st">&quot;Fred&quot;</span><span class="op">))</span>;</span></code></pre></div>
+<p>In the <a href="interaction-with-overload-resolution">Interaction
+with Overload Resolution</a> section, above, the argument-to-parameter
+matching algorithm matches any designated argument to the variadic
+template parameter if there is no corresponding designated parameter.
+Thus, <code class="sourceCode cpp"><span class="op">.</span>name<span class="op">=</span><span class="st">&quot;Fred&quot;</span></code>
+gets mapped to the <code class="sourceCode cpp">args</code> parameter
+pack. The question then becomes, how is the designator forwarded to
+further in the call tree?</p>
+<p>One possible rule would be for the designator to follow the argument,
+i.e., the last argument to <code class="sourceCode cpp">func</code>
+starts with <code class="sourceCode cpp"><span class="op">.</span>name<span class="op">=</span></code>
+because the designator is associated with the last argument of the
+parameter pack. This rule is deficient, however, when the argument is
+not present, as in the case of type traits or concepts:</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> F, <span class="kw">class</span><span class="op">...</span> Args<span class="op">&gt;</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">requires</span> std<span class="op">::</span>invocable<span class="op">&lt;</span>F, Args<span class="op">...&gt;</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> verbose_call<span class="op">(</span>F<span class="op">&amp;&amp;</span> f, Args<span class="op">&amp;&amp;...</span> args<span class="op">)</span> <span class="op">-&gt;</span> <span class="kw">decltype</span><span class="op">(</span><span class="kw">auto</span><span class="op">)</span> <span class="op">{</span> <span class="op">...</span> <span class="op">}</span></span></code></pre></div>
+<p>To make the <code class="sourceCode cpp">invocable</code> concept
+work, <code class="sourceCode cpp">Args</code> must describe not only
+the type, but also the designator (if any) associated with each argument
+at the point of instantiation. What we propose is to expand the type
+system with <em>designator qualifiers</em>. In the expression, <code class="sourceCode cpp">verbose_call<span class="op">(</span>func, <span class="dv">15</span>, <span class="op">.</span>name<span class="op">=</span><span class="st">&quot;Fred&quot;</span><span class="op">)</span></code>,
+the third argument has type <code class="sourceCode cpp"><span class="kw">const</span> <span class="dt">char</span> <span class="op">(&amp;)[</span><span class="dv">5</span><span class="op">]</span></code>,
+with <code class="sourceCode cpp"><span class="op">.</span>name</code>
+as its designator qualifier. If we were to reify the designator
+qualifier as something that can be uttered directly by the programmer,
+we might say that <code class="sourceCode cpp"><span class="kw">decltype</span><span class="op">(.</span>length <span class="op">=</span> <span class="dv">5</span><span class="op">)</span></code>
+has type <code class="sourceCode cpp"><span class="dt">int</span><span class="op">.</span>length</code>
+or, more generally, that <code class="sourceCode cpp"><span class="kw">decltype</span><span class="op">(.</span><em>name</em> <span class="op">=</span> <em>expr</em><span class="op">)</span></code>
+has type <code class="sourceCode cpp"><span class="kw">decltype</span><span class="op">(</span><em>expr</em><span class="op">).</span><em>name</em></code>.
+Such reification is probably not essential, but it does make designated
+parameters easier to talk about and it is useful to be able to
+designator-qualified type directly, e.g., to store an argument list in a
+<code class="sourceCode cpp">tuple</code> (<code class="sourceCode cpp">tuple<span class="op">&lt;</span><span class="dt">int</span><span class="op">.</span>x, <span class="dt">int</span><span class="op">.</span>y<span class="op">&gt;</span></code>),
+to express a type trait (<code class="sourceCode cpp">is_constructible_v<span class="op">&lt;</span>T, <span class="dt">float</span><span class="op">.</span>name<span class="op">&gt;</span></code>),
+etc.. Given this approach, the invocation of f within
+<code class="sourceCode cpp">verbose_call</code> would forward the
+<code class="sourceCode cpp"><span class="op">.</span>name</code>
+argument as a designator-qualified array of <code class="sourceCode cpp"><span class="kw">const</span> <span class="dt">char</span></code>:</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>  <span class="kw">decltype</span><span class="op">(</span><span class="kw">auto</span><span class="op">)</span> ret <span class="op">=</span> std<span class="op">::</span>forward<span class="op">&lt;</span><span class="dt">void</span> <span class="op">(&amp;)(</span><span class="dt">int</span>, <span class="kw">const</span> <span class="dt">char</span><span class="op">*</span> <span class="op">.^</span>name<span class="op">)&gt;(</span>func<span class="op">)(</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    std<span class="op">::</span>forward<span class="op">&lt;</span><span class="dt">int</span><span class="op">&gt;(</span><span class="dv">15</span><span class="op">)</span>, std<span class="op">::</span>forward<span class="op">&lt;</span><span class="kw">const</span> <span class="dt">char</span> <span class="op">(&amp;.</span>name<span class="op">)[</span><span class="dv">5</span><span class="op">]&gt;(</span><span class="st">&quot;Fred&quot;</span><span class="op">))</span>;</span></code></pre></div>
+<p>The name-matching rules in the previous section (<a href="#interaction-with-overload-resolution">Interaction with Overload
+Resolution</a>) should therefore be modified such that a designated
+parameter’s type is expressed as being designator-qualified and would
+match a designated parameter having the same designator.</p>
+<p>There are no conversions between a type and its designator-qualified
+variant. A designator
+<code class="sourceCode cpp"><span class="op">.</span>d</code> is
+appended to the type of an expression
+<code class="sourceCode cpp">e</code> of type
+<code class="sourceCode cpp">T</code> using the expression <code class="sourceCode cpp"><span class="op">.</span>d <span class="op">=</span> e</code>.
+Conversely, an expression <code class="sourceCode cpp">de</code> of type
+<code class="sourceCode cpp">T<span class="op">.</span>d</code> is
+stripped of its designator by binding it to a parameter with designator
+<code class="sourceCode cpp"><span class="op">.</span>d</code>. We might
+also allow the same rules to apply to
+<code class="sourceCode cpp"><span class="kw">auto</span></code>
+variables:</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> g<span class="op">()</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">auto</span> di <span class="op">=</span> <span class="op">(.</span>x <span class="op">=</span> <span class="dv">5</span><span class="op">)</span>;  <span class="co">// decltype(di) is int.x</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">auto</span> <span class="op">.</span>x <span class="op">=</span> di;        <span class="co">// decltype(x) = int</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">assert</span><span class="op">(</span>x <span class="op">==</span> <span class="dv">5</span><span class="op">)</span>;</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>The only implicit conversion-like binding is that an expression
+without a designator can bind to a positional parameter with a
+designator.</p>
+<p>A value of designator-qualified type could also be extracted from a
+parameter pack using the designator as a pack index:</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> v <span class="op">=</span> args<span class="op">...[.</span>x<span class="op">]</span>;</span></code></pre></div>
+<p>Many of the semantics of designated parameters and designated
+arguments flow naturally from the introduction of designator-qualified
+types and obviate special-case handling in the Core Language, the
+Standard Library, and in compiler implementations. Most generic code
+will continue to yield expected results without modification. For
+example:</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co">// `forward_as_tuple` returns a `tuple` instantiated with two designator-qualified types.</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="co">// `p.second` is initialized with arguments `.value=x, .offset=-1`.</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>pair<span class="op">&lt;</span><span class="dt">int</span>, W<span class="op">&gt;</span> p<span class="op">(</span>std<span class="op">::</span>piecewise_construct,</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>                    std<span class="op">::</span>forward_as_tuple<span class="op">(</span><span class="dv">99</span><span class="op">)</span>,</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>                    std<span class="op">::</span>forward_as_tuple<span class="op">(.</span>value<span class="op">=</span>x, <span class="op">.</span>offset<span class="op">=-</span><span class="dv">1</span><span class="op">))</span>;</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Yields `tuple&lt;const char *, int.angle, double.radius&gt;`</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> t <span class="op">=</span> std<span class="op">::</span>make_tuple<span class="op">(</span><span class="st">&quot;hello&quot;</span>, <span class="op">.</span>angle<span class="op">=</span><span class="dv">30</span>, <span class="op">.</span>radius<span class="op">=</span><span class="fl">2.5</span><span class="op">)</span>;</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Invokes `func(&quot;hello&quot;, .angle=30, .radius=2.5)`</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>std<span class="op">::</span>apply<span class="op">(</span>func, t<span class="op">)</span>;</span></code></pre></div>
+<h2 data-number="5.6" id="interaction-with-type-system"><span class="header-section-number">5.6</span> Interaction with Type System<a href="#interaction-with-type-system" class="self-link"></a></h2>
+<p>Designated parameters are encoded in the type system. Because
+designator-qualified types are part of a function’s signature, a
+function’s type naturally includes the designators for its parameters.
+Similarly, a function pointer can be declared with designators:</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> <span class="op">(*</span>fp1<span class="op">)(</span><span class="dt">int</span> x, <span class="dt">int</span> <span class="op">.^</span>value<span class="op">)</span>;</span></code></pre></div>
+<h2 data-number="5.7" id="function-pointer-conversions"><span class="header-section-number">5.7</span> Function-pointer Conversions<a href="#function-pointer-conversions" class="self-link"></a></h2>
+<p>We can introduce a new rule whereby a pointer to function having
+positional designated parameters can be converted to a pointer to
+function having the same positional parameters, but where some of them
+are not designated:</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode default"><code class="sourceCode default"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>int (*fp2)(int x, int v) = fp1;  // implicit conversion</span></code></pre></div>
+<p>For overload resolution, this conversion would have the rank of
+either a promotion or a standard conversion.</p>
+<p>TBD: How much more needs to be said about interaction with the type
+system?</p>
+<!-- JMB: I think the biggest gap is the interaction between
+     functions where the parameters are designated and those where
+     parametesr are both designated and posiional.  In particular, can I use
+     `f(int .name)` with a function pointer of type `int (., int .name)` ---
+     I can certainly call both of those functions with a designed name.
+
+## Interaction with Reflection
+
+TBD
+
+<!-- JMB: We definitely need to say something more clear about how designators
+     attach to a variable's type and how you can strip them off, and that inevitably
+     gets exposed through reflection.
+
+     We similarly need to be able to splice designators alongside a type, and posisbly
+     we might want to splice just desginators (which might need a disambugator of some
+     kind).  -->
+<h1 data-number="6" id="possible-enhancements"><span class="header-section-number">6</span> Possible Enhancements<a href="#possible-enhancements" class="self-link"></a></h1>
+<p>TBD: Each of the enhancements listed here needs explanation.</p>
+<ul>
+<li><p>Special designated arguments that override same-named arguments
+in a parameter pack.</p></li>
+<li><p>Special designated arguments that are ignored on function calls
+that don’t have such a designated parameter.</p>
+<!-- JMB: I think this one is about calling a generic function when you have
+     specified designated arguments it doesn't expect.   There are use
+     cases for both directions --- reject, and ignore arguments we don't
+     need to pass.  Ideally, if we have a syntax to say "here's extra
+     designated params that you might not need" then we would also short-circuit
+     the expressions in those params when they are not needed.
+     --></li>
+<li><p>Variadic designated parameters</p></li>
+<li><p>Designated template parameters (i.e., <code class="sourceCode cpp"><span class="kw">template</span> <span class="op">&lt;</span><span class="kw">class</span> T, <span class="kw">class</span> <span class="op">.</span>Allocator<span class="op">&gt;</span></code>)</p></li>
+</ul>
+<h1 data-number="7" id="impact-on-the-standard-library"><span class="header-section-number">7</span> Impact on the Standard Library<a href="#impact-on-the-standard-library" class="self-link"></a></h1>
+<p>TBD: We would want to at least enhance <em>uses-allocator
+construction</em> to recognize parameters of the form <code class="sourceCode cpp">Allocator <span class="op">.</span>allocator</code>.
+We might also want to tackle some cases of tagged parameters; providing
+a prettier alternative by way of new overloads.</p>
+<!-- JMB: we should also call out places such as emplace functions where we think
+  there won't be a need for any change to work with designated parameters.  -->
+<h1 data-number="8" id="abi-considerations"><span class="header-section-number">8</span> ABI Considerations<a href="#abi-considerations" class="self-link"></a></h1>
+<p>TBD: We anticipate little or no impact on ABI for existing code.</p>
+<!-- JMB: If we have params that are both positional and designated then adding
+     a designator is an abi change because that has to be mangled along with the
+     function (because we can then overload on that designator).   That's an
+     important consideration for any library changes to make use of the feature,
+     but I agree it doesn't impact current functions.   -->
+<h1 data-number="9" id="alternative-syntax-and-terminology"><span class="header-section-number">9</span> Alternative Syntax and
+Terminology<a href="#alternative-syntax-and-terminology" class="self-link"></a></h1>
+<p><strong>Alternative Nomenclature</strong>: Consider using the term
+<em>label</em> instead of <em>designator</em> (and corresponding
+<em>labeled parameter</em>, <em>labeled argument</em>,
+<em>label-qualified type</em>).</p>
+<p><strong>Alternative designator syntax</strong>: The current proposed
+call syntax resembles designated initializers for structs in ways that
+are both good and bad. Although designated initializers are a
+somewhat-familiar syntax at the <em>call site</em>, parameter passing is
+<em>not</em> the same thing as struct initialization and the resemblance
+could cause confusion, especially with nondesignated arguments in the
+mix. Moreover, the parameter <em>declaration</em> syntax is entirely
+new.</p>
+<p>An alternative worth considering is the syntax, <code class="sourceCode cpp">func<span class="op">(</span>t <span class="op">:</span> expr1, f <span class="op">:</span>expr2<span class="op">)</span></code>
+for calling a function and <code class="sourceCode cpp"><span class="dt">void</span> func<span class="op">(</span>T t<span class="op">:</span>, U <span class="op">(&amp;</span>f<span class="op">:)())</span>;</code>
+for declaring it. Advantage: in this alternative call syntax, the
+argument name is not preceded by a gratuitous dot and a function
+argument does not look like an assignment expression. <em>Editorial
+note: Pablo prefers this syntax. The term</em> label <em>is probably
+better than</em> designator <em>for this syntax</em>.</p>
+<p><strong>Alternative positional/nonpositional syntax</strong>: The
+straw-man syntax (a leading
+<code class="sourceCode cpp"><span class="op">^</span></code>) for
+distinguishing positional from nonpositional designated parameters is
+arbitrary; a different prefix or suffix character could be chosen or an
+entirely different syntax can be proposed. One alternative to consider
+would be using a delimiter, e.g.,
+<code class="sourceCode cpp">,<span class="op">.</span>,</code>,
+<code class="sourceCode cpp"><span class="op">/</span></code> or
+<code class="sourceCode cpp"><span class="op">|</span></code>, where
+positional parameters come before the delimiter and nonpositional
+parameters after the delimiter. Another alternative would be to group
+nonpositional parameters in square or curly braces, where anything not
+within the braces would be positional.</p>
+<!-- JMB: Considering that i consider parameters that are both positional and
+     designatable to be frought with potentials for misuse and confusion I lean
+     towards making that the harder syntax to write.   requirng that they
+     use `f(int .^name)` and then not needing the confusing `.,` parameters
+     would be fine, and would also make that whole aspect of the proposal something
+     that can be layered on top of the rest.
+
+     -->
+<h1 data-number="10" id="previous-attempts-at-designated-arguments"><span class="header-section-number">10</span> Previous Attempts at Designated
+Arguments<a href="#previous-attempts-at-designated-arguments" class="self-link"></a></h1>
+<h2 data-number="10.1" id="language-proposals"><span class="header-section-number">10.1</span> Language Proposals<a href="#language-proposals" class="self-link"></a></h2>
+<p>TBD: This section is incomplete. In particular, we need to look up
+the discussion notes on each proposal and see why the committee rejected
+them.</p>
+<p><span class="citation" data-cites="N0060">[<a href="https://www.open-std.org/JTC1/SC22/WG21/docs/papers/1991/WG21%201991/X3J16_91-0127%20WG21_N0060.pdf" role="doc-biblioref">N0060 (X3J16_91-0127)</a>]</span> Keyword
+Parameters in C++</p>
+<p><span class="citation" data-cites="N4172">[<a href="https://wg21.link/n4172" role="doc-biblioref">N4172</a>]</span>
+Named Arguments ((discussion
+notes)[http://wiki.edg.com/bin/view/Wg21urbana-champaign/FunctionFacilities#N4172_Named_Function_Arguments])</p>
+<blockquote>
+<p>Both of these papers propose using the argument name from the
+function declaration as the name of the argument that can be used at the
+call site. These proposals can produce inconsistent results when
+functions are declared more than once in a program and the declarations
+do not use the same parameter names. It has long been true (even in when
+N0050 was proposed in 1991), going back to C++’s roots in C, that
+parameter names in function declarations had no semantic significance,
+except in the function’s definition, and it was not practical to
+suddenly make them significant. Moreover, the names of parameters in the
+Standard Library are not themselves standard, so such use of named
+parameters is not portable.</p>
+</blockquote>
+<p><span class="citation" data-cites="P0671R2">[<a href="https://wg21.link/p0671r2" role="doc-biblioref">P0671R2</a>]</span> Self-explanatory Function
+Arguments (see References for more links)</p>
+<blockquote>
+<p>This proposal uses a new syntax for naming parameters but does not
+permit re-ordering arguments at the call site. Although it would have
+made client code easier to read and reduce the chance of certain errors,
+it falls short of providing the many benefits of true designated
+parameters. Ultimately, this proposal would have improved compiler
+diagnostics, but would not have increased the expressiveness of the
+language.</p>
+</blockquote>
+<p><span class="citation" data-cites="P1229R0">[<a href="https://wg21.link/p1229r0" role="doc-biblioref">P1229R0</a>]</span> Labelled Parameters [British
+spelling of labeled]</p>
+<blockquote>
+<p>This paper is the most similar to our proposal. After a garden-path
+walk through an unworkable library solution, it proposes putting a label
+before the parameter declaration and using
+<code class="sourceCode cpp">label <span class="op">:</span> expr</code>
+for arguments. For nonpositional parameters,
+<code class="sourceCode cpp"><span class="kw">explicit</span></code> is
+used ahead of the label, which is interesting. It also re-orders the
+parameter naming so that you would write
+<code class="sourceCode cpp">name <span class="op">:</span> type</code>
+instead of
+<code class="sourceCode cpp">type <span class="op">.</span>name</code>
+or
+<code class="sourceCode cpp">type name<span class="op">:</span></code>,
+which is a gratuitous change to the declaration syntax. Ultimately, it
+is not a well-written paper and is very incomplete. It does not go into
+detail about parameter packs (despite saying that it is “compatible with
+<code class="sourceCode cpp">std<span class="op">::</span>forward</code>ing.”),
+overloading, or integration with the type system.</p>
+</blockquote>
+<p><span class="citation" data-cites="P3405R0">[<a href="https://wg21.link/p3405r0" role="doc-biblioref">P3405R0</a>]</span> Out-of-order designated
+initializers</p>
+<blockquote>
+<p>This paper does not propose designated parameters <em>per se</em>,
+but does relax the restriction on the ordering of designated
+initializers for aggregates, making the use of designated initializers
+more suitable as a substitute for true designated parameters. It does
+nothing for solving the other problems with designated initializers,
+however, including their not working with template argument
+deduction.</p>
+</blockquote>
+<p><strong>In Summary</strong>, none of these previous attempts was a
+complete proposal that addressed the full range of issues required to
+integrate a designated parameters feature into modern C++.</p>
+<h2 data-number="10.2" id="library-workaround-using-designated-aggregate-initializers"><span class="header-section-number">10.2</span> Library Workaround Using
+Designated Aggregate Initializers<a href="#library-workaround-using-designated-aggregate-initializers" class="self-link"></a></h2>
+<p>One technique used to get the <em>illusion</em> of designated
+parameters uses a
+<code class="sourceCode cpp"><span class="kw">struct</span></code> to
+aggregate a function’s parameters. Rather than having <em>n</em>
+parameters, the function has a single parameter of a custom
+<code class="sourceCode cpp"><span class="kw">struct</span></code> type
+having <em>n</em> members:</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co">// function-argument struct</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> MakeWindowParams <span class="op">{</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> width;</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> height;</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> left         <span class="op">=</span> INT_MIN;</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> top          <span class="op">=</span> INT_MIN;</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>  Color background <span class="op">=</span> Color<span class="op">::</span>white;</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>  Color foreground <span class="op">=</span> Color<span class="op">::</span>black;</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span>;</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a><span class="co">// function prototype</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>WindowHandle <span class="op">=</span> MakeWindow<span class="op">(</span>MakeWindowParams<span class="op">&amp;&amp;</span> args<span class="op">)</span>;</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="co">// function call</span></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a><span class="kw">auto</span> win <span class="op">=</span> MakeWindow<span class="op">({</span> <span class="op">.</span>width <span class="op">=</span> wd, <span class="op">.</span>height <span class="op">=</span> ht, <span class="op">.</span>foreground <span class="op">=</span> fg <span class="op">})</span>;</span></code></pre></div>
+<p><strong>Shortcomings</strong></p>
+<ul>
+<li>Every function potentially needs a custom struct.</li>
+<li>The caller cannot provide arguments other than in the order
+declared, although <span class="citation" data-cites="P3405R0">[<a href="https://wg21.link/p3405r0" role="doc-biblioref">P3405R0</a>]</span> would change that, if
+adopted.</li>
+<li>Does not work with template argument deduction.</li>
+<li>For default-constructible parameter types, there is no way to force
+the caller to supply a value. For example, in the declaration of
+<code class="sourceCode cpp">MakeWindow</code> above, we might want to
+force the caller to specify <code class="sourceCode cpp">width</code>
+and <code class="sourceCode cpp">height</code>, but there is no way to
+express that with this idiom.</li>
+</ul>
+<h1 data-number="11" id="bibliography"><span class="header-section-number">11</span> References<a href="#bibliography" class="self-link"></a></h1>
+<div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="1" role="list">
+<div id="ref-N0060" class="csl-entry" role="listitem">
+[N0060 (X3J16_91-0127)] Keyword parameters in C++. <a href="https://www.open-std.org/JTC1/SC22/WG21/docs/papers/1991/WG21%201991/X3J16_91-0127%20WG21_N0060.pdf"><div class="csl-block">https://www.open-std.org/JTC1/SC22/WG21/docs/papers/1991/WG21%201991/X3J16_91-0127%20WG21_N0060.pdf</div></a>
+</div>
+<div id="ref-N4172" class="csl-entry" role="listitem">
+[N4172] E. Akhgari, B. Ballo. 2014-10-07. Named arguments. <a href="https://wg21.link/n4172"><div class="csl-block">https://wg21.link/n4172</div></a>
+</div>
+<div id="ref-P0671R2" class="csl-entry" role="listitem">
+[P0671R2] Axel Naumann. 2018-05-07. Self-explanatory Function Arguments.
+<a href="https://wg21.link/p0671r2"><div class="csl-block">https://wg21.link/p0671r2</div></a>
+</div>
+<div id="ref-P1229R0" class="csl-entry" role="listitem">
+[P1229R0] Jorg Brown. 2018-10-08. Labelled Parameters. <a href="https://wg21.link/p1229r0"><div class="csl-block">https://wg21.link/p1229r0</div></a>
+</div>
+<div id="ref-P3405R0" class="csl-entry" role="listitem">
+[P3405R0] Elias Kosunen. 2024-09-28. Out-of-order designated
+initializers. <a href="https://wg21.link/p3405r0"><div class="csl-block">https://wg21.link/p3405r0</div></a>
+</div>
+</div>
+<aside id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>All citations to the Standard are to working draft N5008
+unless otherwise specified.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</aside>
+</div>
+</div>
+</body>
+</html>

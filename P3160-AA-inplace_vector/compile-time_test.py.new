@@ -1,0 +1,82 @@
+#! /usr/bin/python3
+
+# Output format:
+#
+# "test name", "compiler", "alloc disabled", "alloc enabled", "increase"
+
+import sys
+import subprocess
+
+options = (( "P0843R10", "-DNON_AA" ),
+           ( "Option 1", "-DOPTION_1" ),
+           ( "Option 2", "-DOPTION_2" ),
+           ( "Option 3", "-DOPTION_3" ));
+
+compilers = (["g++", "-std=c++23"], ["clang++", "-std=c++2b"])
+flags = [ "-Wall", "-O2", "-I." ]
+
+tests = (( "Non-AA `T`",    [ "-DNON_AA_ONLY" ] ),
+         ( "AA `T`",        [ "-DAA_ONLY" ] ),
+         ( "Blended `T`s",  [ ]))
+
+srcfiles = [ ]
+
+# Map test name to status quo time
+referenceTimes = { }
+
+mainSourceFile = "inplace_vector.t.cpp"
+
+# Create a bunch of 1-line source files that include the test file
+os.makedirs("obj")
+os.chdir("obj")
+numCopies = 5  # Compile this many copies of the source file
+# numCopies = 1
+# flags.append("-DVERBOSE")
+for cp in range(numCopies):
+    fileCopyName = f"inplace_vector.{cp}.t.cpp"
+    srcfiles.append(fileCopyName)
+    with open(fileCopyName, "w") as fileCopy:
+        print(f'#include "../{mainSourceFile}"', file=fileCopy)
+
+for optionName, optionDef in options:
+    print(f"\n**Compile times for {optionName}**\n")
+
+    if len(referenceTimes) == 0:
+        print('| Compiler | Test Name | Compile time |\n' +
+              '| -------- | --------- | -----------: |')
+    else:
+        print('| Compiler | Test Name | Compile time | Increase |\n' +
+              '| -------- | --------- | -----------: | -------: |')
+
+    for compilerName, stdFlag in compilers:
+
+        cmdLine = [ "time", "-f", "%U" ] + \
+            [ compilerName, stdFlag, optionDef ] + flags + testDefs
+
+        subprocess.run(cmdLine + [ "-s" ] + "").check_returncode()
+
+        for (testName, testDefs) in tests:
+
+            runName = (optionName+'.'+compileName+'.'+testName).replace(' ','')
+
+            # Generate assembly listing
+            cmdRes = subprocess.run(cmdLine + [ "-c" ] + srcfiles,
+                                    capture_output=True, text=True)
+
+            if cmdRes.returncode != 0:
+                # Compilation failed; repeat compilation, but without capturing
+                # stderr
+                cmdRes = subprocess.run(cmdLine + [ "-c" ] + srcfiles[0:1])
+
+            testTime = float(cmdRes.stderr)
+
+            subprocess.run([ compilerName, stdFlag ] + flags + [ "inplace_vector.cp0.t.o", "-o", "inplace_vector.t" ]).check_returncode()
+            subprocess.run([ "./inplace_vector.t"]).check_returncode()
+
+            refTime = referenceTimes.get(compilerName+testName)
+            if refTime is None:
+                referenceTimes[compilerName+testName] = testTime;
+                print(f'| {compilerName} | {testName} | {testTime} |')
+            else:
+                increasePercent = round((testTime / refTime) * 100 - 100)
+                print(f'| {compilerName} | {testName} | {testTime} | {increasePercent}% |')
