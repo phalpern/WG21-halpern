@@ -86,10 +86,12 @@ generated/{outroot}.pdf : {mdfile}
 
     else:
         mkfileContent = f"""
-{outroot}.pdf : {mdfile}
+generated/{outroot}.html : {mdfile}
+	mkdir -p generated
 	pandoc -s -V geometry:margin=1in -V colorlinks=true --number-sections -f markdown $< -o $@
 
-{outroot}.html : {mdfile}
+generated/{outroot}.pdf : {mdfile}
+	mkdir -p generated
 	cat ~/WG21/html_header.html {mdfile} >> {outroot}.htmlsrc.md
 	pandoc -s -f markdown -t html {outroot}.htmlsrc.md -o $@
 	rm {outroot}.htmlsrc.md

@@ -5,8 +5,8 @@ CXXSTD   ?= c++23
 CXXFLAGS ?= -Wall $(CXXOPT) -std=$(CXXSTD) -I.
 OBJDIR   ?= obj
 
-GIT_ROOT := $(shell git rev-parse --show-toplevel)
-FROM_MD = $(GIT_ROOT)/make-from-md.py
+COMMON_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+FROM_MD = $(COMMON_DIR)make-from-md.py
 
 vpath %.cpp .
 vpath %.h .
