@@ -34,29 +34,27 @@ public:
   using StdMap::map;
 
   template <class K, class... Args>
-  [[nodiscard]] optional<mapped_type&> get(const K& k)
+  [[nodiscard]] optional<mapped_type&> lookup(const K& k)
     requires _IsMapKeyType<Key, Compare, K>
   {
-    auto iter = this->find(k);
-    if (iter != this->end())
-      return { iter->second };
+    if (auto iter = this->find(k); iter != this->end())
+      return iter->second;
     else
       return nullopt;
   }
 
   template <class K, class... Args>
-  [[nodiscard]] optional<const mapped_type&> get(const K& k) const
+  [[nodiscard]] optional<const mapped_type&> lookup(const K& k) const
     requires _IsMapKeyType<Key, Compare, K>
   {
-    auto iter = this->find(k);
-    if (iter != this->end())
+    if (auto iter = this->find(k); iter != this->end())
       return iter->second;
     else
       return nullopt;
   }
 };
 
-// Test constexpr get in the absence of a constexpr-enabled std::map
+// Test constexpr lookup in the absence of a constexpr-enabled std::map
 template <class T, size_t SZ>
 class ArrayMap
 {
@@ -79,15 +77,15 @@ public:
   constexpr const_iterator find(size_t k) const
     { return k < SZ ? begin() + k : end(); }
 
-  constexpr optional<T&> get(size_t k) {
-    if (auto i = find(k); i != end())
-      return i->second;
+  constexpr optional<T&> lookup(size_t k) {
+    if (auto iter = find(k); iter != end())
+      return *iter;
     else
       return nullopt;
   }
-  constexpr optional<const T&> get(size_t k) const {
-    if (auto i = find(k); i != end())
-      return *i;
+  constexpr optional<const T&> lookup(size_t k) const {
+    if (auto iter = find(k); iter != end())
+      return *iter;
     else
       return nullopt;
   }
